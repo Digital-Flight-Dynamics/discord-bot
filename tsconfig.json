@@ -8,7 +8,7 @@
 		],
 
 		"rootDir": "src",
-		"outDir": "lib",
+        "outDir": "out",
 
 		"strict": true,
 		"alwaysStrict": true,
@@ -17,12 +17,12 @@
 		"strictPropertyInitialization": true,
 
 		"forceConsistentCasingInFileNames": true,
-		"noImplicitAny": true,
+		"noImplicitAny": false,
 		"noImplicitReturns": true,
 		"noImplicitThis": true,
 		"noFallthroughCasesInSwitch": true,
 		"noUnusedLocals": true,
-		"noUnusedParameters": true,
+		"noUnusedParameters": false,
 
 		"emitDecoratorMetadata": true,
 		"experimentalDecorators": true,
