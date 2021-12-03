@@ -35,10 +35,10 @@ client.on('messageCreate', async (message) => {
         const args = message.content.split(' ').slice(1);
 
         try {
-            client.commands.get(command).execute(Discord, client, message, args);
+            client.commands.get(command).execute(message, args, config, client, Discord);
             console.log(`Successfully ran command "${command}" by ${message.author.tag} in #${message.channel.name}`);
         } catch (error) {
-            console.log(`Failed to run command "${command}" by ${message.author.tag} ` + error);
+            console.log(`Failed to run command "${command}" by ${message.author.tag}. ` + error);
             return;
         }
     }
