@@ -13,8 +13,6 @@ for (const file of commandFiles) {
     client.commands.set(command.name, command);
 }
 
-const prefix = '.';
-
 client.once('ready', () => {
     console.log('Bot is logged in!');
 });
@@ -23,7 +21,7 @@ client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
     const isDm = message.channel.type === 'DM';
-    const isCommand = message.content.startsWith(prefix);
+    const isCommand = message.content.startsWith(config.prefix);
 
     if (isDm) {
         console.log(`DM sent by ${message.author.tag}`);
