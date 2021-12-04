@@ -4,7 +4,6 @@ module.exports = {
         if (!message.member.permissions.has('BAN_MEMBERS')) return;
 
         const user = message.mentions.users.first();
-        const member = message.guild.members.cache.get(user.id);
 
         if (!user) {
             await message.channel.send({
@@ -17,6 +16,8 @@ module.exports = {
             });
             return;
         }
+
+        const member = message.guild.members.cache.get(user.id);
 
         const reason = args.slice(1).join(' ') || 'None';
 
