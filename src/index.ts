@@ -44,7 +44,7 @@ client.on('messageCreate', async (message) => {
             await client.commands.get(command).execute(message, args, config, client, Discord);
             console.log(`Successfully ran command "${command}" by ${message.author.tag} in #${message.channel.name}`);
         } catch (error) {
-            console.log(`Failed to run command "${command}" by ${message.author.tag}. ` + error);
+            console.log(`Failed to run command "${command}" by ${message.author.tag} in #${message.channel.name}. ` + error);
             return;
         }
     }
