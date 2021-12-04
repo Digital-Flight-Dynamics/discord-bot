@@ -3,7 +3,7 @@ const Discord = require('discord.js');
 const config = require('./config.json');
 
 const intents = new Discord.Intents(32767);
-const client = new Discord.Client({ intents });
+const client = new Discord.Client({ partials: ['CHANNEL'], intents });
 
 client.commands = new Discord.Collection();
 const commandFiles = fs.readdirSync('src/commands').filter((file) => file.endsWith('.ts'));
@@ -26,7 +26,13 @@ client.on('messageCreate', async (message) => {
     const isCommand = message.content.startsWith(prefix);
 
     if (isDm) {
-        await console.log(`DM sent by ${message.author.tag}`);
+        console.log(`DM sent by ${message.author.tag}`);
+        const dm = new Discord.MessageEmbed()
+            .setColor(config.embedColor)
+            .setTitle('Message Received')
+            .addFields({ name: `User`, value: `${message.author.tag}` }, { name: `Content`, value: `${message.content}` });
+        await client.users.fetch('726974755151806465').then((u) => u.send({ embeds: [dm] }));
+
         return;
     }
 
@@ -45,11 +51,11 @@ client.on('messageCreate', async (message) => {
 });
 
 client.on('guildMemberAdd', async (member) => {
-    await member.guild.channels.fetch('915831623084286043').then((c) => c.send(`Hello ${member.user}, welcome to ${member.guild}!`));
+    await member.guild.channels.cache.find((c) => c.name === 'arrivals').send(`Hello ${member.user}, welcome to ${member.guild}!`);
     console.log(`${member.user.tag} has joined. Join message was successfully sent.`);
 });
 client.on('guildMemberRemove', async (member) => {
-    await member.guild.channels.fetch('915832782838697986').then((c) => c.send(`**${member.user.tag}** just left the server`));
+    await member.guild.channels.cache.find((c) => c.name === 'leaves').send(`**${member.user.tag}** just left the server`);
     console.log(`${member.user.tag} has left. Leave message was successfully sent.`);
 });
 
