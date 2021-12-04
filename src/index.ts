@@ -6,11 +6,14 @@ const intents = new Discord.Intents(32767);
 const client = new Discord.Client({ partials: ['CHANNEL'], intents });
 
 client.commands = new Discord.Collection();
-const commandFiles = fs.readdirSync('src/commands').filter((file) => file.endsWith('.ts'));
+const commandFolders = fs.readdirSync(`src/commands`);
 
-for (const file of commandFiles) {
-    const command = require(`./commands/${file}`);
-    client.commands.set(command.name, command);
+for (const folder of commandFolders) {
+    const commandFiles = fs.readdirSync(`src/commands/${folder}`).filter((file) => file.endsWith('.ts'));
+    for (const file of commandFiles) {
+        const command = require(`./commands/${folder}/${file}`);
+        client.commands.set(command.name, command);
+    }
 }
 
 client.once('ready', () => {
