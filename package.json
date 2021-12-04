@@ -10,7 +10,8 @@
   "author": "Digital Flight Dynamics",
   "license": "GPL-3.0",
   "dependencies": {
-    "discord.js": "^13.3.1"
+    "discord.js": "^13.3.1",
+    "xhr2": "^0.2.1"
   },
   "devDependencies": {
     "eslint": "^8.3.0",
