@@ -5,6 +5,11 @@ module.exports = {
 
         const user = message.mentions.users.first();
 
+        if (!user) {
+            await message.channel.send({ embeds: [new Discord.MessageEmbed().setColor(config.embedColor).setTitle('Error').setDescription('Please mention a valid user')] });
+            return;
+        }
+
         const content = args.slice(1).join(' ');
 
         const dmEmbed = new Discord.MessageEmbed().setColor(config.embedColor).setTitle('Digital Flight Dynamics').setDescription(content);

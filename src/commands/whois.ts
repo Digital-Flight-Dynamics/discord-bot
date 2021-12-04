@@ -1,7 +1,13 @@
 module.exports = {
     name: 'whois',
-    execute(message, args, config, client, Discord) {
+    async execute(message, args, config, client, Discord) {
         const user = message.mentions.users.first();
+
+        if (!user) {
+            await message.channel.send({ embeds: [new Discord.MessageEmbed().setColor(config.embedColor).setTitle('Error').setDescription('Please mention a valid user')] });
+            return;
+        }
+
         const member = message.guild.members.cache.get(user.id);
         const joined = member.joinedAt.toString().split(' ');
         const registered = user.createdAt.toString().split(' ');
@@ -20,6 +26,6 @@ module.exports = {
             )
             .setFooter(`ID: ${user.id}`);
 
-        message.channel.send({ embeds: [embed] });
+        await message.channel.send({ embeds: [embed] });
     },
 };
