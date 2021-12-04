@@ -8,10 +8,7 @@ module.exports = {
         if (!icao) {
             await message.channel.send({
                 embeds: [
-                    new Discord.MessageEmbed()
-                        .setColor(config.embedColor)
-                        .setTitle('Error')
-                        .setDescription('Please enter a valid ICAO code'),
+                    new Discord.MessageEmbed().setColor(config.embedColor).setTitle('Error').setDescription('Please enter an ICAO code'),
                 ],
             });
             return;
@@ -25,6 +22,18 @@ module.exports = {
         http.onreadystatechange = async function () {
             if (this.readyState === 4) {
                 const metarData = http.responseText;
+
+                if (metarData.includes('<h1>Not Found</h1>')) {
+                    await message.channel.send({
+                        embeds: [
+                            new Discord.MessageEmbed()
+                                .setColor(config.embedColor)
+                                .setTitle('Error')
+                                .setDescription('Please enter a valid ICAO code'),
+                        ],
+                    });
+                    return;
+                }
 
                 const embed = new Discord.MessageEmbed()
                     .setColor(config.embedColor)
