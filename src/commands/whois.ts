@@ -25,7 +25,6 @@ module.exports = {
                 { name: `Highest Role`, value: `${member.roles.highest}`, inline: true },
             )
             .setFooter(`ID: ${user.id}`);
-
         await message.channel.send({ embeds: [embed] });
     },
 };

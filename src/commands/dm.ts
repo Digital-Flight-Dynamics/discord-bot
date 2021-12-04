@@ -20,6 +20,6 @@ module.exports = {
             .setTitle('DM User')
             .setDescription(`DM sent to ${user}`)
             .addFields({ name: 'Content', value: `${content}` });
-        message.channel.send({ embeds: [embed] });
+        await message.channel.send({ embeds: [embed] });
     },
 };
