@@ -3,7 +3,7 @@ const Discord = require('discord.js');
 const config = require('./config.json');
 
 const intents = new Discord.Intents(32767);
-const client = new Discord.Client({ partials: ['CHANNEL'], intents });
+const client = new Discord.Client({ partials: ['USER', 'CHANNEL', 'GUILD_MEMBER', 'MESSAGE', 'REACTION'], intents });
 
 client.commands = new Discord.Collection();
 const commandFolders = fs.readdirSync(`src/commands`);
