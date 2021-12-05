@@ -5,7 +5,8 @@
   "scripts": {
     "test": "test",
     "build": "tsc",
-    "dev": "tsc-watch --noClear -p ./tsconfig.json --onSuccess \"node ./src/index.ts\""
+    "dev": "tsc-watch --noClear -p ./tsconfig.json --onSuccess \"node ./src/index.ts\"",
+    "start": "node ./src/index.ts"
   },
   "author": "Digital Flight Dynamics",
   "license": "GPL-3.0",
