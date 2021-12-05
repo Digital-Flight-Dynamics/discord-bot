@@ -10,6 +10,10 @@
   },
   "author": "Digital Flight Dynamics",
   "license": "GPL-3.0",
+  "engines": {
+    "node": "17.x",
+    "npm": "8.x"
+  },
   "dependencies": {
     "discord.js": "^13.3.1",
     "dotenv": "^10.0.0",
