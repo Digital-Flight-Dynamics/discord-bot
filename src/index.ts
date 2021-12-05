@@ -58,4 +58,4 @@ client.on('guildMemberRemove', async (member) => {
     await member.guild.channels.cache.find((c) => c.name === 'leaves').send(`**${member.user.tag}** just left the server`);
 });
 
-client.login(config.token);
+client.login(process.env.token);
