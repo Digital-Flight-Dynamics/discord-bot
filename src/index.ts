@@ -53,11 +53,9 @@ client.on('messageCreate', async (message) => {
 
 client.on('guildMemberAdd', async (member) => {
     await member.guild.channels.cache.find((c) => c.name === 'arrivals').send(`Hello ${member.user}, welcome to ${member.guild}!`);
-    console.log(`${member.user.tag} has joined. Join message was successfully sent.`);
 });
 client.on('guildMemberRemove', async (member) => {
     await member.guild.channels.cache.find((c) => c.name === 'leaves').send(`**${member.user.tag}** just left the server`);
-    console.log(`${member.user.tag} has left. Leave message was successfully sent.`);
 });
 
 client.login(config.token);
