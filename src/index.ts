@@ -1,6 +1,8 @@
 const fs = require('fs');
 const Discord = require('discord.js');
 const config = require('./config.json');
+
+const memberCounter = require('./utils/MemberCounter.ts');
 require('dotenv').config();
 
 const intents = new Discord.Intents(32767);
@@ -19,6 +21,8 @@ for (const folder of commandFolders) {
 
 client.once('ready', () => {
     console.log('Bot is logged in!');
+
+    memberCounter(client);
 });
 
 client.on('messageCreate', async (message) => {
@@ -39,7 +43,7 @@ client.on('messageCreate', async (message) => {
     }
 
     if (isCommand) {
-        const command = message.content.substring(1).split(' ')[0];
+        const command = message.content.substring(1).toLowerCase().split(' ')[0];
         const args = message.content.split(' ').slice(1);
 
         try {
