@@ -11,7 +11,7 @@ module.exports = {
                     { name: 'A35X', value: 'Commands related to the A35X project' },
                     { name: 'General', value: 'Generic commands' },
                     { name: 'Moderation', value: 'Commands used by staff' },
-                    { name: 'Shit', value: 'Just for the sake of it' },
+                    { name: 'Fun', value: 'Fun commands' },
                 );
             await message.channel.send({ embeds: [rootEmbed] });
 
@@ -40,8 +40,10 @@ module.exports = {
                 { name: '.purge', value: 'Clears the specified amount of messages' },
                 { name: '.whois', value: 'Gives information about the mentioned user' },
             );
-        } else if (category === 'shit') {
-            embed.addFields({ name: 'e', value: 'e' });
+        } else if (category === 'fun') {
+            embed.addFields({ name: '.fun', value: 'A placeholder fun command' });
+        } else {
+            return;
         }
 
         await message.channel.send({ embeds: [embed] });
