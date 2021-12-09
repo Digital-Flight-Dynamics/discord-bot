@@ -3,6 +3,7 @@ const Discord = require('discord.js');
 const config = require('./config.json');
 
 const memberCounter = require('./utils/MemberCounter.ts');
+const autoKick = require('./utils/AutoKick.ts');
 require('dotenv').config();
 
 const intents = new Discord.Intents(32767);
@@ -41,6 +42,8 @@ client.on('messageCreate', async (message) => {
 
         return;
     }
+
+    autoKick(message);
 
     if (isCommand) {
         const command = message.content.substring(1).toLowerCase().split(' ')[0];
