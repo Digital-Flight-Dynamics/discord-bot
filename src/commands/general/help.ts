@@ -8,7 +8,7 @@ module.exports = {
                 .setColor(config.embedColor)
                 .setTitle('Command Categories')
                 .addFields(
-                    { name: 'A35X', value: 'Commands related to the A35X project' },
+                    { name: 'A350X', value: 'Commands related to the A350X project' },
                     { name: 'General', value: 'Generic commands' },
                     { name: 'Moderation', value: 'Commands used by staff' },
                     { name: 'Fun', value: 'Fun commands' },
@@ -22,12 +22,12 @@ module.exports = {
 
         const embed = new Discord.MessageEmbed().setColor(config.embedColor);
 
-        if (category === 'a35x') {
+        if (category === 'a350x') {
             embed
-                .setTitle('A35X')
+                .setTitle('A350X')
                 .addFields(
-                    { name: '.marketplace', value: 'Will the A35X come to the MSFS Marketplace or Xbox?' },
-                    { name: '.when', value: 'When is the A35X coming?' },
+                    { name: '.marketplace', value: 'Will the A350X come to the MSFS Marketplace or Xbox?' },
+                    { name: '.when', value: 'When is the A350X coming?' },
                 );
         } else if (category === 'general') {
             embed

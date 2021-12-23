@@ -8,5 +8,9 @@ module.exports = {
         'no-undef': 'off',
         'no-nested-ternary': 'off',
         'linebreak-style': 'off',
+        'global-require': 'off',
+        'import/no-dynamic-require': 'off',
+        'no-console': 'off',
+        'operator-linebreak': 'off',
     },
 };

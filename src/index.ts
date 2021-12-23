@@ -1,16 +1,16 @@
 const fs = require('fs');
 const Discord = require('discord.js');
 const config = require('./config.json');
+require('dotenv').config();
 
 const memberCounter = require('./utils/MemberCounter.ts');
 const autoKick = require('./utils/AutoKick.ts');
-require('dotenv').config();
 
 const intents = new Discord.Intents(32767);
 const client = new Discord.Client({ partials: ['USER', 'CHANNEL', 'GUILD_MEMBER', 'MESSAGE', 'REACTION'], intents });
 
 client.commands = new Discord.Collection();
-const commandFolders = fs.readdirSync(`src/commands`);
+const commandFolders = fs.readdirSync('src/commands');
 
 for (const folder of commandFolders) {
     const commandFiles = fs.readdirSync(`src/commands/${folder}`).filter((file) => file.endsWith('.ts'));
@@ -37,7 +37,7 @@ client.on('messageCreate', async (message) => {
         const dm = new Discord.MessageEmbed()
             .setColor(config.embedColor)
             .setTitle('Message Received')
-            .addFields({ name: `User`, value: `${message.author.tag}` }, { name: `Content`, value: `${message.content}` });
+            .addFields({ name: 'User', value: `${message.author.tag}` }, { name: 'Content', value: `${message.content}` });
         await client.users.fetch('726974755151806465').then((u) => u.send({ embeds: [dm] }));
 
         return;
@@ -53,8 +53,7 @@ client.on('messageCreate', async (message) => {
             await client.commands.get(command).execute(message, args, config, client, Discord);
             console.log(`Successfully ran command "${command}" by ${message.author.tag} in #${message.channel.name}`);
         } catch (error) {
-            console.log(`Failed to run command "${command}" by ${message.author.tag} in #${message.channel.name}. ` + error);
-            return;
+            console.log(`Failed to run command "${command}" by ${message.author.tag} in #${message.channel.name}. ${error}`);
         }
     }
 });
