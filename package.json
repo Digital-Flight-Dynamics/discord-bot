@@ -8,8 +8,8 @@
   "author": "Digital Flight Dynamics",
   "license": "GPL-3.0",
   "engines": {
-    "node": "17.x",
-    "npm": "8.x"
+    "node": "17.2.0",
+    "npm": "8.1.4"
   },
   "dependencies": {
     "xhr2": "^0.2.1"
