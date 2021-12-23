@@ -1,34 +1,21 @@
-const fs = require('fs');
-const Discord = require('discord.js');
-const config = require('./config.json');
+import Discord from 'discord.js';
+import { commands } from './commands';
+import startMessageLogs from './logging';
+import { AutoKick } from './utils/AutoKick';
+import { MemberCounter } from './utils/MemberCounter';
 
 require('dotenv').config();
-
-const memberCounter = require('./utils/MemberCounter.ts');
-const autoKick = require('./utils/AutoKick.ts');
-const { startMessageLogs } = require('./logging/MessageLogs.ts');
 
 const intents = new Discord.Intents(32767);
 const client = new Discord.Client({ partials: ['USER', 'CHANNEL', 'GUILD_MEMBER', 'MESSAGE', 'REACTION'], intents });
 
-module.exports.Discord = Discord;
-module.exports.client = client;
-
-client.commands = new Discord.Collection();
-const commandFolders = fs.readdirSync('src/commands');
-
-for (const folder of commandFolders) {
-    const commandFiles = fs.readdirSync(`src/commands/${folder}`).filter((file) => file.endsWith('.ts'));
-    for (const file of commandFiles) {
-        const command = require(`./commands/${folder}/${file}`);
-        client.commands.set(command.name, command);
-    }
-}
+export const color = '#18B1AB';
+const prefix = '.';
 
 client.once('ready', () => {
     console.log('Bot is logged in!');
 
-    memberCounter(client);
+    MemberCounter(client);
 });
 
 startMessageLogs(client);
@@ -37,12 +24,12 @@ client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
     const isDm = message.channel.type === 'DM';
-    const isCommand = message.content.startsWith(config.prefix);
+    const isCommand = message.content.startsWith(prefix);
 
     if (isDm) {
         console.log(`DM sent by ${message.author.tag}`);
         const dm = new Discord.MessageEmbed()
-            .setColor(config.embedColor)
+            .setColor(color)
             .setTitle('Message Received')
             .addFields(
                 { name: 'User', value: `${message.author.tag}` },
@@ -53,32 +40,52 @@ client.on('messageCreate', async (message) => {
         return;
     }
 
-    autoKick(message);
+    AutoKick(message);
 
     if (isCommand) {
-        const command = message.content.substring(1).toLowerCase().split(' ')[0];
+        const commandUsed = message.content.substring(1).toLowerCase().split(' ')[0];
         const args = message.content.split(' ').slice(1);
 
-        try {
-            await client.commands.get(command).execute(message, args, config, client, Discord);
-            console.log(`Successfully ran command "${command}" by ${message.author.tag} in #${message.channel.name}`);
-        } catch (error) {
-            console.log(
-                `Failed to run command "${command}" by ${message.author.tag} in #${message.channel.name}. ${error}`,
-            );
+        for (const command of commands) {
+            for (const name of command.names) {
+                if (commandUsed === name) {
+                    if (!message.member.permissions.has(command.permissions)) {
+                        message.channel.send({
+                            embeds: [
+                                new Discord.MessageEmbed()
+                                    .setColor('#FF0000')
+                                    .setTitle('Error')
+                                    .setDescription('You do not have the required permissions to use that command'),
+                            ],
+                        });
+                        return;
+                    }
+
+                    try {
+                        command.execute(message, args);
+                        console.log(
+                            `Successfully ran command "${message.content}" by ${message.author.tag} in #${message.channel.name}`,
+                        );
+                    } catch (error) {
+                        console.log(
+                            `Failed to run command "${message.content}" by ${message.author.tag} in #${message.channel.name}. ${error}`,
+                        );
+                    }
+                }
+            }
         }
     }
 });
 
 client.on('guildMemberAdd', async (member) => {
-    await member.guild.channels.cache
-        .find((c) => c.name === 'arrivals')
-        .send(`Hello ${member.user}, welcome to ${member.guild}!`);
+    await (member.guild.channels.cache.find((c) => c.name === 'arrivals') as Discord.TextChannel).send(
+        `Hello ${member.user}, welcome to ${member.guild}!`,
+    );
 });
 client.on('guildMemberRemove', async (member) => {
-    await member.guild.channels.cache
-        .find((c) => c.name === 'leaves')
-        .send(`**${member.user.tag}** just left the server`);
+    await (member.guild.channels.cache.find((c) => c.name === 'leaves') as Discord.TextChannel).send(
+        `**${member.user.tag}** just left the server`,
+    );
 });
 
 client.login(process.env.token);

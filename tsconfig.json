@@ -1,12 +1,12 @@
 {
     "compilerOptions": {
-      "lib": ["ES2020"],
-      "module": "commonjs",
-      "outDir": "out",
-      "strict": true,
-      "noImplicitAny": false,
-      "esModuleInterop": true,
-      "skipLibCheck": true,
-      "forceConsistentCasingInFileNames": true
+        "allowSyntheticDefaultImports": true,
+        "lib": [
+            "ES2020"
+        ],
+        "outDir": "out",
+        "moduleResolution": "node",
+        "esModuleInterop": true,
+        "experimentalDecorators": false
     }
 }

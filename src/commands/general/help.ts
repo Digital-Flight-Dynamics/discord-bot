@@ -1,57 +1,49 @@
-module.exports = {
-    name: 'help',
-    async execute(message, args, config, client, Discord) {
+import Discord from 'discord.js';
+import { CommandCategories, CommandDefinition, commands } from '../index';
+import { color } from '../../index';
+
+export const help: CommandDefinition = {
+    names: ['help'],
+    description: 'Gives an overview of all available commands',
+    category: CommandCategories.GENERAL,
+    execute: async (message, args) => {
         let category = args[0];
 
         if (!category) {
             const rootEmbed = new Discord.MessageEmbed()
-                .setColor(config.embedColor)
+                .setColor(color)
                 .setTitle('Command Categories')
                 .addFields(
                     { name: 'A350X', value: 'Commands related to the A350X project' },
                     { name: 'General', value: 'Generic commands' },
                     { name: 'Moderation', value: 'Commands used by staff' },
-                    { name: 'Fun', value: 'Fun commands' },
                 );
             await message.channel.send({ embeds: [rootEmbed] });
 
             return;
         }
 
-        category = category.toLowerCase();
+        category = category.toUpperCase();
 
-        const embed = new Discord.MessageEmbed().setColor(config.embedColor);
+        const embed = new Discord.MessageEmbed().setColor(color);
 
-        if (category === 'a350x') {
-            embed
-                .setTitle('A350X')
-                .addFields(
-                    { name: '.marketplace', value: 'Will the A350X come to the MSFS Marketplace or Xbox?' },
-                    { name: '.when', value: 'When is the A350X coming?' },
-                );
-        } else if (category === 'general') {
-            embed
-                .setTitle('General')
-                .addFields(
-                    { name: '.membercount', value: 'Displays the amount of members in the server' },
-                    { name: '.metar', value: 'Shows the metar for the selected airport (`.metar ICAO`)' },
-                );
-        } else if (category === 'moderation') {
-            embed
-                .setTitle('Moderation')
-                .addFields(
-                    { name: '.ban', value: 'Bans the mentioned user (`.ban <@id> ban reason here`)' },
-                    { name: '.dm', value: 'Sends a DM to the mentioned user (`.dm <@id> dm message here`)' },
-                    { name: '.kick', value: 'Kicks the mentioned user (`.kick <@id> kick reason here`)' },
-                    { name: '.purge', value: 'Clears the specified amount of messages (`.purge amount`)' },
-                    { name: '.whois', value: 'Gives information about the mentioned user (`.whois <@id>`)' },
-                );
-        } else if (category === 'fun') {
-            embed.setTitle('Fun').addFields({ name: '.fun', value: 'A placeholder fun command' });
-        } else {
-            return;
+        const cmds = [];
+
+        for (const command of commands) {
+            if (command.category.toUpperCase() === category) {
+                cmds.push(command);
+                embed.setTitle(`${command.category}`);
+            }
         }
 
-        await message.channel.send({ embeds: [embed] });
+        const fields = [];
+
+        for (const cmd of cmds) {
+            fields.push({ name: `.${cmd.names}`, value: `${cmd.description}` });
+        }
+
+        embed.addFields(fields);
+
+        await message.channel.send({ embeds: [embed] }).catch((err) => console.log(err));
     },
 };

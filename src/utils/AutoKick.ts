@@ -1,4 +1,7 @@
-module.exports = async (message) => {
+import Discord from 'discord.js';
+import { color } from '../index';
+
+export const AutoKick = async (message) => {
     if (message.content.includes('@everyone') && !message.member.permissions.has('MENTION_EVERYONE')) {
         const member = message.guild.members.cache.get(message.author.id);
 
@@ -21,18 +24,24 @@ module.exports = async (message) => {
         ];
 
         const dmEmbed = new Discord.MessageEmbed()
-            .setColor(config.embedColor)
+            .setColor(color)
             .setTitle(`Kicked from ${message.guild.name}`)
             .addFields(
                 { name: 'Reason', value: 'Kicked as a precaution - potential scam', inline: true },
-                { name: 'Moderator', value: 'Automated Ban', inline: true },
-            );
+                { name: 'Moderator', value: 'Automated Kick', inline: true },
+            )
+            .setFooter('If this was a mistake, you can join back. https://discord.gg/dfd');
+
+        let shouldKick = false;
 
         for (const word of blacklist) {
             if (message.content.includes(word)) {
-                await member.user.send({ embeds: [dmEmbed] });
-                await member.kick();
+                shouldKick = true;
             }
         }
+        if (!shouldKick) return;
+
+        await member.user.send({ embeds: [dmEmbed] });
+        await member.kick();
     }
 };

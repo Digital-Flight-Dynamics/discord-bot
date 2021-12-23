@@ -1,13 +1,13 @@
-const index = require('../index.ts');
-const { embedColor } = require('../config.json');
+import Discord from 'discord.js';
+import { startMessageLogs } from './MessageLogs';
 
-module.exports = {
-    createLogEmbed(title, description, footer) {
-        return new index.Discord.MessageEmbed()
-            .setColor(embedColor)
-            .setTitle(title)
-            .setDescription(description)
-            .setFooter(footer)
-            .setTimestamp();
-    },
-};
+export const createLogEmbed = (color, title, description, footer) =>
+    // eslint-disable-next-line implicit-arrow-linebreak
+    new Discord.MessageEmbed()
+        .setColor(color)
+        .setTitle(title)
+        .setDescription(description)
+        .setFooter(footer)
+        .setTimestamp();
+
+export default startMessageLogs;
