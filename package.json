@@ -3,8 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "build": "tsc",
-    "dev": "nodemon --watch src/ -e ts --exec ts-node src/index.ts",
-    "start": "node out/index.js"
+    "dev": "nodemon --watch src/ -e ts --exec ts-node src/index.ts"
   },
   "author": "Digital Flight Dynamics",
   "license": "GPL-3.0",
