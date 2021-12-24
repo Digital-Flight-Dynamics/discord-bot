@@ -1,15 +1,15 @@
 import Discord from 'discord.js';
-import { marketplace } from './a350x/marketplace';
 import { when } from './a350x/when';
-import { help } from './general/help';
-import { ban } from './moderation/ban';
-import { dm } from './moderation/dm';
+import { marketplace } from './a350x/marketplace';
 import { faq } from './a350x/faq';
+import { help } from './general/help';
 import { info } from './moderation/info';
-import { kick } from './moderation/kick';
-import { purge } from './moderation/purge';
-import { whois } from './moderation/whois';
 import { rules } from './moderation/rules';
+import { purge } from './moderation/purge';
+import { ban } from './moderation/ban';
+import { kick } from './moderation/kick';
+import { dm } from './moderation/dm';
+import { whois } from './moderation/whois';
 
 export const enum CommandCategories {
     A350X = 'A350X',
@@ -24,4 +24,4 @@ export type CommandDefinition = {
     execute: Function;
 };
 
-export const commands: CommandDefinition[] = [marketplace, when, help, ban, dm, kick, purge, whois, info, faq, rules];
+export const commands: CommandDefinition[] = [when, marketplace, faq, help, info, rules, purge, ban, kick, dm, whois];

@@ -1,6 +1,6 @@
 import Discord from 'discord.js';
 import { commands } from './commands';
-import startMessageLogs from './logging';
+import logs from './logging';
 import { AutoKick } from './utils/AutoKick';
 import { MemberCounter } from './utils/MemberCounter';
 
@@ -18,7 +18,9 @@ client.once('ready', () => {
     MemberCounter(client);
 });
 
-startMessageLogs(client);
+for (const startLog of logs) {
+    startLog(client);
+}
 
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;

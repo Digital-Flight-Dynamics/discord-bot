@@ -1,4 +1,5 @@
 import Discord from 'discord.js';
+import { startChannelLogs } from './ChannelLogs';
 import { startMessageLogs } from './MessageLogs';
 
 export const createLogEmbed = (color, title, description, footer) =>
@@ -10,4 +11,4 @@ export const createLogEmbed = (color, title, description, footer) =>
         .setFooter(footer)
         .setTimestamp();
 
-export default startMessageLogs;
+export default [startChannelLogs, startMessageLogs];
