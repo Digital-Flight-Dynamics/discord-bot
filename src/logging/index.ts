@@ -1,6 +1,7 @@
 import Discord from 'discord.js';
 import { startChannelLogs } from './ChannelLogs';
 import { startMessageLogs } from './MessageLogs';
+import { startRoleLogs } from './RoleLogs';
 
 export const createLogEmbed = (color, title, description, footer) =>
     // eslint-disable-next-line implicit-arrow-linebreak
@@ -11,4 +12,4 @@ export const createLogEmbed = (color, title, description, footer) =>
         .setFooter(footer)
         .setTimestamp();
 
-export default [startChannelLogs, startMessageLogs];
+export default [startChannelLogs, startMessageLogs, startRoleLogs];

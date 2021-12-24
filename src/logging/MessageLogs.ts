@@ -3,7 +3,9 @@ import { createLogEmbed } from './index';
 export const startMessageLogs = (client) => {
     client.on('messageDelete', async (message) => {
         if (message.author.bot) return;
+
         const logChannel = message.guild.channels.cache.find((c) => c.name === 'logs');
+
         const embed = createLogEmbed(
             '#FF0000',
             `Message deleted in #${message.channel.name}`,
@@ -15,6 +17,7 @@ export const startMessageLogs = (client) => {
     });
     client.on('messageUpdate', async (oldMsg, newMsg) => {
         const logChannel = oldMsg.guild.channels.cache.find((c) => c.name === 'logs');
+
         const embed = createLogEmbed(
             '#FFAA00',
             `Message edited in #${oldMsg.channel.name}`,
