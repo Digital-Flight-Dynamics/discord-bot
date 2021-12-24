@@ -31,6 +31,7 @@ export const startChannelLogs = (client) => {
     });
     client.on('channelUpdate', async (oldChannel, newChannel) => {
         if (oldChannel.type === 'DM') return;
+        if (oldChannel.name.includes('Member Count:')) return; // Ignore membercount channel name change
 
         const logChannel = oldChannel.guild.channels.cache.find((c) => c.name === 'logs');
 
