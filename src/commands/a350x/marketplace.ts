@@ -6,7 +6,7 @@ export const marketplace: CommandDefinition = {
     names: ['marketplace', 'xbox'],
     description: "Explains why the A350X won't be coming to the MSFS marketplace",
     category: CommandCategories.A350X,
-    execute: (message, args) => {
+    execute: async (message, args) => {
         const embed = new Discord.MessageEmbed()
             .setColor(color)
             .setTitle('Will the A350X come to the MSFS Marketplace or Xbox?')
@@ -17,6 +17,6 @@ export const marketplace: CommandDefinition = {
                     'Furthermore, Microsoft does not allow addons on the marketplace that use copyleft licenses such as GPL due to legal reasons.',
             )
             .setFooter('TL;DR: It will neither come to the marketplace, nor will it come to Xbox.');
-        message.channel.send({ embeds: [embed] });
+        await message.channel.send({ embeds: [embed] });
     },
 };

@@ -3,10 +3,10 @@ import { CommandCategories, CommandDefinition } from '../index';
 import { color } from '../../index';
 
 export const when: CommandDefinition = {
-    names: ['when', 'release'],
+    names: ['when'],
     description: "Explains how we don't know when the A350X will release",
     category: CommandCategories.A350X,
-    execute: (message, args) => {
+    execute: async (message, args) => {
         const embed = new Discord.MessageEmbed()
             .setColor(color)
             .setTitle('When is the A350X coming?')
@@ -17,6 +17,6 @@ export const when: CommandDefinition = {
                     'However, we cannot provide a release date or estimate for the reasons stated above.',
             );
 
-        message.channel.send({ embeds: [embed] });
+        await message.channel.send({ embeds: [embed] });
     },
 };

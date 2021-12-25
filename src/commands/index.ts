@@ -3,6 +3,7 @@ import { when } from './a350x/when';
 import { marketplace } from './a350x/marketplace';
 import { faq } from './a350x/faq';
 import { help } from './general/help';
+import { whened } from './fun/whened';
 import { info } from './moderation/info';
 import { rules } from './moderation/rules';
 import { purge } from './moderation/purge';
@@ -31,6 +32,7 @@ export const commands: CommandDefinition[] = [
     marketplace,
     faq,
     help,
+    whened,
     info,
     rules,
     purge,
