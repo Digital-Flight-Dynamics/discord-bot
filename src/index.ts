@@ -7,7 +7,10 @@ import { MemberCounter } from './utils/MemberCounter';
 require('dotenv').config();
 
 const intents = new Discord.Intents(32767);
-const client = new Discord.Client({ partials: ['USER', 'CHANNEL', 'GUILD_MEMBER', 'MESSAGE', 'REACTION'], intents });
+export const client = new Discord.Client({
+    partials: ['USER', 'CHANNEL', 'GUILD_MEMBER', 'MESSAGE', 'REACTION'],
+    intents,
+});
 
 export const color = '#18B1AB';
 const prefix = '.';
