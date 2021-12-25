@@ -7,6 +7,7 @@ import { whened } from './fun/whened';
 import { whoosh } from './fun/whoosh';
 import { info } from './moderation/info';
 import { rules } from './moderation/rules';
+import { reactionroles } from './moderation/reactionroles';
 import { purge } from './moderation/purge';
 import { ban } from './moderation/ban';
 import { idban } from './moderation/idban';
@@ -38,6 +39,7 @@ export const commands: CommandDefinition[] = [
     whoosh,
     info,
     rules,
+    reactionroles,
     purge,
     ban,
     idban,

@@ -13,7 +13,7 @@ export const startMessageLogs = (client) => {
             `User ID: ${message.author.id}`,
         ).setAuthor(message.author.tag, message.author.avatarURL());
 
-        await logChannel.send({ embeds: [embed] });
+        await logChannel.send({ embeds: [embed] }).catch((err) => console.error(err));
     });
     client.on('messageUpdate', async (oldMsg, newMsg) => {
         const logChannel = oldMsg.guild.channels.cache.find((c) => c.name === 'logs');
@@ -25,6 +25,6 @@ export const startMessageLogs = (client) => {
             `User ID: ${oldMsg.author.id}`,
         ).setAuthor(oldMsg.author.tag, oldMsg.author.avatarURL());
 
-        await logChannel.send({ embeds: [embed] });
+        await logChannel.send({ embeds: [embed] }).catch((err) => console.error(err));
     });
 };

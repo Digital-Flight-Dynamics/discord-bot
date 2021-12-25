@@ -3,11 +3,12 @@ import { commands } from './commands';
 import logs from './logging';
 import { AutoKick } from './utils/AutoKick';
 import { MemberCounter } from './utils/MemberCounter';
+import { ReactionRoles } from './utils/ReactionRoles';
 
 require('dotenv').config();
 
 const intents = new Discord.Intents(32767);
-export const client = new Discord.Client({
+const client = new Discord.Client({
     partials: ['USER', 'CHANNEL', 'GUILD_MEMBER', 'MESSAGE', 'REACTION'],
     intents,
 });
@@ -24,6 +25,8 @@ client.once('ready', () => {
 for (const startLog of logs) {
     startLog(client);
 }
+
+ReactionRoles(client);
 
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
