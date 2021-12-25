@@ -4,6 +4,7 @@ import { marketplace } from './a350x/marketplace';
 import { faq } from './a350x/faq';
 import { help } from './general/help';
 import { whened } from './fun/whened';
+import { whoosh } from './fun/whoosh';
 import { info } from './moderation/info';
 import { rules } from './moderation/rules';
 import { purge } from './moderation/purge';
@@ -17,6 +18,7 @@ import { whois } from './moderation/whois';
 export const enum CommandCategories {
     A350X = 'A350X',
     GENERAL = 'General',
+    FUN = 'Fun',
     MODERATION = 'Moderation',
 }
 export type CommandDefinition = {
@@ -33,6 +35,7 @@ export const commands: CommandDefinition[] = [
     faq,
     help,
     whened,
+    whoosh,
     info,
     rules,
     purge,

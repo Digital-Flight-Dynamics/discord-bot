@@ -13,7 +13,7 @@ export const unban: CommandDefinition = {
         const invalidEmbed = new Discord.MessageEmbed()
             .setColor('#FF0000')
             .setTitle('Error')
-            .setDescription('Please enter a valid user ID');
+            .setDescription('This user is not banned, or you entered an invalid ID');
 
         if (!id) {
             await message.channel.send({ embeds: [invalidEmbed] });
@@ -23,8 +23,6 @@ export const unban: CommandDefinition = {
         const ban = await message.guild.bans.fetch(id).catch((err) => console.log(err));
 
         if (!ban) {
-            invalidEmbed.setDescription('This user is not banned, or you entered an invalid ID');
-
             await message.channel.send({ embeds: [invalidEmbed] });
             return;
         }
