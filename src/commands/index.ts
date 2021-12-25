@@ -14,7 +14,6 @@ import { unban } from './moderation/unban';
 import { kick } from './moderation/kick';
 import { dm } from './moderation/dm';
 import { whois } from './moderation/whois';
-import { sticky } from './moderation/sticky';
 
 export const enum CommandCategories {
     A350X = 'A350X',
@@ -46,5 +45,4 @@ export const commands: CommandDefinition[] = [
     kick,
     dm,
     whois,
-    sticky,
 ];
