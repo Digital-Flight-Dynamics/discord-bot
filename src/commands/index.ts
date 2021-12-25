@@ -7,6 +7,8 @@ import { info } from './moderation/info';
 import { rules } from './moderation/rules';
 import { purge } from './moderation/purge';
 import { ban } from './moderation/ban';
+import { idban } from './moderation/idban';
+import { unban } from './moderation/unban';
 import { kick } from './moderation/kick';
 import { dm } from './moderation/dm';
 import { whois } from './moderation/whois';
@@ -24,4 +26,18 @@ export type CommandDefinition = {
     execute: Function;
 };
 
-export const commands: CommandDefinition[] = [when, marketplace, faq, help, info, rules, purge, ban, kick, dm, whois];
+export const commands: CommandDefinition[] = [
+    when,
+    marketplace,
+    faq,
+    help,
+    info,
+    rules,
+    purge,
+    ban,
+    idban,
+    unban,
+    kick,
+    dm,
+    whois,
+];

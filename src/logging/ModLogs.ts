@@ -12,7 +12,6 @@ export const startModLogs = (client) => {
         );
 
         await logChannel.send({ embeds: [embed] });
-        console.log(ban);
     });
     client.on('guildBanRemove', async (ban) => {
         const logChannel = ban.guild.channels.cache.find((c) => c.name === 'logs');
@@ -25,6 +24,5 @@ export const startModLogs = (client) => {
         );
 
         await logChannel.send({ embeds: [embed] });
-        console.log(ban);
     });
 };
