@@ -9,7 +9,7 @@ export const startChannelLogs = (client) => {
         const embed = createLogEmbed(
             '#00FF00',
             'Channel Created',
-            `Name: "${channel.name}"`,
+            `**Channel:** <#${channel.id}>\n**Name:** ${channel.name}\n**Topic:** ${channel.topic}\n**Type:** ${channel.type}`,
             `Channel ID: ${channel.id}`,
         );
 
@@ -23,7 +23,7 @@ export const startChannelLogs = (client) => {
         const embed = createLogEmbed(
             '#FF0000',
             'Channel Deleted',
-            `Name: "${channel.name}"`,
+            `**Name:** ${channel.name}\n**Topic:** ${channel.topic}\n**Type:** ${channel.type}`,
             `Channel ID: ${channel.id}`,
         );
 
@@ -39,12 +39,11 @@ export const startChannelLogs = (client) => {
             const embed = createLogEmbed(
                 '#FFAA00',
                 'Channel Name Changed',
-                `**Before:** "${oldChannel.name}"\n**After:** "${newChannel.name}"`,
+                `**Channel:** <#${oldChannel.id}>\n**Before:** ${oldChannel.name}\n**After:** ${newChannel.name}`,
                 `Channel ID: ${oldChannel.id}`,
             );
 
             await logChannel.send({ embeds: [embed] });
-            return;
         }
 
         if (oldChannel.type !== 'GUILD_TEXT') return;
@@ -53,7 +52,7 @@ export const startChannelLogs = (client) => {
             const embed = createLogEmbed(
                 '#FFAA00',
                 'Channel Topic Changed',
-                `**Before:** "${oldChannel.topic}"\n**After:** "${newChannel.topic}"`,
+                `**Channel:** <#${oldChannel.id}>\n**Before:** ${oldChannel.topic}\n**After:** ${newChannel.topic}`,
                 `Channel ID: ${oldChannel.id}`,
             );
 

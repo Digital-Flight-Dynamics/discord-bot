@@ -7,7 +7,9 @@ export const startRoleLogs = (client) => {
         const embed = createLogEmbed(
             '#00FF00',
             'Role Created',
-            `Name: "${role.name}"\nColor: ${role.hexColor.toUpperCase()}\nMentionable: ${role.mentionable}`,
+            `**Role:** <@&${role.id}>\n**Name:** ${
+                role.name
+            }\n**Color:** ${role.hexColor.toUpperCase()}\n**Mentionable:** ${role.mentionable}`,
             `Role ID: ${role.id}`,
         );
 
@@ -19,7 +21,7 @@ export const startRoleLogs = (client) => {
         const embed = createLogEmbed(
             '#FF0000',
             'Role Deleted',
-            `Name: "${role.name}"\nColor: ${role.hexColor.toUpperCase()}\nMentionable: ${role.mentionable}`,
+            `**Name:** ${role.name}\n**Color:** ${role.hexColor.toUpperCase()}\n**Mentionable:** ${role.mentionable}`,
             `Role ID: ${role.id}`,
         );
 
@@ -34,9 +36,9 @@ export const startRoleLogs = (client) => {
                     createLogEmbed(
                         '#FFAA00',
                         'Role Color Updated',
-                        `**Role:** ${
-                            oldRole.name
-                        }\n**Before:** ${oldRole.hexColor.toUpperCase()}\n**After:** ${newRole.hexColor.toUpperCase()}`,
+                        `**Role:** <@&${
+                            oldRole.id
+                        }>\n**Before:** ${oldRole.hexColor.toUpperCase()}\n**After:** ${newRole.hexColor.toUpperCase()}`,
                         `Role ID: ${oldRole.id}`,
                     ),
                 ],
@@ -48,7 +50,7 @@ export const startRoleLogs = (client) => {
                     createLogEmbed(
                         '#FFAA00',
                         'Role Name Updated',
-                        `**Before:** "${oldRole.name}"\n**After:** "${newRole.name}"`,
+                        `**Role:** <@&${oldRole.id}>\n**Before:** ${oldRole.name}\n**After:** ${newRole.name}`,
                         `Role ID: ${oldRole.id}`,
                     ),
                 ],
@@ -60,7 +62,7 @@ export const startRoleLogs = (client) => {
                     createLogEmbed(
                         '#FFAA00',
                         'Role Mentionable Flag Updated',
-                        `**Role:** ${oldRole.name}\n**Before:** ${oldRole.mentionable}\n**After:** ${newRole.mentionable}`,
+                        `**Role:** <@&${oldRole.id}>\n**Before:** ${oldRole.mentionable}\n**After:** ${newRole.mentionable}`,
                         `Role ID: ${oldRole.id}`,
                     ),
                 ],
@@ -72,7 +74,7 @@ export const startRoleLogs = (client) => {
                     createLogEmbed(
                         '#FFAA00',
                         'Role Position Updated',
-                        `**Role:** ${oldRole.name}\n**Before:** ${oldRole.position}\n**After:** ${newRole.position}`,
+                        `**Role:** <@&${oldRole.id}>\n**Before:** ${oldRole.position}\n**After:** ${newRole.position}`,
                         `Role ID: ${oldRole.id}`,
                     ),
                 ],
