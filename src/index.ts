@@ -61,7 +61,8 @@ client.on('messageCreate', async (message) => {
             for (const name of command.names) {
                 if (commandUsed === name) {
                     cmdToExec = command;
-                    hasPerms = message.member.permissions.has(command.permissions);
+                    if (!command.permissions) hasPerms = true;
+                    else hasPerms = message.member.permissions.has(command.permissions);
                 }
             }
         }

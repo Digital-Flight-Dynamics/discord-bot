@@ -11,9 +11,7 @@ export const faq: CommandDefinition = {
         const embed = new Discord.MessageEmbed()
             .setColor(color)
             .setTitle('Frequently Asked Questions')
-            .setDescription(
-                'This will hopefully answer most of your questions. If you have any other questions, you may ask in <#808791475206094928>',
-            )
+            .setDescription('This will hopefully answer most of your questions. If you have any other questions, you may ask in <#808791475206094928>')
             .addFields(
                 {
                     name: 'Q: When will the A35X release?',

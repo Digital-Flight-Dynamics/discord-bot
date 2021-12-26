@@ -30,21 +30,4 @@ export type CommandDefinition = {
     execute: (message: Discord.Message, args: Array<string>) => Promise<any>;
 };
 
-export const commands: CommandDefinition[] = [
-    when,
-    marketplace,
-    faq,
-    help,
-    whened,
-    whoosh,
-    info,
-    rules,
-    reactionroles,
-    purge,
-    ban,
-    idban,
-    unban,
-    kick,
-    dm,
-    whois,
-];
+export const commands: CommandDefinition[] = [when, marketplace, faq, help, whened, whoosh, info, rules, reactionroles, purge, ban, idban, unban, kick, dm, whois];
