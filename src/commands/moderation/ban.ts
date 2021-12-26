@@ -19,6 +19,15 @@ export const ban: CommandDefinition = {
             return;
         }
 
+        if (user.id === message.author.id) {
+            await message.channel
+                .send({
+                    embeds: [new Discord.MessageEmbed().setColor('#FF0000').setTitle('Error').setDescription('You cannot ban yourself')],
+                })
+                .catch((err) => console.error(err));
+            return;
+        }
+
         const member = message.guild.members.cache.get(user.id);
 
         const banReason = args.slice(1).join(' ') || 'None';

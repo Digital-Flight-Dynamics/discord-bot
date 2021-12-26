@@ -21,6 +21,15 @@ export const dm: CommandDefinition = {
 
         const content = args.slice(1).join(' ');
 
+        if (!content) {
+            await message.channel
+                .send({
+                    embeds: [new Discord.MessageEmbed().setColor('#FF0000').setTitle('Error').setDescription('Please enter a message to DM')],
+                })
+                .catch((err) => console.error(err));
+            return;
+        }
+
         const dmEmbed = new Discord.MessageEmbed().setColor(color).setTitle('Digital Flight Dynamics').setDescription(content);
         await user
             .createDM()
