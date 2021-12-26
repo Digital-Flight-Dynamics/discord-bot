@@ -40,7 +40,8 @@ export const help: CommandDefinition = {
 
         const fields = [];
         for (const cmd of cmds) {
-            fields.push({ name: `.${cmd.names}`, value: `${cmd.description}` });
+            if (!cmd.permissions) fields.push({ name: `.${cmd.names.join(' | .')}`, value: `${cmd.description}` });
+            else fields.push({ name: `.${cmd.names.join(' | .')}\n\`Required Permissions: ${cmd.permissions.join(', ')}\``, value: `${cmd.description}` });
         }
 
         embed.addFields(fields);
