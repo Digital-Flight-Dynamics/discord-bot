@@ -7,7 +7,7 @@ export const help: CommandDefinition = {
     description: 'Gives an overview of all available commands',
     category: CommandCategories.GENERAL,
     execute: async (message, args) => {
-        let category = args[0];
+        let category = args.join(' ');
 
         if (!category) {
             const rootEmbed = new Discord.MessageEmbed()
@@ -29,7 +29,6 @@ export const help: CommandDefinition = {
         const embed = new Discord.MessageEmbed().setColor(color);
 
         const cmds = [];
-
         for (const command of commands) {
             if (command.category.toUpperCase() === category) {
                 cmds.push(command);
@@ -37,8 +36,9 @@ export const help: CommandDefinition = {
             }
         }
 
-        const fields = [];
+        if (cmds.length === 0) return;
 
+        const fields = [];
         for (const cmd of cmds) {
             fields.push({ name: `.${cmd.names}`, value: `${cmd.description}` });
         }
