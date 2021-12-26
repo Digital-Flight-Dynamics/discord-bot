@@ -3,7 +3,10 @@ import { createLogEmbed } from './index';
 
 export const startMessageLogs = (client) => {
     client.on('messageDelete', async (message) => {
-        if (!message.author) return;
+        if (!message.author) {
+            console.error('Message delete log attmempted. Error: Message author is undefined, returning');
+            return;
+        }
         if (message.author.bot) return;
 
         const logChannel = message.guild.channels.cache.find((c) => c.name === 'logs');
