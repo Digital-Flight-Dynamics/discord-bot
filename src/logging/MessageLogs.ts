@@ -1,3 +1,4 @@
+import Discord from 'discord.js';
 import { createLogEmbed } from './index';
 
 export const startMessageLogs = (client) => {
@@ -24,6 +25,26 @@ export const startMessageLogs = (client) => {
             `**Before:** ${oldMsg.content}\n**After:** ${newMsg.content}`,
             `User ID: ${oldMsg.author.id}`,
         ).setAuthor(oldMsg.author.tag, oldMsg.author.avatarURL());
+
+        await logChannel.send({ embeds: [embed] }).catch((err) => console.error(err));
+    });
+    client.on('messageDeleteBulk', async (messages) => {
+        const embed = new Discord.MessageEmbed().setColor('#FF0000').setTimestamp();
+
+        let logChannel = undefined;
+
+        const desc = [];
+
+        messages.forEach((message) => {
+            if (message.author.bot) return;
+
+            desc.push(`[${message.author.tag}]: ${message.content}`);
+            embed.setTitle(`${messages.size} Messages purged in #${message.channel.name}`).setFooter(`Channel ID: ${message.channel.id}`);
+
+            logChannel = message.guild.channels.cache.find((c) => c.name === 'logs');
+        });
+
+        embed.setDescription(desc.join('\n'));
 
         await logChannel.send({ embeds: [embed] }).catch((err) => console.error(err));
     });
