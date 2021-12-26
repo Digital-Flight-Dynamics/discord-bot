@@ -39,21 +39,12 @@ export const startMessageLogs = (client) => {
 
         const desc = [];
 
-        let shouldReturn = false;
-
         messages.forEach((message) => {
-            if (message.author.bot) {
-                shouldReturn = true;
-                return;
-            }
-
             desc.push(`[${message.author.tag}]: ${message.content}`);
             embed.setTitle(`${messages.size} Messages purged in #${message.channel.name}`).setFooter(`Channel ID: ${message.channel.id}`);
 
             logChannel = message.guild.channels.cache.find((c) => c.name === 'logs');
         });
-
-        if (shouldReturn) return;
 
         embed.setDescription(desc.join('\n'));
 
