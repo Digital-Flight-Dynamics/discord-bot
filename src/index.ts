@@ -86,7 +86,13 @@ client.on('messageCreate', async (message) => {
 });
 
 client.on('guildMemberAdd', async (member) => {
-    await (member.guild.channels.cache.find((c) => c.name === 'arrivals') as Discord.TextChannel).send(`Hello ${member.user}, welcome to ${member.guild}!`).catch((err) => console.error(err));
+    const memberRole = member.guild.roles.cache.find((r) => r.name === 'Member');
+    const arrivals = member.guild.channels.cache.find((c) => c.name === 'arrivals');
+
+    if (!arrivals.isText()) return;
+
+    await arrivals.send(`Hello ${member.user}, welcome to ${member.guild}!`).catch((err) => console.error(err));
+    await member.roles.add(memberRole);
 });
 client.on('guildMemberRemove', async (member) => {
     await (member.guild.channels.cache.find((c) => c.name === 'leaves') as Discord.TextChannel).send(`**${member.user.tag}** just left the server`).catch((err) => console.error(err));
