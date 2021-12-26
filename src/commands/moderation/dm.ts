@@ -11,30 +11,27 @@ export const dm: CommandDefinition = {
         const user = message.mentions.users.first();
 
         if (!user) {
-            await message.channel.send({
-                embeds: [
-                    new Discord.MessageEmbed()
-                        .setColor('#FF0000')
-                        .setTitle('Error')
-                        .setDescription('Please mention a valid user'),
-                ],
-            });
+            await message.channel
+                .send({
+                    embeds: [new Discord.MessageEmbed().setColor('#FF0000').setTitle('Error').setDescription('Please mention a valid user')],
+                })
+                .catch((err) => console.error(err));
             return;
         }
 
         const content = args.slice(1).join(' ');
 
-        const dmEmbed = new Discord.MessageEmbed()
-            .setColor(color)
-            .setTitle('Digital Flight Dynamics')
-            .setDescription(content);
-        await user.createDM().then((dm) => dm.send({ embeds: [dmEmbed] }));
+        const dmEmbed = new Discord.MessageEmbed().setColor(color).setTitle('Digital Flight Dynamics').setDescription(content);
+        await user
+            .createDM()
+            .then((dm) => dm.send({ embeds: [dmEmbed] }))
+            .catch((err) => console.error(err));
 
         const embed = new Discord.MessageEmbed()
             .setColor(color)
             .setTitle('DM User')
             .setDescription(`DM sent to ${user}`)
             .addFields({ name: 'Content', value: `${content}` });
-        await message.channel.send({ embeds: [embed] });
+        await message.channel.send({ embeds: [embed] }).catch((err) => console.error(err));
     },
 };

@@ -17,6 +17,6 @@ export const when: CommandDefinition = {
                     'However, we cannot provide a release date or estimate for the reasons stated above.',
             );
 
-        await message.channel.send({ embeds: [embed] });
+        await message.channel.send({ embeds: [embed] }).catch((err) => console.error(err));
     },
 };

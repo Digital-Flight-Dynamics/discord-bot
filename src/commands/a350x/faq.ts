@@ -39,6 +39,6 @@ export const faq: CommandDefinition = {
                 },
             );
 
-        await message.channel.send({ embeds: [embed] });
+        await message.channel.send({ embeds: [embed] }).catch((err) => console.error(err));
     },
 };

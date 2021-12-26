@@ -11,6 +11,6 @@ export const whened: CommandDefinition = {
             .setColor(color)
             .setImage('https://media.discordapp.net/attachments/740722295009706034/907005439579914340/meme.png');
 
-        await message.channel.send({ embeds: [embed] });
+        await message.channel.send({ embeds: [embed] }).catch((err) => console.error(err));
     },
 };

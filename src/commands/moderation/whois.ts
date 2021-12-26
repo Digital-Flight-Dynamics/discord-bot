@@ -4,22 +4,18 @@ import { color } from '../..';
 
 export const whois: CommandDefinition = {
     names: ['whois', 'userinfo'],
-    description:
-        'Displays information about the mentioned user. Usage: `.whois,userinfo <@id>` (Does not work for users not in the server)',
+    description: 'Displays information about the mentioned user. Usage: `.whois,userinfo <@id>` (Does not work for users not in the server)',
     category: CommandCategories.MODERATION,
     permissions: ['MANAGE_NICKNAMES'],
     execute: async (message, args) => {
         const user = message.mentions.users.first();
 
         if (!user) {
-            await message.channel.send({
-                embeds: [
-                    new Discord.MessageEmbed()
-                        .setColor('#FF0000')
-                        .setTitle('Error')
-                        .setDescription('Please mention a valid user'),
-                ],
-            });
+            await message.channel
+                .send({
+                    embeds: [new Discord.MessageEmbed().setColor('#FF0000').setTitle('Error').setDescription('Please mention a valid user')],
+                })
+                .catch((err) => console.error(err));
             return;
         }
 
@@ -48,6 +44,6 @@ export const whois: CommandDefinition = {
                 { name: 'Highest Role', value: `${member.roles.highest}`, inline: true },
             )
             .setFooter(`ID: ${user.id}`);
-        await message.channel.send({ embeds: [embed] });
+        await message.channel.send({ embeds: [embed] }).catch((err) => console.error(err));
     },
 };

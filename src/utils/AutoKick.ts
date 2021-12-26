@@ -5,31 +5,14 @@ export const AutoKick = async (message) => {
     if (message.content.includes('@everyone') && !message.member.permissions.has('MENTION_EVERYONE')) {
         const member = message.guild.members.cache.get(message.author.id);
 
-        await message.delete();
+        await message.delete().catch((err) => console.error(err));
 
-        const blacklist = [
-            'csgo',
-            'cs:go',
-            'cs go',
-            'steam',
-            'stearn',
-            'kinfe',
-            'knife',
-            'skins',
-            'giveaway',
-            'free',
-            'nitro',
-            'discord',
-            'discorcl',
-        ];
+        const blacklist = ['csgo', 'cs:go', 'cs go', 'steam', 'stearn', 'kinfe', 'knife', 'skins', 'giveaway', 'free', 'nitro', 'discord', 'discorcl'];
 
         const dmEmbed = new Discord.MessageEmbed()
             .setColor(color)
             .setTitle(`Kicked from ${message.guild.name}`)
-            .addFields(
-                { name: 'Reason', value: 'Kicked as a precaution - potential scam', inline: true },
-                { name: 'Moderator', value: 'Automated Kick', inline: true },
-            )
+            .addFields({ name: 'Reason', value: 'Kicked as a precaution - potential scam', inline: true }, { name: 'Moderator', value: 'Automated Kick', inline: true })
             .setFooter('If this was a mistake, you can join back. https://discord.gg/dfd');
 
         let shouldKick = false;
@@ -41,7 +24,7 @@ export const AutoKick = async (message) => {
         }
         if (!shouldKick) return;
 
-        await member.user.send({ embeds: [dmEmbed] });
-        await member.kick();
+        await member.user.send({ embeds: [dmEmbed] }).catch((err) => console.error(err));
+        await member.kick().catch((err) => console.error(err));
     }
 };

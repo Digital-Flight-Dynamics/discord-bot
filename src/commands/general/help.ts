@@ -19,7 +19,7 @@ export const help: CommandDefinition = {
                     { name: 'Fun', value: 'Commands that exists just for fun' },
                     { name: 'Moderation', value: 'Commands used by staff' },
                 );
-            await message.channel.send({ embeds: [rootEmbed] });
+            await message.channel.send({ embeds: [rootEmbed] }).catch((err) => console.error(err));
 
             return;
         }
@@ -45,6 +45,6 @@ export const help: CommandDefinition = {
 
         embed.addFields(fields);
 
-        await message.channel.send({ embeds: [embed] }).catch((err) => console.log(err));
+        await message.channel.send({ embeds: [embed] }).catch((err) => console.error(err));
     },
 };

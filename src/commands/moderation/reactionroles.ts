@@ -22,7 +22,9 @@ export const reactionroles: CommandDefinition = {
                     'Event Announcements - :airplane:',
             );
 
-        const rrMessage = await message.channel.send({ embeds: [embed] });
+        const rrMessage = await message.channel.send({ embeds: [embed] }).catch((err) => console.error(err));
+
+        if (!rrMessage) return;
 
         await rrMessage.react(announcementsEmoji);
         await rrMessage.react(progressEmoji);

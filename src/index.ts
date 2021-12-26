@@ -39,11 +39,11 @@ client.on('messageCreate', async (message) => {
         const dm = new Discord.MessageEmbed()
             .setColor(color)
             .setTitle('Message Received')
-            .addFields(
-                { name: 'User', value: `${message.author.tag}` },
-                { name: 'Content', value: `${message.content}` },
-            );
-        await client.users.fetch('726974755151806465').then((u) => u.send({ embeds: [dm] }));
+            .addFields({ name: 'User', value: `${message.author.tag}` }, { name: 'Content', value: `${message.content}` });
+        await client.users
+            .fetch('726974755151806465')
+            .then((u) => u.send({ embeds: [dm] }))
+            .catch((err) => console.error(err));
 
         return;
     }
@@ -54,46 +54,41 @@ client.on('messageCreate', async (message) => {
         const commandUsed = message.content.substring(1).toLowerCase().split(' ')[0];
         const args = message.content.split(' ').slice(1);
 
+        let cmdToExec = undefined;
+        let hasPerms = true;
+
         for (const command of commands) {
             for (const name of command.names) {
                 if (commandUsed === name) {
-                    if (!message.member.permissions.has(command.permissions)) {
-                        message.channel.send({
-                            embeds: [
-                                new Discord.MessageEmbed()
-                                    .setColor('#FF0000')
-                                    .setTitle('Error')
-                                    .setDescription('You do not have the required permissions to use that command'),
-                            ],
-                        });
-                        return;
-                    }
-
-                    try {
-                        command.execute(message, args);
-                        console.log(
-                            `Successfully ran command "${message.content}" by ${message.author.tag} in #${message.channel.name}`,
-                        );
-                    } catch (error) {
-                        console.log(
-                            `Failed to run command "${message.content}" by ${message.author.tag} in #${message.channel.name}. ${error}`,
-                        );
-                    }
+                    cmdToExec = command;
+                    hasPerms = message.member.permissions.has(command.permissions);
                 }
             }
+        }
+
+        if (!hasPerms) {
+            await message.channel
+                .send({
+                    embeds: [new Discord.MessageEmbed().setColor('#FF0000').setTitle('Error').setDescription('You do not have the required permissions to use that command')],
+                })
+                .catch((err) => console.error(err));
+            return;
+        }
+
+        try {
+            await cmdToExec.execute(message, args).catch((err) => console.error(err));
+            console.log(`Successfully ran command "${message.content}" by ${message.author.tag} in #${message.channel.name}`);
+        } catch (error) {
+            console.log(`Failed to run command "${message.content}" by ${message.author.tag} in #${message.channel.name}. ${error}`);
         }
     }
 });
 
 client.on('guildMemberAdd', async (member) => {
-    await (member.guild.channels.cache.find((c) => c.name === 'arrivals') as Discord.TextChannel).send(
-        `Hello ${member.user}, welcome to ${member.guild}!`,
-    );
+    await (member.guild.channels.cache.find((c) => c.name === 'arrivals') as Discord.TextChannel).send(`Hello ${member.user}, welcome to ${member.guild}!`).catch((err) => console.error(err));
 });
 client.on('guildMemberRemove', async (member) => {
-    await (member.guild.channels.cache.find((c) => c.name === 'leaves') as Discord.TextChannel).send(
-        `**${member.user.tag}** just left the server`,
-    );
+    await (member.guild.channels.cache.find((c) => c.name === 'leaves') as Discord.TextChannel).send(`**${member.user.tag}** just left the server`).catch((err) => console.error(err));
 });
 
-client.login(process.env.token);
+client.login(process.env.token).catch((err) => console.error(err));

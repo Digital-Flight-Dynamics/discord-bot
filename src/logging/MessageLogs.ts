@@ -6,16 +6,16 @@ export const startMessageLogs = (client) => {
 
         const logChannel = message.guild.channels.cache.find((c) => c.name === 'logs');
 
-        const embed = createLogEmbed(
-            '#FF0000',
-            `Message deleted in #${message.channel.name}`,
-            `**Content:** ${message.content}`,
-            `User ID: ${message.author.id}`,
-        ).setAuthor(message.author.tag, message.author.avatarURL());
+        const embed = createLogEmbed('#FF0000', `Message deleted in #${message.channel.name}`, `**Content:** ${message.content}`, `User ID: ${message.author.id}`).setAuthor(
+            message.author.tag,
+            message.author.avatarURL(),
+        );
 
         await logChannel.send({ embeds: [embed] }).catch((err) => console.error(err));
     });
     client.on('messageUpdate', async (oldMsg, newMsg) => {
+        if (oldMsg.author.bot) return;
+
         const logChannel = oldMsg.guild.channels.cache.find((c) => c.name === 'logs');
 
         const embed = createLogEmbed(

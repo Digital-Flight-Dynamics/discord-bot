@@ -27,7 +27,7 @@ export type CommandDefinition = {
     description: string;
     category: CommandCategories;
     permissions?: Discord.PermissionString[];
-    execute: Function;
+    execute: (message: Discord.Message, args: Array<string>) => Promise<any>;
 };
 
 export const commands: CommandDefinition[] = [
