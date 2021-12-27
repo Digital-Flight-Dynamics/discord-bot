@@ -4,7 +4,7 @@ import { color } from '../..';
 
 export const ban: CommandDefinition = {
     names: ['ban'],
-    description: 'Bans the mentioned user. Usage: `.ban @mention reason` | `.ban id reason`',
+    description: 'Bans the mentioned user. Usage: `.ban @mention reason` | `.ban ID reason`',
     category: CommandCategories.MODERATION,
     permissions: ['BAN_MEMBERS'],
     execute: async (message, args) => {

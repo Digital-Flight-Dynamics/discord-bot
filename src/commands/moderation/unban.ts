@@ -1,5 +1,5 @@
 import Discord from 'discord.js';
-import { CommandCategories, CommandDefinition } from '../index';
+import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
 import { color } from '../..';
 
 export const unban: CommandDefinition = {
@@ -10,7 +10,7 @@ export const unban: CommandDefinition = {
     execute: async (message, args) => {
         const id = args[0];
 
-        const invalidEmbed = new Discord.MessageEmbed().setColor('#FF0000').setTitle('Error').setDescription('This user is not banned, or you entered an invalid ID');
+        const invalidEmbed = createErrorEmbed('This user is not banned, or you entered an invalid ID');
 
         if (!id) {
             await message.channel.send({ embeds: [invalidEmbed] }).catch((err) => console.error(err));
