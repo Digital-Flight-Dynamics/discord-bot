@@ -58,6 +58,11 @@ export const kick: CommandDefinition = {
             return;
         }
 
+        if (!member.kickable) {
+            await message.channel.send({ embeds: [createErrorEmbed('I cannot kick this user')] }).catch((err) => console.error(err));
+            return;
+        }
+
         const kickReason = args.slice(1).join(' ') || 'None';
 
         const dmEmbed = new Discord.MessageEmbed()

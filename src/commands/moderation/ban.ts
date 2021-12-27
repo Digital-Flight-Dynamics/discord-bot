@@ -52,6 +52,11 @@ export const ban: CommandDefinition = {
         const banReason = args.slice(1).join(' ') || 'None';
 
         if (member) {
+            if (!member.bannable) {
+                await message.channel.send({ embeds: [createErrorEmbed('I cannot ban this user')] }).catch((err) => console.error(err));
+                return;
+            }
+
             const dmEmbed = new Discord.MessageEmbed()
                 .setColor(color)
                 .setTitle(`Banned from ${message.guild.name}`)
