@@ -10,7 +10,6 @@ import { rules } from './moderation/rules';
 import { reactionroles } from './moderation/reactionroles';
 import { purge } from './moderation/purge';
 import { ban } from './moderation/ban';
-import { idban } from './moderation/idban';
 import { unban } from './moderation/unban';
 import { kick } from './moderation/kick';
 import { dm } from './moderation/dm';
@@ -29,5 +28,6 @@ export type CommandDefinition = {
     permissions?: Discord.PermissionString[];
     execute: (message: Discord.Message, args: Array<string>) => Promise<any>;
 };
+export const createErrorEmbed = (description: string) => new Discord.MessageEmbed().setColor('#FF0000').setTitle('Error').setDescription(description);
 
-export const commands: CommandDefinition[] = [when, marketplace, faq, help, whened, whoosh, info, rules, reactionroles, purge, ban, idban, unban, kick, dm, whois];
+export const commands: CommandDefinition[] = [when, marketplace, faq, help, whened, whoosh, info, rules, reactionroles, purge, ban, unban, kick, dm, whois];
