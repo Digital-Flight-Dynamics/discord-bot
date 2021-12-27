@@ -1,28 +1,43 @@
 import Discord from 'discord.js';
-import { CommandCategories, CommandDefinition } from '../index';
+import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
 import { color } from '../..';
 
 export const whois: CommandDefinition = {
     names: ['whois', 'userinfo'],
-    description: 'Displays information about the mentioned user. Usage: `.whois,userinfo <@id>` (Does not work for users not in the server)',
+    description: 'Displays information about the given user. Usage: `.whois | .userinfo @mention` | `.whois | .userinfo ID`',
     category: CommandCategories.MODERATION,
     permissions: ['MANAGE_NICKNAMES'],
     execute: async (message, args) => {
-        let user = message.mentions.users.first();
+        const invalidEmbed = createErrorEmbed('Please enter a valid user/id for someone in this server');
 
-        if (!user) {
-            user = message.author;
+        const user = message.mentions.users.first();
+        let id = undefined;
+
+        if (user) {
+            id = user.id;
+        } else {
+            id = args[0];
         }
 
-        const member = message.guild.members.cache.get(user.id);
+        if (!id) {
+            id = message.author.id;
+        }
+
+        const member = await message.guild.members.fetch(id).catch((err) => console.error(err));
+
+        if (!member) {
+            await message.channel.send({ embeds: [invalidEmbed] }).catch((err) => console.log(err));
+            return;
+        }
+
         const joined = member.joinedAt.toString().split(' ');
-        const registered = user.createdAt.toString().split(' ');
+        const registered = member.user.createdAt.toString().split(' ');
 
         const embed = new Discord.MessageEmbed()
             .setColor(color)
-            .setAuthor(user.tag, user.avatarURL())
-            .setDescription(`${user}`)
-            .setThumbnail(user.avatarURL())
+            .setAuthor(member.user.tag, member.user.avatarURL())
+            .setDescription(`${member.user}`)
+            .setThumbnail(member.user.avatarURL())
             .addFields(
                 {
                     name: 'Registered',
@@ -38,7 +53,7 @@ export const whois: CommandDefinition = {
                 { name: 'Role Count', value: `${member.roles.cache.size - 1}`, inline: true },
                 { name: 'Highest Role', value: `${member.roles.highest}`, inline: true },
             )
-            .setFooter(`ID: ${user.id}`);
+            .setFooter(`ID: ${id}`);
         await message.channel.send({ embeds: [embed] }).catch((err) => console.error(err));
     },
 };
