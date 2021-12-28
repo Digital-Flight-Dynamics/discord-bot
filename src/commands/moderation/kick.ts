@@ -36,6 +36,7 @@ export const kick: CommandDefinition = {
         let shouldReturn = false;
 
         const member = await message.guild.members.fetch(id).catch(async (err) => {
+            console.error(err);
             const errString = err.toString();
             if (errString.includes('Unknown User')) {
                 await message.channel.send({ embeds: [invalidEmbed] }).catch((err) => console.error(err));
@@ -73,6 +74,7 @@ export const kick: CommandDefinition = {
         await member.send({ embeds: [dmEmbed] }).catch((err) => console.error(err));
 
         await member.kick().catch(async (err) => {
+            console.error(err);
             const errString = err.toString();
             if (errString.includes('Missing Permissions')) {
                 await message.channel.send({ embeds: [createErrorEmbed('I cannot kick this user')] }).catch((err) => console.error(err));

@@ -36,6 +36,7 @@ export const ban: CommandDefinition = {
         let shouldReturn = false;
 
         const member = await message.guild.members.fetch(id).catch(async (err) => {
+            console.error(err);
             const errString = err.toString();
             if (errString.includes('Unknown User')) {
                 await message.channel.send({ embeds: [invalidEmbed] }).catch((err) => console.error(err));
@@ -66,6 +67,7 @@ export const ban: CommandDefinition = {
         }
 
         await message.guild.members.ban(id, { reason: banReason }).catch(async (err) => {
+            console.error(err);
             const errString = err.toString();
             if (errString.includes('Missing Permissions')) {
                 await message.channel.send({ embeds: [createErrorEmbed('I cannot ban this user')] }).catch((err) => console.error(err));

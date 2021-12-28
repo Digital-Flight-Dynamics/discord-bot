@@ -1,5 +1,5 @@
 import Discord from 'discord.js';
-import { CommandCategories, CommandDefinition } from '../index';
+import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
 import { color } from '../..';
 
 export const dm: CommandDefinition = {
@@ -8,14 +8,26 @@ export const dm: CommandDefinition = {
     category: CommandCategories.MODERATION,
     permissions: ['MANAGE_MESSAGES'],
     execute: async (message, args) => {
-        const user = message.mentions.users.first();
+        const invalidEmbed = createErrorEmbed('Please enter a valid user/id for someone in this server');
 
-        if (!user) {
-            await message.channel
-                .send({
-                    embeds: [new Discord.MessageEmbed().setColor('#FF0000').setTitle('Error').setDescription('Please mention a valid user')],
-                })
-                .catch((err) => console.error(err));
+        const user = message.mentions.users.first();
+        let id = undefined;
+
+        if (user) {
+            id = user.id;
+        } else {
+            id = args[0];
+        }
+
+        if (!id) {
+            await message.channel.send({ embeds: [invalidEmbed] }).catch((err) => console.log(err));
+            return;
+        }
+
+        const member = await message.guild.members.fetch(id).catch((err) => console.error(err));
+
+        if (!member) {
+            await message.channel.send({ embeds: [invalidEmbed] }).catch((err) => console.log(err));
             return;
         }
 
@@ -24,14 +36,14 @@ export const dm: CommandDefinition = {
         if (!content) {
             await message.channel
                 .send({
-                    embeds: [new Discord.MessageEmbed().setColor('#FF0000').setTitle('Error').setDescription('Please enter a message to DM')],
+                    embeds: [createErrorEmbed('Please enter a message to DM')],
                 })
                 .catch((err) => console.error(err));
             return;
         }
 
         const dmEmbed = new Discord.MessageEmbed().setColor(color).setTitle('Digital Flight Dynamics').setDescription(content);
-        await user
+        await member.user
             .createDM()
             .then((dm) => dm.send({ embeds: [dmEmbed] }))
             .catch((err) => console.error(err));
@@ -39,7 +51,7 @@ export const dm: CommandDefinition = {
         const embed = new Discord.MessageEmbed()
             .setColor(color)
             .setTitle('DM User')
-            .setDescription(`DM sent to ${user}`)
+            .setDescription(`DM sent to ${member.user}`)
             .addFields({ name: 'Content', value: `${content}` });
         await message.channel.send({ embeds: [embed] }).catch((err) => console.error(err));
     },
