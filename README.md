@@ -37,3 +37,4 @@ export const name: CommandDefinition = {
 If the command you want to create doesn't fit any of the existing categories, you'll need to create a new one.
 1. Add the category to the `CommandCategories` enum in `src/commands/index.ts`. `MY_CATEGORY = 'My Category',`
 2. Open the file for the `.help` command found at `src/commands/general/help.ts`. Find the embed called `rootEmbed` and add a new field. `{ name: 'My Category', value: 'Describe your category' },`
+3. Lastly, create a new folder in `src/commands/`, and name it based on your category in lower case. `src/commands/my category/`
