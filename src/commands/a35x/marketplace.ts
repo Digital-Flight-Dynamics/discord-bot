@@ -4,7 +4,7 @@ import { color } from '../../index';
 
 export const marketplace: CommandDefinition = {
     names: ['marketplace', 'xbox'],
-    description: "Explains why the A350X won't be coming to the MSFS marketplace",
+    description: "Explains why the DFD A35X won't be coming to the MSFS marketplace",
     category: CommandCategories.A350X,
     execute: async (message, args) => {
         const embed = new Discord.MessageEmbed()

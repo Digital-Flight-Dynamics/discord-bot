@@ -4,7 +4,7 @@ import { color } from '../..';
 
 export const faq: CommandDefinition = {
     names: ['faq'],
-    description: 'Displays an embed with FAQ for the A350X project',
+    description: 'Displays an embed with FAQ for the A35X project',
     category: CommandCategories.A350X,
     permissions: ['MANAGE_GUILD'],
     execute: async (message, args) => {

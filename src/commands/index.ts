@@ -1,7 +1,7 @@
 import Discord from 'discord.js';
-import { when } from './a350x/when';
-import { marketplace } from './a350x/marketplace';
-import { faq } from './a350x/faq';
+import { when } from './a35x/when';
+import { marketplace } from './a35x/marketplace';
+import { faq } from './a35x/faq';
 import { help } from './general/help';
 import { whened } from './fun/whened';
 import { whoosh } from './fun/whoosh';
@@ -16,7 +16,7 @@ import { dm } from './moderation/dm';
 import { whois } from './moderation/whois';
 
 export const enum CommandCategories {
-    A350X = 'A350X',
+    A35X = 'A35X',
     GENERAL = 'General',
     FUN = 'Fun',
     MODERATION = 'Moderation',
