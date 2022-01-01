@@ -4,7 +4,7 @@ import { color } from '../..';
 
 export const unban: CommandDefinition = {
     names: ['unban'],
-    description: 'Unbans the mentioned user. Usage: `.unban ID`',
+    description: 'Unbans the mentioned user. Usage: `.unban id`',
     category: CommandCategories.MODERATION,
     permissions: ['BAN_MEMBERS'],
     execute: async (message, args) => {
@@ -13,14 +13,14 @@ export const unban: CommandDefinition = {
         const invalidEmbed = createErrorEmbed('This user is not banned, or you entered an invalid ID');
 
         if (!id) {
-            await message.channel.send({ embeds: [invalidEmbed] }).catch((err) => console.error(err));
+            await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
             return;
         }
 
-        const ban = await message.guild.bans.fetch(id).catch((err) => console.error(err));
+        const ban = await message.guild.bans.fetch(id).catch(console.error);
 
         if (!ban) {
-            await message.channel.send({ embeds: [invalidEmbed] }).catch((err) => console.error(err));
+            await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
             return;
         }
 
@@ -30,7 +30,7 @@ export const unban: CommandDefinition = {
             console.error(err);
 
             if (err.toString().includes('Unknown User')) {
-                await message.channel.send({ embeds: [invalidEmbed] }).catch((err) => console.error(err));
+                await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
                 shouldReturn = true;
             }
         });
@@ -39,10 +39,10 @@ export const unban: CommandDefinition = {
 
         const embed = new Discord.MessageEmbed()
             .setColor(color)
-            .setTitle('Unban User')
+            .setTitle('Unbanned User')
             .setDescription(`<@${id}> has been unbanned.`)
             .addFields({ name: 'Moderator', value: `${message.author.tag}`, inline: true });
 
-        await message.channel.send({ embeds: [embed] }).catch((err) => console.error(err));
+        await message.channel.send({ embeds: [embed] }).catch(console.error);
     },
 };

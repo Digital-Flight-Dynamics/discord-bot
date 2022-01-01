@@ -17,6 +17,6 @@ export const info: CommandDefinition = {
                     'If you are interested in working with us, please fill out this form: https://forms.gle/LigLwWizG5Etz3KeA',
             );
 
-        await message.channel.send({ embeds: [embed] }).catch((err) => console.error(err));
+        await message.channel.send({ embeds: [embed] }).catch(console.error);
     },
 };

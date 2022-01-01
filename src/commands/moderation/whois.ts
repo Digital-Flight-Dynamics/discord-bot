@@ -4,7 +4,7 @@ import { color } from '../..';
 
 export const whois: CommandDefinition = {
     names: ['whois', 'userinfo'],
-    description: 'Displays information about the given user. Usage: `.whois | .userinfo @mention` | `.whois | .userinfo ID`',
+    description: 'Displays information about the given user. Usage: `.whois | .userinfo @mention` | `.whois | .userinfo id`',
     category: CommandCategories.MODERATION,
     permissions: ['MANAGE_NICKNAMES'],
     execute: async (message, args) => {
@@ -23,10 +23,10 @@ export const whois: CommandDefinition = {
             id = message.author.id;
         }
 
-        const member = await message.guild.members.fetch(id).catch((err) => console.error(err));
+        const member = await message.guild.members.fetch(id).catch(console.error);
 
         if (!member) {
-            await message.channel.send({ embeds: [invalidEmbed] }).catch((err) => console.log(err));
+            await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
             return;
         }
 
@@ -36,7 +36,7 @@ export const whois: CommandDefinition = {
         const embed = new Discord.MessageEmbed()
             .setColor(color)
             .setAuthor(member.user.tag, member.user.avatarURL())
-            .setDescription(`${member.user}`)
+            .setDescription(`<@${id}>`)
             .setThumbnail(member.user.avatarURL())
             .addFields(
                 {
@@ -54,6 +54,6 @@ export const whois: CommandDefinition = {
                 { name: 'Highest Role', value: `${member.roles.highest}`, inline: true },
             )
             .setFooter(`ID: ${id}`);
-        await message.channel.send({ embeds: [embed] }).catch((err) => console.error(err));
+        await message.channel.send({ embeds: [embed] }).catch(console.error);
     },
 };

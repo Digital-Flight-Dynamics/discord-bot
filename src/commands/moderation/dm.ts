@@ -4,7 +4,7 @@ import { color } from '../..';
 
 export const dm: CommandDefinition = {
     names: ['dm'],
-    description: 'Sends a DM to the mentioned user. Usage: `.dm <@id> content` (Cannot DM users not in the server)',
+    description: 'Sends a DM to the mentioned user. Usage: `.dm @mention content` | `.dm id content`',
     category: CommandCategories.MODERATION,
     permissions: ['MANAGE_MESSAGES'],
     execute: async (message, args) => {
@@ -20,14 +20,14 @@ export const dm: CommandDefinition = {
         }
 
         if (!id) {
-            await message.channel.send({ embeds: [invalidEmbed] }).catch((err) => console.log(err));
+            await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
             return;
         }
 
-        const member = await message.guild.members.fetch(id).catch((err) => console.error(err));
+        const member = await message.guild.members.fetch(id).catch(console.error);
 
         if (!member) {
-            await message.channel.send({ embeds: [invalidEmbed] }).catch((err) => console.log(err));
+            await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
             return;
         }
 
@@ -38,7 +38,7 @@ export const dm: CommandDefinition = {
                 .send({
                     embeds: [createErrorEmbed('Please enter a message to DM')],
                 })
-                .catch((err) => console.error(err));
+                .catch(console.error);
             return;
         }
 
@@ -46,13 +46,13 @@ export const dm: CommandDefinition = {
         await member.user
             .createDM()
             .then((dm) => dm.send({ embeds: [dmEmbed] }))
-            .catch((err) => console.error(err));
+            .catch(console.error);
 
         const embed = new Discord.MessageEmbed()
             .setColor(color)
-            .setTitle('DM User')
-            .setDescription(`DM sent to ${member.user}`)
+            .setTitle('Direct Messaged User')
+            .setDescription(`DM sent to <@${id}>`)
             .addFields({ name: 'Content', value: `${content}` });
-        await message.channel.send({ embeds: [embed] }).catch((err) => console.error(err));
+        await message.channel.send({ embeds: [embed] }).catch(console.error);
     },
 };

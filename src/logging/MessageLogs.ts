@@ -16,7 +16,7 @@ export const startMessageLogs = (client) => {
             message.author.avatarURL(),
         );
 
-        await logChannel.send({ embeds: [embed] }).catch((err) => console.error(err));
+        await logChannel.send({ embeds: [embed] }).catch(console.error);
     });
     client.on('messageUpdate', async (oldMsg, newMsg) => {
         if (oldMsg.author.bot) return;
@@ -30,7 +30,7 @@ export const startMessageLogs = (client) => {
             `User ID: ${oldMsg.author.id}`,
         ).setAuthor(oldMsg.author.tag, oldMsg.author.avatarURL());
 
-        await logChannel.send({ embeds: [embed] }).catch((err) => console.error(err));
+        await logChannel.send({ embeds: [embed] }).catch(console.error);
     });
     client.on('messageDeleteBulk', async (messages) => {
         const embed = new Discord.MessageEmbed().setColor('#FF0000').setTimestamp();
@@ -48,6 +48,6 @@ export const startMessageLogs = (client) => {
 
         embed.setDescription(desc.join('\n'));
 
-        await logChannel.send({ embeds: [embed] }).catch((err) => console.error(err));
+        await logChannel.send({ embeds: [embed] }).catch(console.error);
     });
 };

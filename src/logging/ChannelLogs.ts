@@ -13,7 +13,7 @@ export const startChannelLogs = (client) => {
             `Channel ID: ${channel.id}`,
         );
 
-        await logChannel.send({ embeds: [embed] }).catch((err) => console.error(err));
+        await logChannel.send({ embeds: [embed] }).catch(console.error);
     });
     client.on('channelDelete', async (channel) => {
         if (channel.type === 'DM') return;
@@ -22,7 +22,7 @@ export const startChannelLogs = (client) => {
 
         const embed = createLogEmbed('#FF0000', 'Channel Deleted', `**Name:** ${channel.name}\n**Topic:** ${channel.topic}\n**Type:** ${channel.type}`, `Channel ID: ${channel.id}`);
 
-        await logChannel.send({ embeds: [embed] }).catch((err) => console.error(err));
+        await logChannel.send({ embeds: [embed] }).catch(console.error);
     });
     client.on('channelUpdate', async (oldChannel, newChannel) => {
         if (oldChannel.type === 'DM') return;
@@ -38,7 +38,7 @@ export const startChannelLogs = (client) => {
                 `Channel ID: ${oldChannel.id}`,
             );
 
-            await logChannel.send({ embeds: [embed] }).catch((err) => console.error(err));
+            await logChannel.send({ embeds: [embed] }).catch(console.error);
         }
 
         if (oldChannel.type !== 'GUILD_TEXT') return;
@@ -51,7 +51,7 @@ export const startChannelLogs = (client) => {
                 `Channel ID: ${oldChannel.id}`,
             );
 
-            await logChannel.send({ embeds: [embed] }).catch((err) => console.error(err));
+            await logChannel.send({ embeds: [embed] }).catch(console.error);
         }
     });
 };

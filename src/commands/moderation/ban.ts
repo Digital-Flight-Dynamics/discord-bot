@@ -4,7 +4,7 @@ import { color } from '../..';
 
 export const ban: CommandDefinition = {
     names: ['ban'],
-    description: 'Bans the mentioned user. Usage: `.ban @mention reason` | `.ban ID reason`',
+    description: 'Bans the mentioned user. Usage: `.ban @mention reason` | `.ban id reason`',
     category: CommandCategories.MODERATION,
     permissions: ['BAN_MEMBERS'],
     execute: async (message, args) => {
@@ -20,7 +20,7 @@ export const ban: CommandDefinition = {
         }
 
         if (!id) {
-            await message.channel.send({ embeds: [invalidEmbed] }).catch((err) => console.error(err));
+            await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
             return;
         }
 
@@ -29,7 +29,7 @@ export const ban: CommandDefinition = {
                 .send({
                     embeds: [createErrorEmbed('You cannot ban yourself')],
                 })
-                .catch((err) => console.error(err));
+                .catch(console.error);
             return;
         }
 
@@ -39,10 +39,10 @@ export const ban: CommandDefinition = {
             console.error(err);
             const errString = err.toString();
             if (errString.includes('Unknown User')) {
-                await message.channel.send({ embeds: [invalidEmbed] }).catch((err) => console.error(err));
+                await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
                 shouldReturn = true;
             } else if (errString.includes('Invalid Form Body')) {
-                await message.channel.send({ embeds: [invalidEmbed] }).catch((err) => console.error(err));
+                await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
                 shouldReturn = true;
             }
         });
@@ -54,7 +54,7 @@ export const ban: CommandDefinition = {
 
         if (member) {
             if (!member.bannable) {
-                await message.channel.send({ embeds: [createErrorEmbed('I cannot ban this user')] }).catch((err) => console.error(err));
+                await message.channel.send({ embeds: [createErrorEmbed('I cannot ban this user')] }).catch(console.error);
                 return;
             }
 
@@ -63,14 +63,14 @@ export const ban: CommandDefinition = {
                 .setTitle(`Banned from ${message.guild.name}`)
                 .addFields({ name: 'Reason', value: `${banReason}`, inline: true }, { name: 'Moderator', value: `${message.author.tag}`, inline: true });
 
-            await member.send({ embeds: [dmEmbed] }).catch((err) => console.error(err));
+            await member.send({ embeds: [dmEmbed] }).catch(console.error);
         }
 
         await message.guild.members.ban(id, { reason: banReason }).catch(async (err) => {
             console.error(err);
             const errString = err.toString();
             if (errString.includes('Missing Permissions')) {
-                await message.channel.send({ embeds: [createErrorEmbed('I cannot ban this user')] }).catch((err) => console.error(err));
+                await message.channel.send({ embeds: [createErrorEmbed('I cannot ban this user')] }).catch(console.error);
                 shouldReturn = true;
             }
         });
@@ -79,10 +79,10 @@ export const ban: CommandDefinition = {
 
         const embed = new Discord.MessageEmbed()
             .setColor(color)
-            .setTitle('Ban User')
+            .setTitle('Banned User')
             .setDescription(`<@${id}> has been banned.`)
             .addFields({ name: 'Reason', value: `${banReason}`, inline: true }, { name: 'Moderator', value: `${message.author.tag}`, inline: true });
 
-        await message.channel.send({ embeds: [embed] }).catch((err) => console.error(err));
+        await message.channel.send({ embeds: [embed] }).catch(console.error);
     },
 };

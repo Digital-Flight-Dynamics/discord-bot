@@ -17,6 +17,6 @@ export const marketplace: CommandDefinition = {
                     'Furthermore, Microsoft does not allow addons on the marketplace that use copyleft licenses such as GPL due to legal reasons.',
             )
             .setFooter('TL;DR: It will neither come to the marketplace, nor will it come to Xbox.');
-        await message.channel.send({ embeds: [embed] }).catch((err) => console.error(err));
+        await message.channel.send({ embeds: [embed] }).catch(console.error);
     },
 };

@@ -11,7 +11,7 @@ export const startRoleLogs = (client) => {
             `Role ID: ${role.id}`,
         );
 
-        await logChannel.send({ embeds: [embed] }).catch((err) => console.error(err));
+        await logChannel.send({ embeds: [embed] }).catch(console.error);
     });
     client.on('roleDelete', async (role) => {
         const logChannel = role.guild.channels.cache.find((c) => c.name === 'logs');
@@ -23,7 +23,7 @@ export const startRoleLogs = (client) => {
             `Role ID: ${role.id}`,
         );
 
-        await logChannel.send({ embeds: [embed] }).catch((err) => console.error(err));
+        await logChannel.send({ embeds: [embed] }).catch(console.error);
     });
     client.on('roleUpdate', async (oldRole, newRole) => {
         const logChannel = oldRole.guild.channels.cache.find((c) => c.name === 'logs');
@@ -40,14 +40,14 @@ export const startRoleLogs = (client) => {
                         ),
                     ],
                 })
-                .catch((err) => console.error(err));
+                .catch(console.error);
         }
         if (oldRole.name !== newRole.name) {
             await logChannel
                 .send({
                     embeds: [createLogEmbed('#FFAA00', 'Role Name Updated', `**Role:** <@&${oldRole.id}>\n**Before:** ${oldRole.name}\n**After:** ${newRole.name}`, `Role ID: ${oldRole.id}`)],
                 })
-                .catch((err) => console.error(err));
+                .catch(console.error);
         }
         if (oldRole.mentionable !== newRole.mentionable) {
             await logChannel
@@ -61,7 +61,7 @@ export const startRoleLogs = (client) => {
                         ),
                     ],
                 })
-                .catch((err) => console.error(err));
+                .catch(console.error);
         }
         if (oldRole.position !== newRole.position) {
             await logChannel
@@ -75,7 +75,7 @@ export const startRoleLogs = (client) => {
                         ),
                     ],
                 })
-                .catch((err) => console.error(err));
+                .catch(console.error);
         }
     });
 };

@@ -17,6 +17,6 @@ export const rules: CommandDefinition = {
                 6. You must follow Discord ToS and Community Guidelines. More at https://discord.com/terms & https://discord.com/guidelines.\n
                 If you see anything that is against the rules, please let our staff know.`);
 
-        await message.channel.send({ embeds: [embed] }).catch((err) => console.error(err));
+        await message.channel.send({ embeds: [embed] }).catch(console.error);
     },
 };

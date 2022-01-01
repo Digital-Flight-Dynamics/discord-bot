@@ -9,6 +9,6 @@ export const whened: CommandDefinition = {
     execute: async (message, args) => {
         const embed = new Discord.MessageEmbed().setColor(color).setImage('https://media.discordapp.net/attachments/740722295009706034/907005439579914340/meme.png');
 
-        await message.channel.send({ embeds: [embed] }).catch((err) => console.error(err));
+        await message.channel.send({ embeds: [embed] }).catch(console.error);
     },
 };

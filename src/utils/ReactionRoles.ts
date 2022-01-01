@@ -4,49 +4,49 @@ export const ReactionRoles = (client) => {
     const eventsEmoji = '✈';
 
     client.on('messageReactionAdd', async (reaction, user) => {
-        const roleChannel = reaction.message.guild.channels.cache.find((c) => c.name === 'roles');
+        const roleChannel = await reaction.message.guild.channels.fetch('808791055184691211').catch(console.error);
 
         if (reaction.message.channel.id !== roleChannel.id) return;
         if (user.bot) return;
 
-        const roleCache = reaction.message.guild.roles.cache;
+        const { roles } = reaction.message.guild;
 
-        const announcementsRole = roleCache.find((role) => role.name === 'Server Announcements');
-        const progressRole = roleCache.find((role) => role.name === 'Progress Updates');
-        const eventsRole = roleCache.find((role) => role.name === 'Event Announcements');
+        const announcementsRole = await roles.fetch('808794106003193867').catch(console.error);
+        const progressRole = await roles.fetch('808794053205688381').catch(console.error);
+        const eventsRole = await roles.fetch('855698159257911327').catch(console.error);
 
         const emoji = reaction.emoji.name;
-        const member = await reaction.message.guild.members.fetch(user.id).catch((err) => console.error(err));
+        const member = await reaction.message.guild.members.fetch(user.id).catch(console.error);
 
         if (emoji === announcementsEmoji) {
-            await member.roles.add(announcementsRole).catch((err) => console.error(err));
+            await member.roles.add(announcementsRole).catch(console.error);
         } else if (emoji === progressEmoji) {
-            await member.roles.add(progressRole).catch((err) => console.error(err));
+            await member.roles.add(progressRole).catch(console.error);
         } else if (emoji === eventsEmoji) {
-            await member.roles.add(eventsRole).catch((err) => console.error(err));
+            await member.roles.add(eventsRole).catch(console.error);
         }
     });
     client.on('messageReactionRemove', async (reaction, user) => {
-        const roleChannel = reaction.message.guild.channels.cache.find((c) => c.name === 'roles');
+        const roleChannel = await reaction.message.guild.channels.fetch('808791055184691211').catch(console.error);
 
         if (reaction.message.channel.id !== roleChannel.id) return;
         if (user.bot) return;
 
-        const roleCache = reaction.message.guild.roles.cache;
+        const { roles } = reaction.message.guild;
 
-        const announcementsRole = roleCache.find((role) => role.name === 'Server Announcements');
-        const progressRole = roleCache.find((role) => role.name === 'Progress Updates');
-        const eventsRole = roleCache.find((role) => role.name === 'Event Announcements');
+        const announcementsRole = await roles.fetch('808794106003193867').catch(console.error);
+        const progressRole = await roles.fetch('808794053205688381').catch(console.error);
+        const eventsRole = await roles.fetch('855698159257911327').catch(console.error);
 
         const emoji = reaction.emoji.name;
-        const member = await reaction.message.guild.members.fetch(user.id).catch((err) => console.error(err));
+        const member = await reaction.message.guild.members.fetch(user.id).catch(console.error);
 
         if (emoji === announcementsEmoji) {
-            await member.roles.remove(announcementsRole).catch((err) => console.error(err));
+            await member.roles.remove(announcementsRole).catch(console.error);
         } else if (emoji === progressEmoji) {
-            await member.roles.remove(progressRole).catch((err) => console.error(err));
+            await member.roles.remove(progressRole).catch(console.error);
         } else if (emoji === eventsEmoji) {
-            await member.roles.remove(eventsRole).catch((err) => console.error(err));
+            await member.roles.remove(eventsRole).catch(console.error);
         }
     });
 };
