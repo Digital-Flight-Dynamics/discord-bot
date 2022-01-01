@@ -3,7 +3,6 @@
 [![Discord](https://img.shields.io/discord/808790838163406848.svg?label=&logo=discord&logoColor=ffffff&color=7289DA&labelColor=7289DA)](https://discord.gg/REGJgP4gZd)
 
 Official Repository of the Digital Flight Dynamics Discord bot.
-**The bot is currently not live in the Discord server, but it will be soon.**
 
 ## How to Contribute
 
