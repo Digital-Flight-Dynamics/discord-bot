@@ -14,13 +14,14 @@ import { unban } from './moderation/unban';
 import { kick } from './moderation/kick';
 import { dm } from './moderation/dm';
 import { whois } from './moderation/whois';
-import { msfs } from './general/msfs'
+import { msfs } from './support/msfs'
 
 export const enum CommandCategories {
     A350X = 'A350X',
     GENERAL = 'General',
     FUN = 'Fun',
     MODERATION = 'Moderation',
+    SUPPORT = 'Support'
 }
 export type CommandDefinition = {
     names: string[];

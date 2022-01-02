@@ -5,7 +5,7 @@ import { color } from '../../index';
 export const msfs: CommandDefinition = {
     names: ['msfs'],
     description: "Redirects user to MSFS server for support",
-    category: CommandCategories.GENERAL,
+    category: CommandCategories.SUPPORT,
     execute: async (message, args) => {
         const embed = new Discord.MessageEmbed()
             .setColor(color)
