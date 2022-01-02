@@ -15,8 +15,8 @@ export const help: CommandDefinition = {
                 .setTitle('Command Categories')
                 .addFields(
                     { name: 'A350X', value: 'Commands related to the A350X project' },
-                    { name: 'General', value: 'Generic commands' },
-                    { name: 'Fun', value: 'Commands that exists just for fun' },
+                    { name: 'General', value: 'Generic commands that can be used by anyone' },
+                    { name: 'Fun', value: 'Commands that exist just for fun' },
                     { name: 'Moderation', value: 'Commands used by staff' },
                 );
             await message.channel.send({ embeds: [rootEmbed] }).catch(console.error);

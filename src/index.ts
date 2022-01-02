@@ -1,9 +1,7 @@
 import Discord from 'discord.js';
 import { commands } from './commands';
 import logs from './logging';
-import { AutoKick } from './utils/AutoKick';
-import { MemberCounter } from './utils/MemberCounter';
-import { ReactionRoles } from './utils/ReactionRoles';
+import utils from './utils';
 
 require('dotenv').config();
 
@@ -16,10 +14,8 @@ const client = new Discord.Client({
 export const color = '#18B1AB';
 const prefix = '.';
 
-client.once('ready', () => {
-    console.log('Bot is logged in!');
-
-    MemberCounter(client);
+client.on('ready', (client) => {
+    console.log(`Bot is logged in as "${client.user.tag}"!`);
 });
 
 // logs are disabled for now
@@ -27,7 +23,9 @@ client.once('ready', () => {
     startLog(client);
 } */
 
-ReactionRoles(client);
+for (const util of utils) {
+    client.on(util.event, util.execute);
+}
 
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
@@ -48,8 +46,6 @@ client.on('messageCreate', async (message) => {
 
         return;
     }
-
-    AutoKick(message);
 
     if (isCommand) {
         const commandUsed = message.content.substring(1).toLowerCase().split(' ')[0];
@@ -84,37 +80,6 @@ client.on('messageCreate', async (message) => {
             console.log(`Failed to run command "${message.content}" by ${message.author.tag} in #${message.channel.name}. ${error}`);
         }
     }
-});
-
-client.on('guildMemberAdd', async (member) => {
-    const memberRole = await member.guild.roles.fetch('808792283515191326').catch(console.error);
-    const arrivals = await member.guild.channels.fetch('808793231621750815').catch(console.error);
-
-    if (!arrivals) {
-        console.error('Error: User joined, but failed to find channel #arrivals. Returning...');
-        return;
-    }
-    if (!memberRole) {
-        console.error('Error: User joined, but failed to find role "Member". Returning...');
-        return;
-    }
-
-    if (!arrivals.isText()) return;
-
-    await arrivals.send(`Hello ${member.user}, welcome to ${member.guild}!`).catch(console.error);
-    await member.roles.add(memberRole);
-});
-client.on('guildMemberRemove', async (member) => {
-    const leaves = await member.guild.channels.fetch('814292355661299713').catch(console.error);
-
-    if (!leaves) {
-        console.error('Error: User left, but failed to find channel #leaves. Returning...');
-        return;
-    }
-
-    if (!leaves.isText()) return;
-
-    await leaves.send(`**${member.user.tag}** just left the server`).catch(console.error);
 });
 
 client.login(process.env.token).catch(console.error);

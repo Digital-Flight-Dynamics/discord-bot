@@ -1,29 +1,34 @@
 import Discord from 'discord.js';
 import { color } from '../index';
 
-export const AutoKick = async (message) => {
-    if (message.content.includes('@everyone') && !message.member.permissions.has('MENTION_EVERYONE')) {
-        const member = message.guild.members.cache.get(message.author.id);
+export const autoKick = {
+    event: 'messageCreate',
+    execute: async (message) => {
+        if (message.channel.type === 'DM') return;
 
-        await message.delete().catch(console.error);
+        if (message.content.includes('@everyone') && !message.member.permissions.has('MENTION_EVERYONE')) {
+            const member = message.guild.members.cache.get(message.author.id);
 
-        const blacklist = ['csgo', 'cs:go', 'cs go', 'steam', 'stearn', 'kinfe', 'knife', 'skins', 'giveaway', 'free', 'nitro', 'discord', 'discorcl'];
+            await message.delete().catch(console.error);
 
-        const dmEmbed = new Discord.MessageEmbed()
-            .setColor(color)
-            .setTitle(`Kicked from ${message.guild.name}`)
-            .addFields({ name: 'Reason', value: 'Kicked as a precaution - potential scam', inline: true }, { name: 'Moderator', value: 'Automated Kick', inline: true });
+            const blacklist = ['csgo', 'cs:go', 'cs go', 'steam', 'stearn', 'kinfe', 'knife', 'skins', 'giveaway', 'free', 'nitro', 'discord', 'discorcl'];
 
-        let shouldKick = false;
+            const dmEmbed = new Discord.MessageEmbed()
+                .setColor(color)
+                .setTitle(`Kicked from ${message.guild.name}`)
+                .addFields({ name: 'Reason', value: 'Kicked as a precaution - potential scam', inline: true }, { name: 'Moderator', value: 'Automated Kick', inline: true });
 
-        for (const word of blacklist) {
-            if (message.content.includes(word)) {
-                shouldKick = true;
+            let shouldKick = false;
+
+            for (const word of blacklist) {
+                if (message.content.includes(word)) {
+                    shouldKick = true;
+                }
             }
-        }
-        if (!shouldKick) return;
+            if (!shouldKick) return;
 
-        await member.user.send({ embeds: [dmEmbed] }).catch(console.error);
-        await member.kick().catch(console.error);
-    }
+            await member.user.send({ embeds: [dmEmbed] }).catch(console.error);
+            await member.kick().catch(console.error);
+        }
+    },
 };
