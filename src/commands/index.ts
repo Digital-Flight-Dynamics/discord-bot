@@ -14,6 +14,7 @@ import { unban } from './moderation/unban';
 import { kick } from './moderation/kick';
 import { dm } from './moderation/dm';
 import { whois } from './moderation/whois';
+import { msfs } from './general/msfs'
 
 export const enum CommandCategories {
     A350X = 'A350X',
@@ -30,4 +31,4 @@ export type CommandDefinition = {
 };
 export const createErrorEmbed = (description: string) => new Discord.MessageEmbed().setColor('#FF0000').setTitle('Error').setDescription(description);
 
-export const commands: CommandDefinition[] = [when, marketplace, faq, help, whened, whoosh, info, rules, reactionroles, purge, ban, unban, kick, dm, whois];
+export const commands: CommandDefinition[] = [when, marketplace, faq, help, whened, whoosh, info, rules, reactionroles, purge, ban, unban, kick, dm, whois, msfs];
