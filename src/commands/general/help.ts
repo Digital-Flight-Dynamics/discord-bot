@@ -18,6 +18,7 @@ export const help: CommandDefinition = {
                     { name: 'General', value: 'Generic commands that can be used by anyone' },
                     { name: 'Fun', value: 'Commands that exist just for fun' },
                     { name: 'Moderation', value: 'Commands used by staff' },
+                    { name: 'Support', value: 'Commands used for support purposes'}
                 );
             await message.channel.send({ embeds: [rootEmbed] }).catch(console.error);
 
