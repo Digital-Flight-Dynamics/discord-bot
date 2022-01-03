@@ -66,7 +66,7 @@ client.on('messageCreate', async (message) => {
 
         if (cmdToExec === undefined) {
             // if the command is not found
-            console.error(`Failed to run command "${message.content}" by ${message.author.tag} in #${message.channel.name}. Command does not exist, or was not found.`);
+            console.error(`Failed to run command "${commandUsed}" by ${message.author.tag} in #${message.channel.name}. Command does not exist, or was not found.`);
             return;
         }
 
@@ -81,9 +81,9 @@ client.on('messageCreate', async (message) => {
 
         try {
             await cmdToExec.execute(message, args).catch(console.error);
-            console.log(`Successfully ran command "${message.content}" by ${message.author.tag} in #${message.channel.name}`);
+            console.log(`Successfully ran command "${commandUsed}" by ${message.author.tag} in #${message.channel.name}`);
         } catch (error) {
-            console.log(`Failed to run command "${message.content}" by ${message.author.tag} in #${message.channel.name}. ${error}`);
+            console.log(`Failed to run command "${commandUsed}" by ${message.author.tag} in #${message.channel.name}. ${error}`);
         }
     }
 });
