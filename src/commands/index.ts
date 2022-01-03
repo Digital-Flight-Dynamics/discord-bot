@@ -32,4 +32,21 @@ export type CommandDefinition = {
 };
 export const createErrorEmbed = (description: string) => new Discord.MessageEmbed().setColor('#FF0000').setTitle('Error').setDescription(description);
 
-export const commands: CommandDefinition[] = [when, marketplace, faq, help, whened, whoosh, info, rules, reactionroles, purge, ban, unban, kick, dm, whois, msfs];
+export const commands: CommandDefinition[] = [
+    when, 
+    marketplace, 
+    faq, 
+    help, 
+    whened, 
+    whoosh, 
+    info, 
+    rules, 
+    reactionroles, 
+    purge, 
+    ban, 
+    unban, 
+    kick, 
+    dm, 
+    whois, 
+    msfs
+];

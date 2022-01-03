@@ -64,6 +64,12 @@ client.on('messageCreate', async (message) => {
             }
         }
 
+        if (!cmdToExec) {
+            // if the command is not found
+            console.error(`Failed to run command "${message.content}" by ${message.author.tag} in #${message.channel.name}. Command was not found.`);
+            return;
+        }
+
         if (!hasPerms) {
             await message.channel
                 .send({
