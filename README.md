@@ -8,4 +8,4 @@ Official Repository of the Digital Flight Dynamics Discord bot.
 
 # Contributing 
 
-Kindly follow the steps detailed in [contributing.md](.github/CONTRIBUTING.md) to contribute to the repository.
+Kindly follow the steps detailed in [CONTRIBUTING.md](.github/CONTRIBUTING.md) to contribute to the repository.
