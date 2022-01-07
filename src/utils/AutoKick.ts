@@ -27,6 +27,19 @@ export const autoKick = {
             }
             if (!shouldKick) return;
 
+            const logChannel = message.guild.channels.cache.find((c) => c.name === 'logs');
+            const kickEmbed = new Discord.MessageEmbed()
+                .setColor('#FF0000')
+                .setTitle('User Auto-Kicked')
+                .setDescription(`**User:** ${member}\n**Reason:** Kicked as a precaution - potential scam.\n**Message**: ${message.content}`)
+                .setFooter(`User ID: ${member.user.id}`)
+                .setTimestamp()
+                .setAuthor(
+                    message.author.tag,
+                    message.author.avatarURL(),
+                )
+
+            await logChannel.send({ embeds: [kickEmbed] }).catch(console.error);
             await member.user.send({ embeds: [dmEmbed] }).catch(console.error);
             await member.kick().catch(console.error);
         }
