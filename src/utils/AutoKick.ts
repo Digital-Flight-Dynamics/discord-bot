@@ -37,7 +37,7 @@ export const autoKick = {
                 .setAuthor(
                     message.author.tag,
                     message.author.avatarURL(),
-                )
+                );
 
             await logChannel.send({ embeds: [kickEmbed] }).catch(console.error);
             await member.user.send({ embeds: [dmEmbed] }).catch(console.error);

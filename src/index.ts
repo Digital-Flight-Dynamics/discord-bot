@@ -19,9 +19,9 @@ client.on('ready', (client) => {
 });
 
 // logs are disabled for now
-for (const startLog of logs) {
+/* for (const startLog of logs) {
     startLog(client);
-}
+} */
 
 for (const util of utils) {
     client.on(util.event, util.execute);
