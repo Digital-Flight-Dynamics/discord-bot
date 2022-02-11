@@ -11,7 +11,7 @@ export const autoKick = {
 
             await message.delete().catch(console.error);
 
-            const blacklist = ['csgo', 'cs:go', 'cs go', 'steam', 'stearn', 'kinfe', 'knife', 'skins', 'giveaway', 'free', 'nitro', 'discord', 'discorcl'];
+            const blacklist = ['csgo', 'cs:go', 'cs go', 'steam', 'stearn', 'kinfe', 'knife', 'skins', 'giveaway', 'free', 'nitro', 'discord', 'discorcl', 'gift', 'first'];
 
             const dmEmbed = new Discord.MessageEmbed()
                 .setColor(color)
