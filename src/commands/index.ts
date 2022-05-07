@@ -4,6 +4,7 @@ import { marketplace } from './a350x/marketplace';
 import { faq } from './a350x/faq';
 import { help } from './general/help';
 import { metar } from './general/metar';
+import { taf } from './general/taf';
 import { whened } from './fun/whened';
 import { whoosh } from './fun/whoosh';
 import { info } from './moderation/info';
@@ -15,7 +16,7 @@ import { unban } from './moderation/unban';
 import { kick } from './moderation/kick';
 import { dm } from './moderation/dm';
 import { whois } from './moderation/whois';
-import { msfs } from './support/msfs'
+import { msfs } from './support/msfs';
 
 export const enum CommandCategories {
     A350X = 'A350X',
@@ -39,6 +40,7 @@ export const commands: CommandDefinition[] = [
     faq,
     help,
     metar,
+    taf,
     whened,
     whoosh,
     info,
