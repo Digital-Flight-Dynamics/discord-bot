@@ -9,5 +9,5 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: heroku/cli@v7.60.2
-      - run: heroku git:remote -a dfd-discord-bot
+      - run: git remote -v
       - run: git push heroku master
