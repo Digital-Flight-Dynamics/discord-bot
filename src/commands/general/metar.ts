@@ -84,7 +84,7 @@ export const metar: CommandDefinition = {
                     .addFields(
                         { name: 'Raw Report', value: `${raw}` },
                         {
-                            name: 'Readable Report (deployment test)',
+                            name: 'Readable Report',
                             value:
                                 `**Station:** ${station}\n` +
                                 `**Observed at:** ${time}\n` +
