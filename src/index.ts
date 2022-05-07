@@ -88,4 +88,4 @@ client.on('messageCreate', async (message) => {
     }
 });
 
-client.login(process.env.token).catch(console.error);
+client.login(process.env.BOT_TOKEN).catch(console.error);

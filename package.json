@@ -12,9 +12,9 @@
     "npm": "8.1.4"
   },
   "dependencies": {
+    "axios": "^0.24.0",
     "discord.js": "^13.3.1",
-    "dotenv": "^10.0.0",
-    "xhr2": "^0.2.1"
+    "dotenv": "^10.0.0"
   },
   "devDependencies": {
     "@flybywiresim/eslint-config": "^0.2.3",
