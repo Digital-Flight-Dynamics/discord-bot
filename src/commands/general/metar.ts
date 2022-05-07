@@ -44,7 +44,6 @@ export const metar: CommandDefinition = {
 
                 const { raw, station, units, visibility, temperature, dewpoint, altimeter, clouds } = report;
                 const time = `${report.time.dt.replace('T', ' ')}`;
-                const wind = `${degToDir(report.wind_direction.value)}-${report.wind_direction.value} at ${report.wind_speed.value}${units.wind_speed}`;
 
                 const getCloudType = (type: string) => {
                     switch (type) {
@@ -72,6 +71,12 @@ export const metar: CommandDefinition = {
                     cloudText += `${cloudType} at ${clouds[i].altitude * 100}${units.altitude}`;
                 }
                 cloudText += clouds.length === 0 ? 'Clear skies' : ' - Reported AGL';
+
+                let windVarText = '';
+                const windVar = report.wind_variable_direction;
+                if (windVar.length > 0) windVarText += `(variable ${windVar[0].value} to ${windVar[1].value})`;
+
+                const wind = `${degToDir(report.wind_direction.value)}-${report.wind_direction.value} ${windVarText} at ${report.wind_speed.value}${units.wind_speed}`;
 
                 embed = new Discord.MessageEmbed()
                     .setColor(color)
