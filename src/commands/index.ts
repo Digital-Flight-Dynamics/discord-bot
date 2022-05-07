@@ -3,6 +3,8 @@ import { when } from './a350x/when';
 import { marketplace } from './a350x/marketplace';
 import { faq } from './a350x/faq';
 import { help } from './general/help';
+import { metar } from './general/metar';
+import { taf } from './general/taf';
 import { whened } from './fun/whened';
 import { whoosh } from './fun/whoosh';
 import { info } from './moderation/info';
@@ -14,14 +16,14 @@ import { unban } from './moderation/unban';
 import { kick } from './moderation/kick';
 import { dm } from './moderation/dm';
 import { whois } from './moderation/whois';
-import { msfs } from './support/msfs'
+import { msfs } from './support/msfs';
 
 export const enum CommandCategories {
     A350X = 'A350X',
     GENERAL = 'General',
     FUN = 'Fun',
     MODERATION = 'Moderation',
-    SUPPORT = 'Support'
+    SUPPORT = 'Support',
 }
 export type CommandDefinition = {
     names: string[];
@@ -33,20 +35,22 @@ export type CommandDefinition = {
 export const createErrorEmbed = (description: string) => new Discord.MessageEmbed().setColor('#FF0000').setTitle('Error').setDescription(description);
 
 export const commands: CommandDefinition[] = [
-    when, 
-    marketplace, 
-    faq, 
-    help, 
-    whened, 
-    whoosh, 
-    info, 
-    rules, 
-    reactionroles, 
-    purge, 
-    ban, 
-    unban, 
-    kick, 
-    dm, 
-    whois, 
-    msfs
+    when,
+    marketplace,
+    faq,
+    help,
+    metar,
+    taf,
+    whened,
+    whoosh,
+    info,
+    rules,
+    reactionroles,
+    purge,
+    ban,
+    unban,
+    kick,
+    dm,
+    whois,
+    msfs,
 ];
