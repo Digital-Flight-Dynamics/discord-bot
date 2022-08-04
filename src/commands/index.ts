@@ -17,6 +17,7 @@ import { kick } from './moderation/kick';
 import { dm } from './moderation/dm';
 import { whois } from './moderation/whois';
 import { msfs } from './support/msfs';
+import { cabin } from './a350x/cabin';
 
 export const enum CommandCategories {
     A350X = 'A350X',
@@ -53,4 +54,5 @@ export const commands: CommandDefinition[] = [
     dm,
     whois,
     msfs,
+    cabin,
 ];
