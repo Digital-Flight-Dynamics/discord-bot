@@ -4,15 +4,15 @@ import { color } from '../../index';
 
 export const variants: CommandDefinition = {
     names: ['variants'],
-    description: 'Tells you what A350 variants will be made',
+    description: 'Provides info on what variants will be developed',
     category: CommandCategories.A350X,
     execute: async (message, args) => {
         const embed = new Discord.MessageEmbed()
             .setColor(color)
-            .setTitle('What A350 variants will be made?')
+            .setTitle('What variants will be developed?')
             .setDescription(
-                'We will make the A350-1000 and an A350-900 after that.' +
-                    'However, we might also make an ULR variant and if the cargo variant comes out there might be a possibilty for that.',
+                'The first variant will be the -1000. The -900 and -900ULR will follow the release of the -1000 after some time. ' +
+                    "As for the freighter, we may consider developing it once the A350F is officially in service. However, it's not guaranteed.",
             );
 
         await message.channel.send({ embeds: [embed] }).catch(console.error);
