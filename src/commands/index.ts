@@ -5,7 +5,6 @@ import { faq } from './a350x/faq';
 import { help } from './general/help';
 import { metar } from './general/metar';
 import { taf } from './general/taf';
-import { whened } from './fun/whened';
 import { whoosh } from './fun/whoosh';
 import { info } from './moderation/info';
 import { rules } from './moderation/rules';
@@ -44,7 +43,6 @@ export const commands: CommandDefinition[] = [
     help,
     metar,
     taf,
-    whened,
     whoosh,
     info,
     rules,
