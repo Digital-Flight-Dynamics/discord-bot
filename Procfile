@@ -1,0 +1,1 @@
+Worker: node out/index.js
