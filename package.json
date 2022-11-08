@@ -9,7 +9,7 @@
   "author": "Digital Flight Dynamics",
   "license": "GPL-3.0",
   "engines": {
-    "node": "17.2.0",
+    "node": "16.x",
     "npm": "8.1.4"
   },
   "dependencies": {
