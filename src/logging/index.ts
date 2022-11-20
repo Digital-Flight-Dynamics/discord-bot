@@ -1,12 +1,13 @@
-import Discord from 'discord.js';
-import { startChannelLogs } from './ChannelLogs';
+import { ClientEvents } from 'discord.js';
+import { channelCreate, channelDelete, channelUpdate } from './ChannelLogs';
 import { startEmojiLogs } from './EmojiLogs';
 import { startMessageLogs } from './MessageLogs';
 import { startModLogs } from './ModLogs';
 import { startRoleLogs } from './RoleLogs';
 
-export const createLogEmbed = (color, title, description, footer) =>
-    // eslint-disable-next-line implicit-arrow-linebreak
-    new Discord.MessageEmbed().setColor(color).setTitle(title).setDescription(description).setFooter(footer).setTimestamp();
+export interface LogDefinition<T extends [...any]> {
+    event: keyof ClientEvents;
+    execute: (...args: T) => void;
+}
 
-export default [startChannelLogs, startEmojiLogs, startMessageLogs, startModLogs, startRoleLogs];
+export default [channelCreate, channelDelete, channelUpdate];

@@ -1,57 +1,94 @@
-import { createLogEmbed } from './index';
+import { GuildChannel, TextChannel } from 'discord.js';
+import { LogDefinition } from '.';
+import { createEmbed } from '../lib/embed';
 
-export const startChannelLogs = (client) => {
-    client.on('channelCreate', async (channel) => {
-        if (channel.type === 'DM') return;
+enum Colors {
+    RED = '#FF0000',
+    ORANGE = '#FFAA00',
+    GREEN = '#00FF00',
+}
 
-        const logChannel = channel.guild.channels.cache.find((c) => c.name === 'logs');
+const getLogChannel = (channel: GuildChannel) => {
+    return channel.guild.channels.cache.find((c) => c.name === 'logs') as TextChannel;
+};
 
-        const embed = createLogEmbed(
-            '#00FF00',
-            'Channel Created',
-            `**Channel:** <#${channel.id}>\n**Name:** ${channel.name}\n**Topic:** ${channel.topic}\n**Type:** ${channel.type}`,
-            `Channel ID: ${channel.id}`,
-        );
+export const channelCreate: LogDefinition<[GuildChannel]> = {
+    event: 'channelCreate',
+    execute: async (channel) => {
+        const logChannel = getLogChannel(channel);
+        if (!logChannel) return;
+
+        const embed = createEmbed({
+            color: Colors.GREEN,
+            title: 'Channel Created',
+            description: `**Channel:** <#${channel.id}>\n**Name:** ${channel.name}\n${channel.isText() ? `**Topic:** ${channel.topic || 'None'}\n` : ''}**Type:** ${channel.type}`,
+            footer: { text: `Channel ID: ${channel.id}` },
+        });
 
         await logChannel.send({ embeds: [embed] }).catch(console.error);
-    });
-    client.on('channelDelete', async (channel) => {
-        if (channel.type === 'DM') return;
+    },
+};
 
-        const logChannel = channel.guild.channels.cache.find((c) => c.name === 'logs');
+export const channelDelete: LogDefinition<[GuildChannel]> = {
+    event: 'channelDelete',
+    execute: async (channel) => {
+        const logChannel = getLogChannel(channel);
+        if (!logChannel) return;
 
-        const embed = createLogEmbed('#FF0000', 'Channel Deleted', `**Name:** ${channel.name}\n**Topic:** ${channel.topic}\n**Type:** ${channel.type}`, `Channel ID: ${channel.id}`);
+        const embed = createEmbed({
+            color: Colors.RED,
+            title: 'Channel Deleted',
+            description: `**Name:** ${channel.name}\n${channel.isText() ? `**Topic:** ${channel.topic || 'None'}\n` : ''}**Type:** ${channel.type}`,
+            footer: { text: `Channel ID: ${channel.id}` },
+        });
 
         await logChannel.send({ embeds: [embed] }).catch(console.error);
-    });
-    client.on('channelUpdate', async (oldChannel, newChannel) => {
-        if (oldChannel.type === 'DM') return;
+    },
+};
+
+export const channelUpdate: LogDefinition<[GuildChannel, GuildChannel]> = {
+    event: 'channelUpdate',
+    execute: async (oldChannel, newChannel) => {
         if (oldChannel.name.includes('Member Count:')) return; // Ignore membercount channel name change
 
-        const logChannel = oldChannel.guild.channels.cache.find((c) => c.name === 'logs');
+        const logChannel = getLogChannel(oldChannel);
+        if (!logChannel) return;
 
         if (oldChannel.name !== newChannel.name) {
-            const embed = createLogEmbed(
-                '#FFAA00',
-                'Channel Name Changed',
-                `**Channel:** <#${oldChannel.id}>\n**Before:** ${oldChannel.name}\n**After:** ${newChannel.name}`,
-                `Channel ID: ${oldChannel.id}`,
-            );
+            const embed = createEmbed({
+                color: Colors.ORANGE,
+                title: 'Channel Name Changed',
+                description: `**Channel:** <#${oldChannel.id}>\n**Before:** ${oldChannel.name}\n**After:** ${newChannel.name}`,
+                footer: { text: `Channel ID: ${oldChannel.id}` },
+            });
 
             await logChannel.send({ embeds: [embed] }).catch(console.error);
         }
 
-        if (oldChannel.type !== 'GUILD_TEXT') return;
+        if (!oldChannel.isText() || !newChannel.isText()) return;
 
         if (oldChannel.topic !== newChannel.topic) {
-            const embed = createLogEmbed(
-                '#FFAA00',
-                'Channel Topic Changed',
-                `**Channel:** <#${oldChannel.id}>\n**Before:** ${oldChannel.topic}\n**After:** ${newChannel.topic}`,
-                `Channel ID: ${oldChannel.id}`,
-            );
+            const embed = createEmbed({
+                color: '#FFAA00',
+                title: 'Channel Topic Changed',
+                description: `**Channel:** <#${oldChannel.id}>\n**Before:** ${oldChannel.topic}\n**After:** ${newChannel.topic}`,
+                footer: { text: `Channel ID: ${oldChannel.id}` },
+            });
 
             await logChannel.send({ embeds: [embed] }).catch(console.error);
         }
-    });
+
+        if (oldChannel.type === 'GUILD_NEWS' || newChannel.type === 'GUILD_NEWS') return;
+
+        if (oldChannel.rateLimitPerUser !== newChannel.rateLimitPerUser) {
+            const embed = createEmbed({
+                color: Colors.ORANGE,
+                title: 'Channel Slowmode Updated',
+                description: `**Channel:** <#${oldChannel.id}>\n**Before:** ${oldChannel.rateLimitPerUser}s\n**After:** ${newChannel.rateLimitPerUser}s`,
+                footer: { text: `Channel ID: ${oldChannel.id}` },
+            });
+
+            await logChannel.send({ embeds: [embed] });
+        }
+    },
 };
