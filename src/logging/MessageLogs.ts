@@ -5,7 +5,7 @@ import { Collection, GuildChannel, Message, Snowflake } from 'discord.js';
 export const messageDelete: LogDefinition<[Message]> = {
     event: 'messageDelete',
     execute: async (message) => {
-        if (!message.author || message.author.bot || !(message.channel.type === 'GUILD_TEXT')) return;
+        if (!message.author || message.channel.type === 'DM') return;
 
         const logChannel = getLogChannel(message);
         if (!logChannel) return;
@@ -55,7 +55,7 @@ export const messageDeleteBulk: LogDefinition<[Collection<Snowflake, Message>]> 
 export const messageUpdate: LogDefinition<[Message, Message]> = {
     event: 'messageUpdate',
     execute: async (oldMsg, newMsg) => {
-        if (!oldMsg.author || oldMsg.author.bot || !(oldMsg.channel.type === 'GUILD_TEXT')) return;
+        if (!oldMsg.author || oldMsg.author.bot || oldMsg.channel.type === 'DM') return;
 
         const logChannel = getLogChannel(oldMsg);
         if (!logChannel) return;
