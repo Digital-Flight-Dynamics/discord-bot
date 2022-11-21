@@ -5,7 +5,7 @@
             "ES2020"
         ],
         "target": "es5",
-        "outDir": "build",
+        "outDir": "out",
         "moduleResolution": "node",
         "esModuleInterop": true,
         "experimentalDecorators": false
