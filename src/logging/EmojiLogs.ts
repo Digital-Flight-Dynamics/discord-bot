@@ -1,5 +1,4 @@
 import { createEmbed } from '../lib/embed';
-import Discord from 'discord.js';
 import { Colors, LogDefinition, getLogChannel } from '.';
 import { GuildEmoji } from 'discord.js';
 

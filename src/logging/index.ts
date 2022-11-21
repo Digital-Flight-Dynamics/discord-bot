@@ -1,7 +1,7 @@
 import { ClientEvents, TextChannel } from 'discord.js';
 import { channelCreate, channelDelete, channelUpdate } from './ChannelLogs';
 import { emojiCreate, emojiDelete, emojiUpdate } from './EmojiLogs';
-import { startMessageLogs } from './MessageLogs';
+import { messageDelete, messageDeleteBulk, messageUpdate } from './MessageLogs';
 import { startModLogs } from './ModLogs';
 import { startRoleLogs } from './RoleLogs';
 
@@ -20,4 +20,4 @@ export const getLogChannel = (thing: any) => {
     return thing.guild.channels.cache.find((c) => c.name === 'logs') as TextChannel;
 };
 
-export default [channelCreate, channelDelete, channelUpdate, emojiCreate, emojiDelete, emojiUpdate];
+export default [channelCreate, channelDelete, channelUpdate, emojiCreate, emojiDelete, emojiUpdate, messageDelete, messageDeleteBulk, messageUpdate];
