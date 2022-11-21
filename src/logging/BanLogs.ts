@@ -12,7 +12,7 @@ export const guildBanAdd: LogDefinition<[GuildBan]> = {
             {
                 color: Colors.RED,
                 title: 'User Banned',
-                description: `**User:** ${ban.user.tag}\n**Reason:** ${ban.reason}`,
+                description: `**Reason:** ${ban.reason}`,
                 footer: { text: `User ID: ${ban.user.id}` },
                 author: { name: ban.user.tag, iconURL: ban.user.avatarURL() },
             },
@@ -33,7 +33,7 @@ export const guildBanRemove: LogDefinition<[GuildBan]> = {
             {
                 color: Colors.GREEN,
                 title: 'User Unbanned',
-                description: `**User:** ${ban.user.tag}\n**Reason:** ${ban.reason}`,
+                description: `**Reason:** ${ban.reason}`,
                 footer: { text: `User ID: ${ban.user.id}` },
                 author: { name: ban.user.tag, iconURL: ban.user.avatarURL() },
             },
