@@ -1,81 +1,129 @@
-import { createLogEmbed } from './index';
+import { createEmbed } from '../lib/embed';
+import { Colors, LogDefinition, getLogChannel } from '.';
+import { Role } from 'discord.js';
 
-export const startRoleLogs = (client) => {
-    client.on('roleCreate', async (role) => {
-        const logChannel = role.guild.channels.cache.find((c) => c.name === 'logs');
+export const roleCreate: LogDefinition<[Role]> = {
+    event: 'roleCreate',
+    execute: async (role) => {
+        const logChannel = getLogChannel(role);
+        if (!logChannel) return;
 
-        const embed = createLogEmbed(
-            '#00FF00',
-            'Role Created',
-            `**Role:** <@&${role.id}>\n**Name:** ${role.name}\n**Color:** ${role.hexColor.toUpperCase()}\n**Mentionable:** ${role.mentionable}`,
-            `Role ID: ${role.id}`,
+        const embed = createEmbed(
+            {
+                color: Colors.GREEN,
+                title: 'Role Created',
+                description: `**Role:** <@&${role.id}>\n**Name:** ${role.name}\n**Color:** ${role.hexColor.toUpperCase()}\n**Mentionable:** ${role.mentionable}`,
+                footer: { text: `Role ID: ${role.id}` },
+            },
+            true,
         );
 
         await logChannel.send({ embeds: [embed] }).catch(console.error);
-    });
-    client.on('roleDelete', async (role) => {
-        const logChannel = role.guild.channels.cache.find((c) => c.name === 'logs');
+    },
+};
 
-        const embed = createLogEmbed(
-            '#FF0000',
-            'Role Deleted',
-            `**Name:** ${role.name}\n**Color:** ${role.hexColor.toUpperCase()}\n**Mentionable:** ${role.mentionable}`,
-            `Role ID: ${role.id}`,
+export const roleDelete: LogDefinition<[Role]> = {
+    event: 'roleDelete',
+    execute: async (role) => {
+        const logChannel = getLogChannel(role);
+        if (!logChannel) return;
+
+        const embed = createEmbed(
+            {
+                color: Colors.RED,
+                title: 'Role Deleted',
+                description: `**Name:** ${role.name}\n**Color:** ${role.hexColor.toUpperCase()}\n**Mentionable:** ${role.mentionable}`,
+                footer: { text: `Role ID: ${role.id}` },
+            },
+            true,
         );
 
         await logChannel.send({ embeds: [embed] }).catch(console.error);
-    });
-    client.on('roleUpdate', async (oldRole, newRole) => {
-        const logChannel = oldRole.guild.channels.cache.find((c) => c.name === 'logs');
+    },
+};
+
+export const roleUpdate: LogDefinition<[Role, Role]> = {
+    event: 'roleUpdate',
+    execute: async (oldRole, newRole) => {
+        const logChannel = getLogChannel(oldRole);
+        if (!logChannel) return;
+
+        const snakeToNorm = (str: string) => {
+            return str
+                .toLowerCase()
+                .split('_')
+                .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ');
+        };
 
         if (oldRole.color !== newRole.color) {
-            await logChannel
-                .send({
-                    embeds: [
-                        createLogEmbed(
-                            '#FFAA00',
-                            'Role Color Updated',
-                            `**Role:** <@&${oldRole.id}>\n**Before:** ${oldRole.hexColor.toUpperCase()}\n**After:** ${newRole.hexColor.toUpperCase()}`,
-                            `Role ID: ${oldRole.id}`,
-                        ),
-                    ],
-                })
-                .catch(console.error);
+            const embed = createEmbed(
+                {
+                    color: Colors.ORANGE,
+                    title: 'Role Color Updated',
+                    description: `**Role:** <@&${oldRole.id}>\n**Before:** ${oldRole.hexColor.toUpperCase()}\n**After:** ${newRole.hexColor.toUpperCase()}`,
+                    footer: { text: `Role ID: ${oldRole.id}` },
+                },
+                true,
+            );
+
+            await logChannel.send({ embeds: [embed] }).catch(console.error);
         }
         if (oldRole.name !== newRole.name) {
-            await logChannel
-                .send({
-                    embeds: [createLogEmbed('#FFAA00', 'Role Name Updated', `**Role:** <@&${oldRole.id}>\n**Before:** ${oldRole.name}\n**After:** ${newRole.name}`, `Role ID: ${oldRole.id}`)],
-                })
-                .catch(console.error);
+            const embed = createEmbed(
+                {
+                    color: Colors.ORANGE,
+                    title: 'Role Name Updated',
+                    description: `**Role:** <@&${oldRole.id}>\n**Before:** ${oldRole.name}\n**After:** ${newRole.name}`,
+                    footer: { text: `Role ID: ${oldRole.id}` },
+                },
+                true,
+            );
+
+            await logChannel.send({ embeds: [embed] }).catch(console.error);
         }
         if (oldRole.mentionable !== newRole.mentionable) {
-            await logChannel
-                .send({
-                    embeds: [
-                        createLogEmbed(
-                            '#FFAA00',
-                            'Role Mentionable Flag Updated',
-                            `**Role:** <@&${oldRole.id}>\n**Before:** ${oldRole.mentionable}\n**After:** ${newRole.mentionable}`,
-                            `Role ID: ${oldRole.id}`,
-                        ),
-                    ],
-                })
-                .catch(console.error);
+            const embed = createEmbed(
+                {
+                    color: Colors.ORANGE,
+                    title: 'Role Mentionable Flag Updated',
+                    description: `**Role:** <@&${oldRole.id}>\n**Before:** ${oldRole.mentionable}\n**After:** ${newRole.mentionable}`,
+                    footer: { text: `Role ID: ${oldRole.id}` },
+                },
+                true,
+            );
+
+            await logChannel.send({ embeds: [embed] }).catch(console.error);
         }
-        if (oldRole.position !== newRole.position) {
-            await logChannel
-                .send({
-                    embeds: [
-                        createLogEmbed(
-                            '#FFAA00',
-                            'Role Position Updated',
-                            `**Role:** <@&${oldRole.id}>\n**Before:** ${oldRole.position}\n**After:** ${newRole.position}`,
-                            `Role ID: ${oldRole.id}`,
-                        ),
-                    ],
-                })
-                .catch(console.error);
-        }
-    });
+        oldRole.permissions.toArray().forEach(async (perm) => {
+            if (newRole.permissions.has(perm)) return;
+
+            const embed = createEmbed(
+                {
+                    color: Colors.ORANGE,
+                    title: 'Role Permission Updated',
+                    description: `**Role:** <@&${oldRole.id}>\n**Removed:** ${snakeToNorm(perm)}`,
+                    footer: { text: `Role ID: ${oldRole.id}` },
+                },
+                true,
+            );
+
+            await logChannel.send({ embeds: [embed] }).catch(console.error);
+        });
+        newRole.permissions.toArray().forEach(async (perm) => {
+            if (oldRole.permissions.has(perm)) return;
+
+            const embed = createEmbed(
+                {
+                    color: Colors.ORANGE,
+                    title: 'Role Permission Updated',
+                    description: `**Role:** <@&${oldRole.id}>\n**Added:** ${snakeToNorm(perm)}`,
+                    footer: { text: `Role ID: ${oldRole.id}` },
+                },
+                true,
+            );
+
+            await logChannel.send({ embeds: [embed] }).catch(console.error);
+        });
+    },
 };

@@ -42,7 +42,7 @@ export const dm: CommandDefinition = {
             return;
         }
 
-        const dmEmbed = new Discord.MessageEmbed().setColor(color).setTitle('Digital Flight Dynamics').setDescription(content);
+        const dmEmbed = new Discord.MessageEmbed().setColor(color).setTitle('Management Message').setDescription(content);
         await member.user
             .createDM()
             .then((dm) => dm.send({ embeds: [dmEmbed] }))

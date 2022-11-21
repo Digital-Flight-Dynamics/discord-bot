@@ -1,53 +1,76 @@
-import Discord from 'discord.js';
-import { createLogEmbed } from './index';
+import { createEmbed } from '../lib/embed';
+import { Colors, LogDefinition, getLogChannel } from '.';
+import { Collection, GuildChannel, Message, Snowflake } from 'discord.js';
 
-export const startMessageLogs = (client) => {
-    client.on('messageDelete', async (message) => {
-        if (!message.author) {
-            console.error('Message delete log attmempted. Error: Message author is undefined, returning');
-            return;
-        }
-        if (message.author.bot) return;
+export const messageDelete: LogDefinition<[Message]> = {
+    event: 'messageDelete',
+    execute: async (message) => {
+        if (!message.author || message.channel.type === 'DM') return;
 
-        const logChannel = message.guild.channels.cache.find((c) => c.name === 'logs');
+        const logChannel = getLogChannel(message);
+        if (!logChannel) return;
 
-        const embed = createLogEmbed('#FF0000', `Message deleted in #${message.channel.name}`, `**Content:** ${message.content}`, `User ID: ${message.author.id}`).setAuthor(
-            message.author.tag,
-            message.author.avatarURL(),
+        const embed = createEmbed(
+            {
+                color: Colors.RED,
+                title: `Message deleted in #${message.channel.name}`,
+                description: `**Content:** ${message.content}`,
+                footer: { text: `User ID: ${message.author.id}` },
+                author: { name: message.author.tag, iconURL: message.author.avatarURL() },
+            },
+            true,
         );
 
         await logChannel.send({ embeds: [embed] }).catch(console.error);
-    });
-    client.on('messageUpdate', async (oldMsg, newMsg) => {
-        if (oldMsg.author.bot) return;
+    },
+};
 
-        const logChannel = oldMsg.guild.channels.cache.find((c) => c.name === 'logs');
-
-        const embed = createLogEmbed(
-            '#FFAA00',
-            `Message edited in #${oldMsg.channel.name}`,
-            `**Before:** ${oldMsg.content}\n**After:** ${newMsg.content}`,
-            `User ID: ${oldMsg.author.id}`,
-        ).setAuthor(oldMsg.author.tag, oldMsg.author.avatarURL());
-
-        await logChannel.send({ embeds: [embed] }).catch(console.error);
-    });
-    client.on('messageDeleteBulk', async (messages) => {
-        const embed = new Discord.MessageEmbed().setColor('#FF0000').setTimestamp();
-
-        let logChannel = undefined;
+export const messageDeleteBulk: LogDefinition<[Collection<Snowflake, Message>]> = {
+    event: 'messageDeleteBulk',
+    execute: async (messages) => {
+        const channel = messages.at(0).channel as GuildChannel;
+        const logChannel = getLogChannel(channel);
+        if (!logChannel) return;
 
         const desc = [];
 
         messages.forEach((message) => {
             desc.push(`[${message.author.tag}]: ${message.content}`);
-            embed.setTitle(`${messages.size} Messages purged in #${message.channel.name}`).setFooter(`Channel ID: ${message.channel.id}`);
-
-            logChannel = message.guild.channels.cache.find((c) => c.name === 'logs');
         });
 
-        embed.setDescription(desc.join('\n'));
+        const embed = createEmbed(
+            {
+                color: Colors.RED,
+                title: `${messages.size} Messages purged in #${channel.name}`,
+                description: desc.join('\n'),
+                footer: { text: `Channel ID: ${channel.id}` },
+            },
+            true,
+        );
 
         await logChannel.send({ embeds: [embed] }).catch(console.error);
-    });
+    },
+};
+
+export const messageUpdate: LogDefinition<[Message, Message]> = {
+    event: 'messageUpdate',
+    execute: async (oldMsg, newMsg) => {
+        if (!oldMsg.author || oldMsg.author.bot || oldMsg.channel.type === 'DM') return;
+
+        const logChannel = getLogChannel(oldMsg);
+        if (!logChannel) return;
+
+        const embed = createEmbed(
+            {
+                color: Colors.ORANGE,
+                title: `Message edited in #${oldMsg.channel.name}`,
+                description: `**Before:** ${oldMsg.content}\n**After:** ${newMsg.content}`,
+                footer: { text: `User ID: ${oldMsg.author.id}` },
+                author: { name: oldMsg.author.tag, iconURL: oldMsg.author.avatarURL() },
+            },
+            true,
+        );
+
+        await logChannel.send({ embeds: [embed] }).catch(console.error);
+    },
 };

@@ -1,12 +1,38 @@
-import Discord from 'discord.js';
-import { startChannelLogs } from './ChannelLogs';
-import { startEmojiLogs } from './EmojiLogs';
-import { startMessageLogs } from './MessageLogs';
-import { startModLogs } from './ModLogs';
-import { startRoleLogs } from './RoleLogs';
+import { ClientEvents, TextChannel } from 'discord.js';
+import { channelCreate, channelDelete, channelUpdate } from './ChannelLogs';
+import { emojiCreate, emojiDelete, emojiUpdate } from './EmojiLogs';
+import { messageDelete, messageDeleteBulk, messageUpdate } from './MessageLogs';
+import { guildBanAdd, guildBanRemove } from './BanLogs';
+import { roleCreate, roleDelete, roleUpdate } from './RoleLogs';
 
-export const createLogEmbed = (color, title, description, footer) =>
-    // eslint-disable-next-line implicit-arrow-linebreak
-    new Discord.MessageEmbed().setColor(color).setTitle(title).setDescription(description).setFooter(footer).setTimestamp();
+export enum Colors {
+    RED = '#DD4400',
+    ORANGE = '#FF8800',
+    GREEN = '#00BB00',
+}
 
-export default [startChannelLogs, startEmojiLogs, startMessageLogs, startModLogs, startRoleLogs];
+export interface LogDefinition<T extends [...any]> {
+    event: keyof ClientEvents;
+    execute: (...args: T) => void;
+}
+
+export const getLogChannel = (guildProperty: any) => {
+    return guildProperty.guild.channels.cache.find((c) => c.name === 'logs') as TextChannel;
+};
+
+export default [
+    channelCreate,
+    channelDelete,
+    channelUpdate,
+    emojiCreate,
+    emojiDelete,
+    emojiUpdate,
+    messageDelete,
+    messageDeleteBulk,
+    messageUpdate,
+    guildBanAdd,
+    guildBanRemove,
+    roleCreate,
+    roleDelete,
+    roleUpdate,
+];
