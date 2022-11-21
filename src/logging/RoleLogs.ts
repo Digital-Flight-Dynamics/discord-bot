@@ -1,6 +1,6 @@
 import { createEmbed } from '../lib/embed';
 import { Colors, LogDefinition, getLogChannel } from '.';
-import { Role, PermissionResolvable } from 'discord.js';
+import { Role } from 'discord.js';
 
 export const roleCreate: LogDefinition<[Role]> = {
     event: 'roleCreate',
@@ -125,6 +125,5 @@ export const roleUpdate: LogDefinition<[Role, Role]> = {
 
             await logChannel.send({ embeds: [embed] }).catch(console.error);
         });
-        console.log(oldRole.permissions.equals(newRole.permissions));
     },
 };

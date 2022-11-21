@@ -1,6 +1,7 @@
 import Discord from 'discord.js';
 import dotenv from 'dotenv';
 import { commands } from './commands';
+import { createEmbed } from './lib/embed';
 import logs from './logging';
 import utils from './utils';
 
@@ -34,15 +35,18 @@ client.on('messageCreate', async (message) => {
 
     if (isDm) {
         console.log(`DM sent by ${message.author.tag}`);
-        const dm = new Discord.MessageEmbed()
-            .setColor(color)
-            .setTitle('Message Received')
-            .addFields({ name: 'User', value: `${message.author.tag}` }, { name: 'Content', value: `${message.content}` });
-        await client.users
-            .fetch('726974755151806465')
-            .then((u) => u.send({ embeds: [dm] }))
-            .catch(console.error);
+        const dmCh = client.guilds.cache.at(0).channels.cache.find((c) => c.name === 'bot-dms') as Discord.TextChannel;
+        if (!dmCh) return;
 
+        const embed = createEmbed({
+            title: 'Message Receieved',
+            fields: [
+                { name: 'User', value: `${message.author.tag}` },
+                { name: 'Content', value: `${message.content}` },
+            ],
+        });
+
+        await dmCh.send({ embeds: [embed] }).catch(console.error);
         return;
     }
 
