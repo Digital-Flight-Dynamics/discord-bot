@@ -20,6 +20,14 @@ export const getLogChannel = (guildProperty: any) => {
     return guildProperty.guild.channels.cache.find((c) => c.name === 'logs') as TextChannel;
 };
 
+export const snakeToNorm = (str: string) => {
+    return str
+        .toLowerCase()
+        .split('_')
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+};
+
 export default [
     channelCreate,
     channelDelete,

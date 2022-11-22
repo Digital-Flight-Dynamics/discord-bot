@@ -64,7 +64,7 @@ export const messageUpdate: LogDefinition<[Message, Message]> = {
             {
                 color: Colors.ORANGE,
                 title: `Message edited in #${oldMsg.channel.name}`,
-                description: `**Before:** ${oldMsg.content}\n**After:** ${newMsg.content}`,
+                description: `**Before:** ${oldMsg.content}\n**+After:** ${newMsg.content}`,
                 footer: { text: `User ID: ${oldMsg.author.id}` },
                 author: { name: oldMsg.author.tag, iconURL: oldMsg.author.avatarURL() },
             },

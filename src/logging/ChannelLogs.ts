@@ -1,6 +1,6 @@
 import { GuildChannel } from 'discord.js';
 import { createEmbed } from '../lib/embed';
-import { Colors, LogDefinition, getLogChannel } from '.';
+import { Colors, LogDefinition, getLogChannel, snakeToNorm } from '.';
 
 export const channelCreate: LogDefinition<[GuildChannel]> = {
     event: 'channelCreate',
@@ -12,7 +12,10 @@ export const channelCreate: LogDefinition<[GuildChannel]> = {
             {
                 color: Colors.GREEN,
                 title: 'Channel Created',
-                description: `**Channel:** <#${channel.id}>\n**Name:** ${channel.name}\n${channel.isText() ? `**Topic:** ${channel.topic || 'None'}\n` : ''}**Type:** ${channel.type}`,
+                description: `**Channel:** <#${channel.id}>\n
+                                **Name:** ${channel.name}\n
+                                ${channel.isText() ? `**Topic:** ${channel.topic || 'None'}\n` : ''}
+                                **Type:** ${snakeToNorm(channel.type)}`,
                 footer: { text: `Channel ID: ${channel.id}` },
             },
             true,
@@ -32,7 +35,7 @@ export const channelDelete: LogDefinition<[GuildChannel]> = {
             {
                 color: Colors.RED,
                 title: 'Channel Deleted',
-                description: `**Name:** ${channel.name}\n${channel.isText() ? `**Topic:** ${channel.topic || 'None'}\n` : ''}**Type:** ${channel.type}`,
+                description: `**Name:** ${channel.name}\n${channel.isText() ? `**Topic:** ${channel.topic || 'None'}\n` : ''}**Type:** ${snakeToNorm(channel.type)}`,
                 footer: { text: `Channel ID: ${channel.id}` },
             },
             true,
@@ -55,7 +58,7 @@ export const channelUpdate: LogDefinition<[GuildChannel, GuildChannel]> = {
                 {
                     color: Colors.ORANGE,
                     title: 'Channel Name Changed',
-                    description: `**Channel:** <#${oldChannel.id}>\n**Before:** ${oldChannel.name}\n**After:** ${newChannel.name}`,
+                    description: `**Channel:** <#${oldChannel.id}>\n**Before:** ${oldChannel.name}\n**+After:** ${newChannel.name}`,
                     footer: { text: `Channel ID: ${oldChannel.id}` },
                 },
                 true,
@@ -71,7 +74,7 @@ export const channelUpdate: LogDefinition<[GuildChannel, GuildChannel]> = {
                 {
                     color: Colors.ORANGE,
                     title: 'Channel Topic Changed',
-                    description: `**Channel:** <#${oldChannel.id}>\n**Before:** ${oldChannel.topic}\n**After:** ${newChannel.topic}`,
+                    description: `**Channel:** <#${oldChannel.id}>\n**Before:** ${oldChannel.topic}\n**+After:** ${newChannel.topic}`,
                     footer: { text: `Channel ID: ${oldChannel.id}` },
                 },
                 true,
@@ -87,7 +90,7 @@ export const channelUpdate: LogDefinition<[GuildChannel, GuildChannel]> = {
                 {
                     color: Colors.ORANGE,
                     title: 'Channel Slowmode Updated',
-                    description: `**Channel:** <#${oldChannel.id}>\n**Before:** ${oldChannel.rateLimitPerUser}s\n**After:** ${newChannel.rateLimitPerUser}s`,
+                    description: `**Channel:** <#${oldChannel.id}>\n**Before:** ${oldChannel.rateLimitPerUser}s\n**+After:** ${newChannel.rateLimitPerUser}s`,
                     footer: { text: `Channel ID: ${oldChannel.id}` },
                 },
                 true,

@@ -53,7 +53,7 @@ export const emojiUpdate: LogDefinition<[GuildEmoji, GuildEmoji]> = {
             {
                 color: Colors.ORANGE,
                 title: 'Emoji Name Changed',
-                description: `**Before:** ${oldEmoji.name}\n**After:** ${newEmoji.name}`,
+                description: `**Before:** ${oldEmoji.name}\n**+After:** ${newEmoji.name}`,
                 footer: { text: `Emoji ID: ${oldEmoji.id}` },
             },
             true,

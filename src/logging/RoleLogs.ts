@@ -1,5 +1,5 @@
 import { createEmbed } from '../lib/embed';
-import { Colors, LogDefinition, getLogChannel } from '.';
+import { Colors, LogDefinition, getLogChannel, snakeToNorm } from '.';
 import { Role } from 'discord.js';
 
 export const roleCreate: LogDefinition<[Role]> = {
@@ -48,20 +48,12 @@ export const roleUpdate: LogDefinition<[Role, Role]> = {
         const logChannel = getLogChannel(oldRole);
         if (!logChannel) return;
 
-        const snakeToNorm = (str: string) => {
-            return str
-                .toLowerCase()
-                .split('_')
-                .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-                .join(' ');
-        };
-
         if (oldRole.color !== newRole.color) {
             const embed = createEmbed(
                 {
                     color: Colors.ORANGE,
                     title: 'Role Color Updated',
-                    description: `**Role:** <@&${oldRole.id}>\n**Before:** ${oldRole.hexColor.toUpperCase()}\n**After:** ${newRole.hexColor.toUpperCase()}`,
+                    description: `**Role:** <@&${oldRole.id}>\n**Before:** ${oldRole.hexColor.toUpperCase()}\n**+After:** ${newRole.hexColor.toUpperCase()}`,
                     footer: { text: `Role ID: ${oldRole.id}` },
                 },
                 true,
@@ -74,7 +66,7 @@ export const roleUpdate: LogDefinition<[Role, Role]> = {
                 {
                     color: Colors.ORANGE,
                     title: 'Role Name Updated',
-                    description: `**Role:** <@&${oldRole.id}>\n**Before:** ${oldRole.name}\n**After:** ${newRole.name}`,
+                    description: `**Role:** <@&${oldRole.id}>\n**Before:** ${oldRole.name}\n**+After:** ${newRole.name}`,
                     footer: { text: `Role ID: ${oldRole.id}` },
                 },
                 true,
@@ -87,7 +79,7 @@ export const roleUpdate: LogDefinition<[Role, Role]> = {
                 {
                     color: Colors.ORANGE,
                     title: 'Role Mentionable Flag Updated',
-                    description: `**Role:** <@&${oldRole.id}>\n**Before:** ${oldRole.mentionable}\n**After:** ${newRole.mentionable}`,
+                    description: `**Role:** <@&${oldRole.id}>\n**Before:** ${oldRole.mentionable}\n**+After:** ${newRole.mentionable}`,
                     footer: { text: `Role ID: ${oldRole.id}` },
                 },
                 true,
