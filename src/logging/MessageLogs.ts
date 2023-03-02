@@ -1,11 +1,15 @@
+import { Collection, GuildChannel, Message, Snowflake } from 'discord.js';
 import { createEmbed } from '../lib/embed';
 import { Colors, LogDefinition, getLogChannel } from '.';
-import { Collection, GuildChannel, Message, Snowflake } from 'discord.js';
+
+const CHANNEL_BLACKLIST = ['908006127118204939'];
 
 export const messageDelete: LogDefinition<[Message]> = {
     event: 'messageDelete',
     execute: async (message) => {
         if (!message.author || message.channel.type === 'DM') return;
+
+        if (CHANNEL_BLACKLIST.includes(message.channel.id)) return;
 
         const logChannel = getLogChannel(message);
         if (!logChannel) return;
@@ -56,6 +60,7 @@ export const messageUpdate: LogDefinition<[Message, Message]> = {
     event: 'messageUpdate',
     execute: async (oldMsg, newMsg) => {
         if (!oldMsg.author || oldMsg.author.bot || oldMsg.channel.type === 'DM') return;
+        if (CHANNEL_BLACKLIST.includes(oldMsg.channel.id)) return;
 
         const logChannel = getLogChannel(oldMsg);
         if (!logChannel) return;
