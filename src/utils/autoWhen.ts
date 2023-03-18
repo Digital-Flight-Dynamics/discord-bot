@@ -35,22 +35,19 @@ export const autoWhen = {
             return wordIndex;
         });
 
-        console.log(sequence);
-
         if (error) {
             await message.channel.send(error).catch(console.error);
             return;
         }
 
         const paddedSequence = padSequences([sequence], 36);
-        console.log(paddedSequence);
         const input = tf.tensor2d(paddedSequence, [1, 36]);
         const prediction = (model.predict(input) as tf.Tensor).dataSync()[0];
-        console.log(prediction);
+        await message.channel.send('' + prediction).catch(console.error);
     },
 };
 
-export function padSequences(sequences, maxLen, padding = 'pre', truncating = 'pre', value = 0) {
+export function padSequences(sequences, maxLen, padding = 'post', truncating = 'pre', value = 0) {
     return sequences.map((seq) => {
         // Perform truncation.
         if (seq.length > maxLen) {
