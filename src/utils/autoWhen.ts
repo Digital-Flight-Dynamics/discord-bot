@@ -1,8 +1,9 @@
 import * as tf from '@tensorflow/tfjs-node';
 import metadata from './when_model/metadata.json';
+import { EMBED } from '../commands/a350x/when';
 
 // const WHITELIST = ['808791399251312670', '808791475206094928'];
-const WHITELIST = ['927041203545976845'];
+const WHITELIST = ['1086487752117342270'];
 
 export const autoWhen = {
     event: 'messageCreate',
@@ -26,24 +27,25 @@ export const autoWhen = {
             .replaceAll(/[^\w\s]|_/g, '')
             .split(' ');
 
-        let error = undefined;
+        const invalidWords = [];
         const sequence = inputText.map((word) => {
-            const wordIndex = metadata.config.word_index[word];
+            let wordIndex = metadata.config.word_index[word];
             if (!wordIndex) {
-                error = 'Word not found: ' + word;
+                wordIndex = 514;
+                invalidWords.push(word);
             }
             return wordIndex;
         });
 
-        if (error) {
-            await message.channel.send(error).catch(console.error);
-            return;
+        if (invalidWords.length > 0) {
+            console.log('New word(s): ' + invalidWords.join(', '));
         }
 
         const paddedSequence = padSequences([sequence], 36);
         const input = tf.tensor2d(paddedSequence, [1, 36]);
         const prediction = (model.predict(input) as tf.Tensor).dataSync()[0];
-        await message.channel.send('' + prediction).catch(console.error);
+        if (prediction < 0.5) return await message.reply((prediction * 100).toFixed(2) + '%').catch(console.error);
+        await message.reply({ embeds: [EMBED.setTitle((prediction * 100).toFixed(2) + '%')] }).catch(console.error);
     },
 };
 
