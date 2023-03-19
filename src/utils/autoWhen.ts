@@ -1,9 +1,10 @@
 import * as tf from '@tensorflow/tfjs-node';
-import metadata from './when_model/metadata.json';
+import metadata from './when_model/tokenizer.json';
 import { EMBED } from '../commands/a350x/when';
 
 // const WHITELIST = ['808791399251312670', '808791475206094928'];
 const WHITELIST = ['1086487752117342270'];
+const MAX_LEN = 100;
 
 export const autoWhen = {
     event: 'messageCreate',
@@ -24,14 +25,15 @@ export const autoWhen = {
         const inputText = message.content
             .trim()
             .toLowerCase()
-            .replaceAll(/[^\w\s]|_/g, '')
+            // eslint-disable-next-line no-useless-escape
+            .replace(/[!\"#$%&()*+,\-./:;<=>?@\[\\\]^_`{|}~\t\n]/g, '')
             .split(' ');
 
         const invalidWords = [];
         const sequence = inputText.map((word) => {
             let wordIndex = metadata.config.word_index[word];
             if (!wordIndex) {
-                wordIndex = 514;
+                wordIndex = 2;
                 invalidWords.push(word);
             }
             return wordIndex;
@@ -41,11 +43,13 @@ export const autoWhen = {
             console.log('New word(s): ' + invalidWords.join(', '));
         }
 
-        const paddedSequence = padSequences([sequence], 36);
-        const input = tf.tensor2d(paddedSequence, [1, 36]);
+        const paddedSequence = padSequences([sequence], MAX_LEN);
+        const input = tf.tensor2d(paddedSequence, [1, MAX_LEN]);
         const prediction = (model.predict(input) as tf.Tensor).dataSync()[0];
         if (prediction < 0.5) return await message.reply((prediction * 100).toFixed(2) + '%').catch(console.error);
-        await message.reply({ embeds: [EMBED.setTitle((prediction * 100).toFixed(2) + '%')] }).catch(console.error);
+
+        const when = EMBED;
+        await message.reply({ embeds: [when.setFooter(`Confidence: ${(prediction * 100).toFixed(2)}%`)] }).catch(console.error);
     },
 };
 
