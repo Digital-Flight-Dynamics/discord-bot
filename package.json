@@ -25,6 +25,6 @@
         "eslint": "^8.4.1",
         "nodemon": "^2.0.15",
         "ts-node": "^10.4.0",
-        "typescript": "3.4.3"
+        "typescript": "^5.0.2"
     }
 }
