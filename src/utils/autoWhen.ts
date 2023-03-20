@@ -5,7 +5,7 @@ import { EMBED } from '../commands/a350x/when';
 
 // const WHITELIST = ['808791399251312670', '808791475206094928'];
 const WHITELIST = ['1086487752117342270'];
-const PRE_FILTER = ['it', 'a350', 'plane', 'airplane', 'aircraft', 'addon', 'mod'];
+const PRE_FILTER = ['it', '350', 'plane', 'airplane', 'aircraft', 'addon', 'mod', 'update', 'progress', 'discover', 'a35x'];
 const MAX_LEN = 100;
 
 export const autoWhen = {
