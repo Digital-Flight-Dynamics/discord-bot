@@ -1,9 +1,11 @@
+import Discord from 'discord.js';
 import * as tf from '@tensorflow/tfjs-node';
 import metadata from './when_model/tokenizer.json';
 import { EMBED } from '../commands/a350x/when';
 
 // const WHITELIST = ['808791399251312670', '808791475206094928'];
 const WHITELIST = ['1086487752117342270'];
+const PRE_FILTER = ['it', 'a350', 'plane', 'airplane', 'aircraft', 'addon', 'mod'];
 const MAX_LEN = 100;
 
 export const autoWhen = {
@@ -29,6 +31,12 @@ export const autoWhen = {
             .replace(/[!\"#$%&()*+,\-./:;<=>?@\[\\\]^_`{|}~\t\n]/g, '')
             .split(' ');
 
+        let includes_word = false;
+        for (const word of PRE_FILTER) {
+            if (inputText.includes(word)) includes_word = true;
+        }
+        if (!includes_word) return await message.reply('Did not pass filter').catch(console.error);
+
         const invalidWords = [];
         const sequence = inputText.map((word) => {
             let wordIndex = metadata.config.word_index[word];
@@ -46,9 +54,11 @@ export const autoWhen = {
         const paddedSequence = padSequences([sequence], MAX_LEN);
         const input = tf.tensor2d(paddedSequence, [1, MAX_LEN]);
         const prediction = (model.predict(input) as tf.Tensor).dataSync()[0];
-        if (prediction < 0.5) return await message.reply((prediction * 100).toFixed(2) + '%').catch(console.error);
+        if (prediction < 0.5) {
+            return await message.reply((prediction * 100).toFixed(2) + '%').catch(console.error);
+        }
 
-        const when = EMBED;
+        const when = new Discord.MessageEmbed(EMBED);
         await message.reply({ embeds: [when.setFooter(`Confidence: ${(prediction * 100).toFixed(2)}%`)] }).catch(console.error);
     },
 };
