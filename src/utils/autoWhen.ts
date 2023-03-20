@@ -3,9 +3,35 @@ import * as tf from '@tensorflow/tfjs-node';
 import metadata from './when_model/tokenizer.json';
 import { EMBED } from '../commands/a350x/when';
 
-// const WHITELIST = ['808791399251312670', '808791475206094928'];
-const WHITELIST = ['1086487752117342270'];
-const PRE_FILTER = ['it', '350', 'plane', 'airplane', 'aircraft', 'addon', 'mod', 'update', 'progress', 'discover', 'a35x'];
+const WHITELIST = ['808791475206094928'];
+const PRE_FILTER = [
+    'it',
+    '350',
+    '35x',
+    'plane',
+    'aircraft',
+    'addon',
+    'mod',
+    'update',
+    'progress',
+    'discover',
+    'alpha',
+    'beta',
+    'bird',
+    'beauty',
+    'estim',
+    'msfs',
+    'mfs',
+    'sim',
+    'soon',
+    'year',
+    '2023',
+    'this',
+    'planned',
+    'eta',
+    'timeframe',
+    'approx',
+];
 const MAX_LEN = 100;
 
 export const autoWhen = {
@@ -29,13 +55,19 @@ export const autoWhen = {
             .toLowerCase()
             // eslint-disable-next-line no-useless-escape
             .replace(/[!\"#$%&()*+,\-./:;<=>?@\[\\\]^_`{|}~\t\n]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim()
             .split(' ');
 
-        let includes_word = false;
+        let passFilter = false;
         for (const word of PRE_FILTER) {
-            if (inputText.includes(word)) includes_word = true;
+            for (const f of inputText) {
+                if (f.indexOf(word) !== -1) passFilter = true;
+            }
         }
-        if (!includes_word) return await message.reply('Did not pass filter').catch(console.error);
+        if (!passFilter) {
+            return await console.log(`"${message.content}" did not pass filter`);
+        }
 
         const invalidWords = [];
         const sequence = inputText.map((word) => {
@@ -55,7 +87,7 @@ export const autoWhen = {
         const input = tf.tensor2d(paddedSequence, [1, MAX_LEN]);
         const prediction = (model.predict(input) as tf.Tensor).dataSync()[0];
         if (prediction < 0.5) {
-            return await message.reply((prediction * 100).toFixed(2) + '%').catch(console.error);
+            return await console.log(`"${message.content}" resulted in ${(prediction * 100).toFixed(2)}%`);
         }
 
         const when = new Discord.MessageEmbed(EMBED);
