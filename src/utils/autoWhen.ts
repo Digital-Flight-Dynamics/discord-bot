@@ -6,6 +6,7 @@ import { EMBED } from '../commands/a350x/when';
 const WHITELIST = ['808791475206094928'];
 const PRE_FILTER = [
     'it',
+    'this',
     '350',
     '35x',
     'plane',
@@ -17,8 +18,6 @@ const PRE_FILTER = [
     'discover',
     'alpha',
     'beta',
-    'bird',
-    'beauty',
     'estim',
     'msfs',
     'mfs',
@@ -66,7 +65,7 @@ export const autoWhen = {
             }
         }
         if (!passFilter) {
-            return await console.log(`"${message.content}" did not pass filter`);
+            return console.log(`"${message.content}" did not pass filter`);
         }
 
         const invalidWords = [];
@@ -87,7 +86,7 @@ export const autoWhen = {
         const input = tf.tensor2d(paddedSequence, [1, MAX_LEN]);
         const prediction = (model.predict(input) as tf.Tensor).dataSync()[0];
         if (prediction < 0.5) {
-            return await console.log(`"${message.content}" resulted in ${(prediction * 100).toFixed(2)}%`);
+            return console.log(`"${message.content}" resulted in ${(prediction * 100).toFixed(2)}%`);
         }
 
         const when = new Discord.MessageEmbed(EMBED);
@@ -95,30 +94,24 @@ export const autoWhen = {
     },
 };
 
-export function padSequences(sequences, maxLen, padding = 'post', truncating = 'pre', value = 0) {
+const padSequences = (sequences, maxLen, truncating = 'pre') => {
     return sequences.map((seq) => {
-        // Perform truncation.
+        // truncate
         if (seq.length > maxLen) {
-            if (truncating === 'pre') {
-                seq.splice(0, seq.length - maxLen);
-            } else {
-                seq.splice(maxLen, seq.length - maxLen);
-            }
+            if (truncating === 'pre') seq.splice(0, seq.length - maxLen);
+            else seq.splice(maxLen, seq.length - maxLen);
         }
 
-        // Perform padding.
+        // pad
         if (seq.length < maxLen) {
             const pad = [];
             for (let i = 0; i < maxLen - seq.length; ++i) {
-                pad.push(value);
+                pad.push(0);
             }
-            if (padding === 'pre') {
-                seq = pad.concat(seq);
-            } else {
-                seq = seq.concat(pad);
-            }
+
+            seq = seq.concat(pad);
         }
 
         return seq;
     });
-}
+};
