@@ -6,13 +6,13 @@ export const reactionroles: CommandDefinition = {
     names: ['reactionroles', 'rr'],
     description: 'Sends the reaction roles embed',
     category: CommandCategories.MODERATION,
-    permissions: ['MANAGE_GUILD'],
+    permissions: ['ManageGuild'],
     execute: async (message, args) => {
         const announcementsEmoji = '📣';
         const progressEmoji = '❕';
         const eventsEmoji = '✈';
 
-        const embed = new Discord.MessageEmbed()
+        const embed = new Discord.EmbedBuilder()
             .setColor(color)
             .setTitle('Announcement Roles')
             .setDescription(

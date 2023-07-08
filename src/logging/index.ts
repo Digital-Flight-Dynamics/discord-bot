@@ -11,9 +11,9 @@ export enum Colors {
     GREEN = '#00BB00',
 }
 
-export interface LogDefinition<T extends [...any]> {
+export interface LogDefinition {
     event: keyof ClientEvents;
-    execute: (...args: T) => void;
+    execute: (...args: any[]) => void;
 }
 
 export const getLogChannel = (guildProperty: any) => {

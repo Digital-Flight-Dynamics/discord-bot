@@ -37,7 +37,7 @@ export const taf: CommandDefinition = {
 
                 const { raw, station } = report;
 
-                embed = new Discord.MessageEmbed()
+                embed = new Discord.EmbedBuilder()
                     .setColor(color)
                     .setTitle(`TAF for ${station}`)
                     .addFields(
@@ -47,7 +47,7 @@ export const taf: CommandDefinition = {
                             value: 'Coming soon',
                         },
                     )
-                    .setFooter('Source: AVWX')
+                    .setFooter({ text: 'Source: AVWX' })
                     .setTimestamp();
             })
             .catch(async () => {

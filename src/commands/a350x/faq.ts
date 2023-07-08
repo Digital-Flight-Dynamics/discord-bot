@@ -6,9 +6,9 @@ export const faq: CommandDefinition = {
     names: ['faq'],
     description: 'Displays an embed with FAQ for the A350X project',
     category: CommandCategories.A350X,
-    permissions: ['MANAGE_GUILD'],
+    permissions: ['ManageGuild'],
     execute: async (message, args) => {
-        const embed = new Discord.MessageEmbed()
+        const embed = new Discord.EmbedBuilder()
             .setColor(color)
             .setTitle('Frequently Asked Questions')
             .setDescription('This will hopefully answer most of your questions. If you have any other questions, you may ask in <#808791475206094928>')

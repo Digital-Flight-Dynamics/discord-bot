@@ -78,7 +78,7 @@ export const metar: CommandDefinition = {
 
                 const wind = `${degToDir(report.wind_direction.value)}-${report.wind_direction.value} ${windVarText} at ${report.wind_speed.value}${units.wind_speed}`;
 
-                embed = new Discord.MessageEmbed()
+                embed = new Discord.EmbedBuilder()
                     .setColor(color)
                     .setTitle(`METAR for ${station}`)
                     .addFields(
@@ -97,7 +97,7 @@ export const metar: CommandDefinition = {
                                 `**Flight Rules:** ${report.flight_rules}`,
                         },
                     )
-                    .setFooter('Source: AVWX')
+                    .setFooter({ text: 'Source: AVWX' })
                     .setTimestamp();
             })
             .catch(async () => {

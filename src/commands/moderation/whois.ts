@@ -6,7 +6,7 @@ export const whois: CommandDefinition = {
     names: ['whois', 'userinfo'],
     description: 'Displays information about the given user. Usage: `.whois | .userinfo @mention` | `.whois | .userinfo id`',
     category: CommandCategories.MODERATION,
-    permissions: ['MANAGE_NICKNAMES'],
+    permissions: ['ManageNicknames'],
     execute: async (message, args) => {
         const invalidEmbed = createErrorEmbed('Please enter a valid user/id for someone in this server');
 
@@ -33,9 +33,9 @@ export const whois: CommandDefinition = {
         const joined = member.joinedAt.toString().split(' ');
         const registered = member.user.createdAt.toString().split(' ');
 
-        const embed = new Discord.MessageEmbed()
+        const embed = new Discord.EmbedBuilder()
             .setColor(color)
-            .setAuthor(member.user.tag, member.user.avatarURL())
+            .setAuthor({ name: member.user.tag, iconURL: member.user.avatarURL() })
             .setDescription(`<@${id}>`)
             .setThumbnail(member.user.avatarURL())
             .addFields(
@@ -53,7 +53,7 @@ export const whois: CommandDefinition = {
                 { name: 'Role Count', value: `${member.roles.cache.size - 1}`, inline: true },
                 { name: 'Highest Role', value: `${member.roles.highest}`, inline: true },
             )
-            .setFooter(`ID: ${id}`);
+            .setFooter({ text: `ID: ${id}` });
         await message.channel.send({ embeds: [embed] }).catch(console.error);
     },
 };

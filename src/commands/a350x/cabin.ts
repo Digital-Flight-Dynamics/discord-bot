@@ -7,7 +7,7 @@ export const cabin: CommandDefinition = {
     description: 'Informs others about our plans for the A350X cabin',
     category: CommandCategories.A350X,
     execute: async (message, args) => {
-        const embed = new Discord.MessageEmbed()
+        const embed = new Discord.EmbedBuilder()
             .setColor(color)
             .setTitle('Will there be a cabin?')
             .setDescription(

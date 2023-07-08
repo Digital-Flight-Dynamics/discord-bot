@@ -6,9 +6,9 @@ export const info: CommandDefinition = {
     names: ['info'],
     description: 'Displays an embed with core information about the Discord server',
     category: CommandCategories.MODERATION,
-    permissions: ['MANAGE_GUILD'],
+    permissions: ['ManageGuild'],
     execute: async (message, args) => {
-        const embed = new Discord.MessageEmbed()
+        const embed = new Discord.EmbedBuilder()
             .setColor(color)
             .setTitle('Information')
             .setDescription(

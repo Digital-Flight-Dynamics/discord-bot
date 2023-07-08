@@ -6,7 +6,7 @@ export const dm: CommandDefinition = {
     names: ['dm'],
     description: 'Sends a DM to the mentioned user. Usage: `.dm @mention content` | `.dm id content`',
     category: CommandCategories.MODERATION,
-    permissions: ['MANAGE_MESSAGES'],
+    permissions: ['ManageMessages'],
     execute: async (message, args) => {
         const invalidEmbed = createErrorEmbed('Please enter a valid user/id for someone in this server');
 
@@ -42,13 +42,13 @@ export const dm: CommandDefinition = {
             return;
         }
 
-        const dmEmbed = new Discord.MessageEmbed().setColor(color).setTitle('Management Message').setDescription(content);
+        const dmEmbed = new Discord.EmbedBuilder().setColor(color).setTitle('Management Message').setDescription(content);
         await member.user
             .createDM()
             .then((dm) => dm.send({ embeds: [dmEmbed] }))
             .catch(console.error);
 
-        const embed = new Discord.MessageEmbed()
+        const embed = new Discord.EmbedBuilder()
             .setColor(color)
             .setTitle('Direct Messaged User')
             .setDescription(`DM sent to <@${id}>`)

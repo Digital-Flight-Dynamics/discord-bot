@@ -2,11 +2,11 @@ import Discord from 'discord.js';
 import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
 import { color } from '../..';
 
-export const kick: CommandDefinition = {
-    names: ['kick'],
-    description: 'Kicks the mentioned user. Usage: `.kick @mention reason` | `.kick id reason`',
+export const timeout: CommandDefinition = {
+    names: ['timeout'],
+    description: 'Timeouts the mentioned user. Usage: `.timeout @mention reason` | `.timeout id reason`',
     category: CommandCategories.MODERATION,
-    permissions: ['KickMembers'],
+    permissions: ['MuteMembers'],
     execute: async (message, args) => {
         const invalidEmbed = createErrorEmbed('Please enter a valid user/id');
 
@@ -27,7 +27,7 @@ export const kick: CommandDefinition = {
         if (id === message.author.id) {
             await message.channel
                 .send({
-                    embeds: [createErrorEmbed('You cannot kick yourself')],
+                    embeds: [createErrorEmbed('You cannot timeout yourself')],
                 })
                 .catch(console.error);
             return;
@@ -59,8 +59,8 @@ export const kick: CommandDefinition = {
             return;
         }
 
-        if (!member.kickable) {
-            await message.channel.send({ embeds: [createErrorEmbed('I cannot kick this user')] }).catch(console.error);
+        if (!member.manageable) {
+            await message.channel.send({ embeds: [createErrorEmbed('I cannot timeout this user')] }).catch(console.error);
             return;
         }
 
@@ -68,28 +68,33 @@ export const kick: CommandDefinition = {
 
         const dmEmbed = new Discord.EmbedBuilder()
             .setColor(color)
-            .setTitle(`Kicked from ${message.guild.name}`)
+            .setTitle(`Timeout from ${message.guild.name}`)
             .addFields({ name: 'Reason', value: `${kickReason}`, inline: true }, { name: 'Moderator', value: `${message.author.tag}`, inline: true });
 
         await member.send({ embeds: [dmEmbed] }).catch(console.error);
 
-        await member.kick().catch(async (err) => {
-            console.error(err);
-            const errString = err.toString();
-            if (errString.includes('Missing Permissions')) {
-                await message.channel.send({ embeds: [createErrorEmbed('I cannot kick this user')] }).catch(console.error);
-                shouldReturn = true;
-            }
-        });
+        await member.kick().catch(console.error);
 
         if (shouldReturn) return;
 
         const embed = new Discord.EmbedBuilder()
             .setColor(color)
-            .setTitle('Kicked User')
-            .setDescription(`<@${id}> has been kicked.`)
+            .setTitle('Put User in Timeout')
+            .setDescription(`<@${id}> has been put in timeout.`)
             .addFields({ name: 'Reason', value: `${kickReason}`, inline: true }, { name: 'Moderator', value: `${message.author.tag}`, inline: true });
 
         await message.channel.send({ embeds: [embed] }).catch(console.error);
     },
+};
+
+const argToMs = (arg: string): number => {
+    const num = parseInt(arg.slice(0, -1));
+    console.log(num);
+    return 0;
+    if (isNaN(num)) return 0;
+    if (arg.endsWith('s')) return num * 1000;
+    if (arg.endsWith('m')) return num * 1000 * 60;
+    if (arg.endsWith('h')) return num * 1000 * 60 * 60;
+    if (arg.endsWith('d')) return num * 1000 * 60 * 60 * 24;
+    return 0;
 };

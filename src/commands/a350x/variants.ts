@@ -7,7 +7,7 @@ export const variants: CommandDefinition = {
     description: 'Provides info on what variants will be developed',
     category: CommandCategories.A350X,
     execute: async (message, args) => {
-        const embed = new Discord.MessageEmbed()
+        const embed = new Discord.EmbedBuilder()
             .setColor(color)
             .setTitle('What variants will be developed?')
             .setDescription(

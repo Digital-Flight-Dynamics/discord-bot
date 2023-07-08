@@ -6,9 +6,9 @@ export const rules: CommandDefinition = {
     names: ['rules'],
     description: 'Displays an embed with the rules for the Discord server',
     category: CommandCategories.MODERATION,
-    permissions: ['MANAGE_GUILD'],
+    permissions: ['ManageGuild'],
     execute: async (message, args) => {
-        const embed = new Discord.MessageEmbed().setColor(color).setTitle('Server Rules').setDescription(`
+        const embed = new Discord.EmbedBuilder().setColor(color).setTitle('Server Rules').setDescription(`
                 1. Treat everyone in the server with respect. Any harassment, hate speech, racism, etc. will not be tolerated.\n
                 2. Self promotion is only allowed in <#808791551319867502>. To get write access to the channel, you must be a content creator.\n
                 3. Keep everything SFW. If we see anything that is NSFW, it will be deleted and you will be banned.\n

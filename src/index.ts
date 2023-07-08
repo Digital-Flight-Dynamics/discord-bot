@@ -1,4 +1,4 @@
-import Discord from 'discord.js';
+import Discord, { Client, Partials, GatewayIntentBits } from 'discord.js';
 import dotenv from 'dotenv';
 import { commands } from './commands';
 import { createEmbed } from './lib/embed';
@@ -7,13 +7,14 @@ import utils from './utils';
 
 dotenv.config();
 
-const intents = new Discord.Intents(32767);
-const client = new Discord.Client({
-    partials: ['USER', 'CHANNEL', 'GUILD_MEMBER', 'MESSAGE', 'REACTION'],
-    intents,
+const client = new Client({
+    partials: [Partials.User, Partials.Channel, Partials.GuildMember, Partials.Message, Partials.Reaction],
+    intents: Object.keys(GatewayIntentBits).map((a) => {
+        return GatewayIntentBits[a];
+    }),
 });
 
-export const color = '#18B1AB';
+export const color = 0x18b1ab;
 const prefix = '.';
 
 client.on('ready', (client) => {
@@ -30,16 +31,17 @@ for (const util of utils) {
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
-    const isDm = message.channel.type === 'DM';
+    const isDm = message.channel.type === Discord.ChannelType.DM;
     const isCommand = message.content.startsWith(prefix);
 
+    // log all DMs which are sent to the bot
     if (isDm) {
         console.log(`DM sent by ${message.author.tag}`);
         const dmCh = client.guilds.cache.at(0).channels.cache.find((c) => c.name === 'bot-dms') as Discord.TextChannel;
         if (!dmCh) return;
 
         const embed = createEmbed({
-            title: 'Message Receieved',
+            title: 'Message Received',
             fields: [
                 { name: 'User', value: `${message.author.tag}` },
                 { name: 'Content', value: `${message.content}` },
@@ -58,6 +60,7 @@ client.on('messageCreate', async (message) => {
     let cmdToExec = undefined;
     let hasPerms = true;
 
+    // find the command, and check if the user has the required permissions
     for (const command of commands) {
         for (const name of command.names) {
             if (commandUsed === name) {
@@ -68,21 +71,23 @@ client.on('messageCreate', async (message) => {
         }
     }
 
+    // if the command is not found
     if (!cmdToExec) {
-        // if the command is not found
         console.error(`Failed to run command "${message.content}" by ${message.author.tag} in #${message.channel.name}. Command was not found.`);
         return;
     }
 
+    // if the user does not have the required permissions
     if (!hasPerms) {
         await message.channel
             .send({
-                embeds: [new Discord.MessageEmbed().setColor('#FF0000').setTitle('Error').setDescription('You do not have the required permissions to use that command')],
+                embeds: [new Discord.EmbedBuilder().setColor('#FF0000').setTitle('Error').setDescription('You do not have the required permissions to use that command')],
             })
             .catch(console.error);
         return;
     }
 
+    // attempt to execute command
     try {
         await cmdToExec.execute(message, args).catch(console.error);
         console.log(`Successfully ran command "${message.content}" by ${message.author.tag} in #${message.channel.name}`);

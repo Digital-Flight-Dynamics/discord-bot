@@ -7,7 +7,7 @@ export const liveries: CommandDefinition = {
     description: 'What liveries will be included in the A350X?',
     category: CommandCategories.A350X,
     execute: async (message, args) => {
-        const embed = new Discord.MessageEmbed()
+        const embed = new Discord.EmbedBuilder()
             .setColor(color)
             .setTitle('What liveries will be included?')
             .setDescription(

@@ -10,7 +10,7 @@ export const help: CommandDefinition = {
         let category = args.join(' ');
 
         if (!category) {
-            const rootEmbed = new Discord.MessageEmbed()
+            const rootEmbed = new Discord.EmbedBuilder()
                 .setColor(color)
                 .setTitle('Command Categories')
                 .addFields(
@@ -18,7 +18,7 @@ export const help: CommandDefinition = {
                     { name: 'General', value: 'Generic commands that can be used by anyone' },
                     { name: 'Fun', value: 'Commands that exist just for fun' },
                     { name: 'Moderation', value: 'Commands used by staff' },
-                    { name: 'Support', value: 'Commands used for support purposes'}
+                    { name: 'Support', value: 'Commands used for support purposes' },
                 );
             await message.channel.send({ embeds: [rootEmbed] }).catch(console.error);
 
@@ -27,7 +27,7 @@ export const help: CommandDefinition = {
 
         category = category.toUpperCase();
 
-        const embed = new Discord.MessageEmbed().setColor(color);
+        const embed = new Discord.EmbedBuilder().setColor(color);
 
         const cmds = [];
         for (const command of commands) {

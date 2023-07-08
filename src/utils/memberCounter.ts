@@ -1,6 +1,9 @@
-export const memberCounter = {
+import { Client } from 'discord.js';
+import { UtilDefinition } from '.';
+
+export const memberCounter: UtilDefinition = {
     event: 'ready',
-    execute: (client) => {
+    execute: (client: Client) => {
         const guild = client.guilds.cache.first();
 
         if (!guild) {

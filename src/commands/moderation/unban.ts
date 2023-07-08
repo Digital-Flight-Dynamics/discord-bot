@@ -6,7 +6,7 @@ export const unban: CommandDefinition = {
     names: ['unban'],
     description: 'Unbans the mentioned user. Usage: `.unban id`',
     category: CommandCategories.MODERATION,
-    permissions: ['BAN_MEMBERS'],
+    permissions: ['BanMembers'],
     execute: async (message, args) => {
         const id = args[0];
 
@@ -37,7 +37,7 @@ export const unban: CommandDefinition = {
 
         if (shouldReturn) return;
 
-        const embed = new Discord.MessageEmbed()
+        const embed = new Discord.EmbedBuilder()
             .setColor(color)
             .setTitle('Unbanned User')
             .setDescription(`<@${id}> has been unbanned.`)

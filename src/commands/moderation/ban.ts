@@ -6,7 +6,7 @@ export const ban: CommandDefinition = {
     names: ['ban'],
     description: 'Bans the mentioned user. Usage: `.ban @mention reason` | `.ban id reason`',
     category: CommandCategories.MODERATION,
-    permissions: ['BAN_MEMBERS'],
+    permissions: ['BanMembers'],
     execute: async (message, args) => {
         const invalidEmbed = createErrorEmbed('Please enter a valid user/id');
 
@@ -58,7 +58,7 @@ export const ban: CommandDefinition = {
                 return;
             }
 
-            const dmEmbed = new Discord.MessageEmbed()
+            const dmEmbed = new Discord.EmbedBuilder()
                 .setColor(color)
                 .setTitle(`Banned from ${message.guild.name}`)
                 .addFields({ name: 'Reason', value: `${banReason}`, inline: true }, { name: 'Moderator', value: `${message.author.tag}`, inline: true });
@@ -77,7 +77,7 @@ export const ban: CommandDefinition = {
 
         if (shouldReturn) return;
 
-        const embed = new Discord.MessageEmbed()
+        const embed = new Discord.EmbedBuilder()
             .setColor(color)
             .setTitle('Banned User')
             .setDescription(`<@${id}> has been banned.`)

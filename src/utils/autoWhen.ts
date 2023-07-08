@@ -1,7 +1,8 @@
-import Discord from 'discord.js';
+import Discord, { ChannelType, Message } from 'discord.js';
 import * as tf from '@tensorflow/tfjs-node';
 import metadata from './when_model/tokenizer.json';
 import { EMBED } from '../commands/a350x/when';
+import { UtilDefinition } from '.';
 
 const WHITELIST = ['808791475206094928'];
 const PRE_FILTER = [
@@ -33,10 +34,10 @@ const PRE_FILTER = [
 ];
 const MAX_LEN = 100;
 
-export const autoWhen = {
+export const autoWhen: UtilDefinition = {
     event: 'messageCreate',
-    execute: async (message) => {
-        if (message.channel.type === 'DM') return;
+    execute: async (message: Message) => {
+        if (message.channel.type === ChannelType.DM) return;
         if (message.author.bot) return;
 
         let whitelisted = false;
@@ -89,8 +90,8 @@ export const autoWhen = {
             return console.log(`"${message.content}" resulted in ${(prediction * 100).toFixed(2)}%`);
         }
 
-        const when = new Discord.MessageEmbed(EMBED);
-        await message.reply({ embeds: [when.setFooter(`Confidence: ${(prediction * 100).toFixed(2)}%`)] }).catch(console.error);
+        const when = Discord.EmbedBuilder.from(EMBED);
+        await message.reply({ embeds: [when.setFooter({ text: `Confidence: ${(prediction * 100).toFixed(2)}%` })] }).catch(console.error);
     },
 };
 

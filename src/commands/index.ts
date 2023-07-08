@@ -32,10 +32,10 @@ export type CommandDefinition = {
     names: string[];
     description: string;
     category: CommandCategories;
-    permissions?: Discord.PermissionString[];
+    permissions?: Discord.PermissionsString[];
     execute: (message: Discord.Message, args: Array<string>) => Promise<any>;
 };
-export const createErrorEmbed = (description: string) => new Discord.MessageEmbed().setColor('#FF0000').setTitle('Error').setDescription(description);
+export const createErrorEmbed = (description: string) => new Discord.EmbedBuilder().setColor('#FF0000').setTitle('Error').setDescription(description);
 
 export const commands: CommandDefinition[] = [
     when,
