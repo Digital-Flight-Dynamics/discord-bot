@@ -14,7 +14,7 @@ const client = new Client({
     }),
 });
 
-export const color = 0x18b1ab;
+export const color = 0x18B1AB;
 const prefix = '.';
 
 client.on('ready', (client) => {
@@ -81,7 +81,7 @@ client.on('messageCreate', async (message) => {
     if (!hasPerms) {
         await message.channel
             .send({
-                embeds: [new Discord.EmbedBuilder().setColor('#FF0000').setTitle('Error').setDescription('You do not have the required permissions to use that command')],
+                embeds: [new Discord.EmbedBuilder().setColor(0xff0000).setTitle('Error').setDescription('You do not have the required permissions to use that command')],
             })
             .catch(console.error);
         return;

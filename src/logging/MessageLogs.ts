@@ -4,10 +4,10 @@ import { Colors, LogDefinition, getLogChannel } from '.';
 
 const CHANNEL_BLACKLIST = ['908006127118204939'];
 
-export const messageDelete: LogDefinition<[Message]> = {
+export const messageDelete: LogDefinition = {
     event: 'messageDelete',
-    execute: async (message) => {
-        if (!message.author || message.channel.type === 'DM') return;
+    execute: async (message: Message) => {
+        if (!message.author || message.channel.isDMBased()) return;
 
         if (CHANNEL_BLACKLIST.includes(message.channel.id)) return;
 
@@ -29,9 +29,9 @@ export const messageDelete: LogDefinition<[Message]> = {
     },
 };
 
-export const messageDeleteBulk: LogDefinition<[Collection<Snowflake, Message>]> = {
+export const messageDeleteBulk: LogDefinition = {
     event: 'messageDeleteBulk',
-    execute: async (messages) => {
+    execute: async (messages: Collection<Snowflake, Message>) => {
         const channel = messages.at(0).channel as GuildChannel;
         const logChannel = getLogChannel(channel);
         if (!logChannel) return;
@@ -56,10 +56,10 @@ export const messageDeleteBulk: LogDefinition<[Collection<Snowflake, Message>]> 
     },
 };
 
-export const messageUpdate: LogDefinition<[Message, Message]> = {
+export const messageUpdate: LogDefinition = {
     event: 'messageUpdate',
-    execute: async (oldMsg, newMsg) => {
-        if (!oldMsg.author || oldMsg.author.bot || oldMsg.channel.type === 'DM') return;
+    execute: async (oldMsg: Message, newMsg: Message) => {
+        if (!oldMsg.author || oldMsg.author.bot || oldMsg.channel.isDMBased()) return;
         if (CHANNEL_BLACKLIST.includes(oldMsg.channel.id)) return;
 
         const logChannel = getLogChannel(oldMsg);

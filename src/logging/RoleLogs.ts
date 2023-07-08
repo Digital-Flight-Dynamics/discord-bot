@@ -2,9 +2,9 @@ import { createEmbed } from '../lib/embed';
 import { Colors, LogDefinition, getLogChannel, snakeToNorm } from '.';
 import { Role } from 'discord.js';
 
-export const roleCreate: LogDefinition<[Role]> = {
+export const roleCreate: LogDefinition = {
     event: 'roleCreate',
-    execute: async (role) => {
+    execute: async (role: Role) => {
         const logChannel = getLogChannel(role);
         if (!logChannel) return;
 
@@ -22,9 +22,9 @@ export const roleCreate: LogDefinition<[Role]> = {
     },
 };
 
-export const roleDelete: LogDefinition<[Role]> = {
+export const roleDelete: LogDefinition = {
     event: 'roleDelete',
-    execute: async (role) => {
+    execute: async (role: Role) => {
         const logChannel = getLogChannel(role);
         if (!logChannel) return;
 
@@ -42,9 +42,9 @@ export const roleDelete: LogDefinition<[Role]> = {
     },
 };
 
-export const roleUpdate: LogDefinition<[Role, Role]> = {
+export const roleUpdate: LogDefinition = {
     event: 'roleUpdate',
-    execute: async (oldRole, newRole) => {
+    execute: async (oldRole: Role, newRole: Role) => {
         const logChannel = getLogChannel(oldRole);
         if (!logChannel) return;
 

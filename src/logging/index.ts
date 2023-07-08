@@ -6,9 +6,9 @@ import { guildBanAdd, guildBanRemove } from './BanLogs';
 import { roleCreate, roleDelete, roleUpdate } from './RoleLogs';
 
 export enum Colors {
-    RED = '#DD4400',
-    ORANGE = '#FF8800',
-    GREEN = '#00BB00',
+    RED = 0xdd4400,
+    ORANGE = 0xff8800,
+    GREEN = 0x00bb00,
 }
 
 export interface LogDefinition {

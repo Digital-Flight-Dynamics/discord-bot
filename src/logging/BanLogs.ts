@@ -1,10 +1,10 @@
+import { GuildBan } from 'discord.js';
 import { createEmbed } from '../lib/embed';
 import { Colors, LogDefinition, getLogChannel } from '.';
-import { GuildBan } from 'discord.js';
 
-export const guildBanAdd: LogDefinition<[GuildBan]> = {
+export const guildBanAdd: LogDefinition = {
     event: 'guildBanAdd',
-    execute: async (ban) => {
+    execute: async (ban: GuildBan) => {
         const logChannel = getLogChannel(ban);
         if (!logChannel) return;
 
@@ -23,9 +23,9 @@ export const guildBanAdd: LogDefinition<[GuildBan]> = {
     },
 };
 
-export const guildBanRemove: LogDefinition<[GuildBan]> = {
+export const guildBanRemove: LogDefinition = {
     event: 'guildBanRemove',
-    execute: async (ban) => {
+    execute: async (ban: GuildBan) => {
         const logChannel = getLogChannel(ban);
         if (!logChannel) return;
 

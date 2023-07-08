@@ -3,7 +3,7 @@ import { CommandCategories, CommandDefinition } from '../index';
 import { color } from '../../index';
 
 export const EMBED = new Discord.EmbedBuilder()
-    .setColor(color)
+    .setColor(0xff0000)
     .setTitle('When is the A350X coming?')
     .setDescription(
         'Since this is a freeware project, we do not impose deadlines on our volunteer developers. ' +
