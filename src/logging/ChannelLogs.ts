@@ -1,6 +1,6 @@
 import { ChannelType, GuildChannel, TextChannel } from 'discord.js';
 import { createEmbed } from '../lib/embed';
-import { Colors, LogDefinition, getLogChannel, snakeToNorm } from '.';
+import { Colors, LogDefinition, getLogChannel } from '.';
 
 export const channelCreate: LogDefinition = {
     event: 'channelCreate',
@@ -12,7 +12,9 @@ export const channelCreate: LogDefinition = {
             {
                 color: Colors.GREEN,
                 title: 'Channel Created',
-                description: `**Channel:** <#${channel.id}>\n**Name:** ${channel.name}\n${channel.isTextBased() ? `**Topic:** ${(channel as TextChannel).topic || 'None'}` : ''}`,
+                description: `**Channel:** <#${channel.id}>\n**Name:** ${channel.name}\n${
+                    channel.isTextBased() ? `**Topic:** ${(channel as TextChannel).topic || 'None'}` : ''
+                }`,
                 footer: { text: `Channel ID: ${channel.id}` },
             },
             true,
@@ -71,7 +73,9 @@ export const channelUpdate: LogDefinition = {
                 {
                     color: Colors.ORANGE,
                     title: 'Channel Topic Changed',
-                    description: `**Channel:** <#${oldChannel.id}>\n**Before:** ${(oldChannel as TextChannel).topic}\n**+After:** ${(newChannel as TextChannel).topic}`,
+                    description: `**Channel:** <#${oldChannel.id}>\n**Before:** ${(oldChannel as TextChannel).topic}\n**+After:** ${
+                        (newChannel as TextChannel).topic
+                    }`,
                     footer: { text: `Channel ID: ${oldChannel.id}` },
                 },
                 true,

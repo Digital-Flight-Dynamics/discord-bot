@@ -1,88 +1,87 @@
-import Discord from 'discord.js';
 import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
-import { color } from '../..';
+import { createEmbed } from '../../lib/embed';
+
+const argToSec = (arg: string): number => {
+    if (!arg) return 0;
+
+    const num = parseInt(arg.slice(0, -1));
+    if (isNaN(num)) return 0;
+
+    if (arg.endsWith('s')) return num;
+    if (arg.endsWith('m')) return num * 60;
+    if (arg.endsWith('h')) return num * 60 * 60;
+    if (arg.endsWith('d')) return num * 60 * 60 * 24;
+
+    return 0;
+};
 
 export const ban: CommandDefinition = {
     names: ['ban'],
-    description: 'Bans the mentioned user. Usage: `.ban @mention reason` | `.ban id reason`',
+    description: 'Bans the mentioned user. `Arguments: <id> <delete_msg_time> <reason>`',
     category: CommandCategories.MODERATION,
     permissions: ['BanMembers'],
     execute: async (message, args) => {
-        const invalidEmbed = createErrorEmbed('Please enter a valid user/id');
+        const invalidEmbed = createErrorEmbed('Please provide a valid user/id');
 
-        const user = message.mentions.users.first();
-        let id = undefined;
-
-        if (user) {
-            id = user.id;
-        } else {
-            id = args[0];
-        }
-
+        let id = args[0];
         if (!id) {
             await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
             return;
         }
 
+        // in case of a mention
+        if (id.startsWith('<@') && id.endsWith('>')) {
+            id = id.slice(2, -1);
+        }
+
         if (id === message.author.id) {
-            await message.channel
-                .send({
-                    embeds: [createErrorEmbed('You cannot ban yourself')],
-                })
-                .catch(console.error);
+            await message.channel.send({ embeds: [createErrorEmbed('You cannot ban yourself')] }).catch(console.error);
             return;
         }
 
-        let shouldReturn = false;
-
-        const member = await message.guild.members.fetch(id).catch(async (err) => {
+        let error = false;
+        const member = await message.guild.members.fetch(id).catch((err) => {
             console.error(err);
             const errString = err.toString();
-            if (errString.includes('Unknown User')) {
-                await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
-                shouldReturn = true;
-            } else if (errString.includes('Invalid Form Body')) {
-                await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
-                shouldReturn = true;
+            if (errString.includes('Unknown User') || errString.includes('Invalid Form Body')) {
+                error = true;
             }
         });
+        if (error) {
+            await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
+            return;
+        }
 
-        if (shouldReturn) return;
-        shouldReturn = false;
+        const msgDeleteSecs = argToSec(args[1]);
+        const reason = (msgDeleteSecs === 0 ? args.slice(1).join(' ') : args.slice(2).join(' ')) || 'None';
 
-        const banReason = args.slice(1).join(' ') || 'None';
-
+        // don't immediately return if member is not found, because we want to be able to ban users who aren't in the server
         if (member) {
             if (!member.bannable) {
                 await message.channel.send({ embeds: [createErrorEmbed('I cannot ban this user')] }).catch(console.error);
                 return;
             }
 
-            const dmEmbed = new Discord.EmbedBuilder()
-                .setColor(color)
-                .setTitle(`Banned from ${message.guild.name}`)
-                .addFields({ name: 'Reason', value: `${banReason}`, inline: true }, { name: 'Moderator', value: `${message.author.tag}`, inline: true });
-
+            const dmEmbed = createEmbed({
+                title: `Banned from ${message.guild.name}`,
+                fields: [
+                    { name: 'Reason', value: `${reason}`, inline: true },
+                    { name: 'Moderator', value: `${message.author.tag}`, inline: true },
+                ],
+            });
             await member.send({ embeds: [dmEmbed] }).catch(console.error);
         }
 
-        await message.guild.members.ban(id, { reason: banReason }).catch(async (err) => {
-            console.error(err);
-            const errString = err.toString();
-            if (errString.includes('Missing Permissions')) {
-                await message.channel.send({ embeds: [createErrorEmbed('I cannot ban this user')] }).catch(console.error);
-                shouldReturn = true;
-            }
+        await message.guild.members.ban(id, { deleteMessageSeconds: msgDeleteSecs, reason }).catch(console.error);
+
+        const embed = createEmbed({
+            title: 'Banned User',
+            description: `<@${id}> has been banned.`,
+            fields: [
+                { name: 'Reason', value: `${reason}`, inline: true },
+                { name: 'Message Delete Timeframe', value: `${msgDeleteSecs === 0 ? 'None' : args[1]}`, inline: true },
+            ],
         });
-
-        if (shouldReturn) return;
-
-        const embed = new Discord.EmbedBuilder()
-            .setColor(color)
-            .setTitle('Banned User')
-            .setDescription(`<@${id}> has been banned.`)
-            .addFields({ name: 'Reason', value: `${banReason}`, inline: true }, { name: 'Moderator', value: `${message.author.tag}`, inline: true });
-
         await message.channel.send({ embeds: [embed] }).catch(console.error);
     },
 };

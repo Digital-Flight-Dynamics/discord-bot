@@ -4,7 +4,8 @@
     "scripts": {
         "build": "tsc",
         "dev": "nodemon --watch src/ -e ts --exec ts-node src/index.ts",
-        "start": "node out/index.js"
+        "start": "node out/index.js",
+        "lint": "eslint --cache **/*.ts"
     },
     "author": "Digital Flight Dynamics",
     "license": "AGPL-3.0",

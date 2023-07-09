@@ -1,6 +1,6 @@
 import Discord from 'discord.js';
 import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
-import { color } from '../..';
+import { createEmbed } from '../../lib/embed';
 
 export const purge: CommandDefinition = {
     names: ['purge', 'clear'],
@@ -68,7 +68,7 @@ export const purge: CommandDefinition = {
 
         if (error) return;
 
-        const embed = new Discord.EmbedBuilder().setColor(color).setTitle('Purged Messages').setDescription(`${amountDeleted} message(s) have been deleted`);
+        const embed = createEmbed({ title: 'Purged Messages', description: `${amountDeleted} message(s) have been deleted` });
         await message.channel
             .send({ embeds: [embed] })
             .then((msg) => {

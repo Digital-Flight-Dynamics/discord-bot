@@ -42,12 +42,16 @@ export const help: CommandDefinition = {
         const fields: APIEmbedField[] = [];
         for (const cmd of cmds) {
             if (!cmd.permissions) fields.push({ name: `.${cmd.names.join(' | .')}`, value: `${cmd.description}` });
-            else fields.push({ name: `.${cmd.names.join(' | .')}\n\`Required Permissions: ${cmd.permissions.join(', ')}\``, value: `${cmd.description}` });
+            else
+                fields.push({
+                    name: `.${cmd.names.join(' | .')}\n\`Required Permissions: ${cmd.permissions.join(', ')}\``,
+                    value: `${cmd.description}`,
+                });
         }
 
         const embed = createEmbed({
             title: embedTitle,
-            fields: fields,
+            fields,
         });
 
         await message.channel.send({ embeds: [embed] }).catch(console.error);

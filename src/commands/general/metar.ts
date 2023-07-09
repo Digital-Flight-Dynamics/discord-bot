@@ -33,7 +33,9 @@ export const metar: CommandDefinition = {
                 const report = response.data;
 
                 if (!report) {
-                    await message.channel.send({ embeds: [createErrorEmbed(`No station available at the moment near ${icao.toUpperCase()}`)] }).catch(console.error);
+                    await message.channel
+                        .send({ embeds: [createErrorEmbed(`No station available at the moment near ${icao.toUpperCase()}`)] })
+                        .catch(console.error);
                     shouldReturn = true;
                     return;
                 }
@@ -72,7 +74,9 @@ export const metar: CommandDefinition = {
                 const windVar = report.wind_variable_direction;
                 if (windVar.length > 0) windVarText += `(variable ${windVar[0].value} to ${windVar[1].value})`;
 
-                const wind = `${degToDir(report.wind_direction.value)}-${report.wind_direction.value} ${windVarText} at ${report.wind_speed.value}${units.wind_speed}`;
+                const wind = `${degToDir(report.wind_direction.value)}-${report.wind_direction.value} ${windVarText} at ${report.wind_speed.value}${
+                    units.wind_speed
+                }`;
 
                 embed = createEmbed(
                     {

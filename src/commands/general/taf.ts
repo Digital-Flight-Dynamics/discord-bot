@@ -27,7 +27,9 @@ export const taf: CommandDefinition = {
                 const report = response.data;
 
                 if (!report) {
-                    await message.channel.send({ embeds: [createErrorEmbed(`No station available at the moment near ${icao.toUpperCase()}`)] }).catch(console.error);
+                    await message.channel
+                        .send({ embeds: [createErrorEmbed(`No station available at the moment near ${icao.toUpperCase()}`)] })
+                        .catch(console.error);
                     shouldReturn = true;
                     return;
                 }

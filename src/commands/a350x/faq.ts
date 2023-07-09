@@ -13,7 +13,9 @@ export const faq: CommandDefinition = {
             fields: [
                 {
                     name: 'Q: When will the A350X release?',
-                    value: 'A: It will release as an alpha version when all visuals are complete and when systems/avionics are usable for normal operations.',
+                    value:
+                        'A: It will release as an alpha version when all visuals are complete and when systems/avionics ' +
+                        'are usable for normal operations.',
                 },
                 {
                     name: 'Q: Freeware or payware?',

@@ -9,21 +9,18 @@ export const whois: CommandDefinition = {
     execute: async (message, args) => {
         const invalidEmbed = createErrorEmbed('Please provide a valid user/id for someone in this server');
 
-        const user = message.mentions.users.first();
-        let id = undefined;
-
-        if (user) {
-            id = user.id;
-        } else {
-            id = args[0];
+        let id = args[0];
+        if (!id) {
+            await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
+            return;
         }
 
-        if (!id) {
-            id = message.author.id;
+        // in case of a mention
+        if (id.startsWith('<@') && id.endsWith('>')) {
+            id = id.slice(2, -1);
         }
 
         const member = await message.guild.members.fetch(id).catch(console.error);
-
         if (!member) {
             await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
             return;
@@ -47,7 +44,7 @@ export const whois: CommandDefinition = {
                     value: `${joined[0]}, ${joined[1]} ${joined[2]}, ${joined[3]} at ${joined[4]} GMT`,
                     inline: true,
                 },
-                { name: 'Nickname', value: member.nickname === null ? 'None' : `${member.nickname}` },
+                { name: 'Nickname', value: member.nickname ? `${member.nickname}` : `None` },
                 { name: 'Role Count', value: `${member.roles.cache.size - 1}`, inline: true },
                 { name: 'Highest Role', value: `${member.roles.highest}`, inline: true },
             ],

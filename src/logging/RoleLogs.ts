@@ -12,7 +12,9 @@ export const roleCreate: LogDefinition = {
             {
                 color: Colors.GREEN,
                 title: 'Role Created',
-                description: `**Role:** <@&${role.id}>\n**Name:** ${role.name}\n**Color:** ${role.hexColor.toUpperCase()}\n**Mentionable:** ${role.mentionable}`,
+                description: `**Role:** <@&${role.id}>\n**Name:** ${role.name}\n**Color:** ${role.hexColor.toUpperCase()}\n**Mentionable:** ${
+                    role.mentionable
+                }`,
                 footer: { text: `Role ID: ${role.id}` },
             },
             true,
@@ -53,7 +55,9 @@ export const roleUpdate: LogDefinition = {
                 {
                     color: Colors.ORANGE,
                     title: 'Role Color Updated',
-                    description: `**Role:** <@&${oldRole.id}>\n**Before:** ${oldRole.hexColor.toUpperCase()}\n**+After:** ${newRole.hexColor.toUpperCase()}`,
+                    description: `**Role:** <@&${
+                        oldRole.id
+                    }>\n**Before:** ${oldRole.hexColor.toUpperCase()}\n**+After:** ${newRole.hexColor.toUpperCase()}`,
                     footer: { text: `Role ID: ${oldRole.id}` },
                 },
                 true,

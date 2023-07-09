@@ -39,7 +39,7 @@ export const messageDeleteBulk: LogDefinition = {
         const desc = [];
 
         messages.forEach((message) => {
-            desc.push(`[${message.author.tag}]: ${message.content}`);
+            desc.push(`[${message.author ? message.author.tag : 'unknown_user'}]: ${message.content}`);
         });
 
         const embed = createEmbed(

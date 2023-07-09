@@ -12,6 +12,7 @@
         "import/no-dynamic-require": "off",
         "no-console": "off",
         "operator-linebreak": "off",
-        "object-shorthand": "warn"
+        "object-shorthand": "warn",
+        "max-len": ["warn", { "code": 152 }]
     }
 }

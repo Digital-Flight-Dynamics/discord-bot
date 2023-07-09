@@ -33,6 +33,6 @@ export const leaveMessages = {
 
         if (!leaves.isTextBased()) return;
 
-        await leaves.send(`**${member.user.tag}** just left the server`).catch(console.error);
+        await leaves.send('`' + member.user.tag + '` just left the server').catch(console.error);
     },
 };

@@ -1,4 +1,3 @@
-
 <img src="https://cdn.discordapp.com/attachments/918930153608990770/928235894723457144/LogoWithText.png">
 
 # Digital Flight Dynamics Discord Bot
@@ -8,6 +7,6 @@
 
 Official Repository of the Digital Flight Dynamics Discord bot.
 
-# Contributing 
+# Contributing
 
 Kindly follow the steps detailed in [CONTRIBUTING.md](.github/CONTRIBUTING.md) to contribute to the repository.
