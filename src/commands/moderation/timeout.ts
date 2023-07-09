@@ -1,100 +1,92 @@
-import Discord from 'discord.js';
 import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
-import { color } from '../..';
+import { createEmbed } from '../../lib/embed';
 
 export const timeout: CommandDefinition = {
     names: ['timeout'],
-    description: 'Timeouts the mentioned user. Usage: `.timeout @mention reason` | `.timeout id reason`',
+    description: 'Timeouts the mentioned user. `Arguments: <id> <duration> <reason>`',
     category: CommandCategories.MODERATION,
     permissions: ['MuteMembers'],
     execute: async (message, args) => {
         const invalidEmbed = createErrorEmbed('Please enter a valid user/id');
 
-        const user = message.mentions.users.first();
-        let id = undefined;
-
-        if (user) {
-            id = user.id;
-        } else {
-            id = args[0];
-        }
-
+        let id = args[0];
         if (!id) {
             await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
             return;
         }
 
+        // in case of a mention
+        if (id.startsWith('<@') && id.endsWith('>')) {
+            id = id.slice(2, -1);
+        }
+
         if (id === message.author.id) {
-            await message.channel
-                .send({
-                    embeds: [createErrorEmbed('You cannot timeout yourself')],
-                })
-                .catch(console.error);
+            await message.channel.send({ embeds: [createErrorEmbed('You cannot timeout yourself')] }).catch(console.error);
             return;
         }
 
-        let shouldReturn = false;
-
-        const member = await message.guild.members.fetch(id).catch(async (err) => {
+        // find member in server
+        let error = false;
+        const member = await message.guild.members.fetch(id).catch((err) => {
             console.error(err);
-            const errString = err.toString();
-            if (errString.includes('Unknown User')) {
-                await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
-                shouldReturn = true;
-            } else if (errString.includes('Invalid Form Body')) {
-                await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
-                shouldReturn = true;
-            }
+            error = true;
         });
-
-        if (shouldReturn) return;
-        shouldReturn = false;
-
-        if (!member) {
-            await message.channel
-                .send({
-                    embeds: [createErrorEmbed('The given user is not in this server')],
-                })
-                .catch(console.error);
+        if (error) {
+            await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
             return;
         }
+
+        if (!member) return;
 
         if (!member.manageable) {
             await message.channel.send({ embeds: [createErrorEmbed('I cannot timeout this user')] }).catch(console.error);
             return;
         }
 
-        const kickReason = args.slice(1).join(' ') || 'None';
+        const duration = argToMs(args[1]);
+        if (duration === 0) {
+            await message.channel.send({ embeds: [createErrorEmbed('Please enter a valid duration')] }).catch(console.error);
+            return;
+        }
 
-        const dmEmbed = new Discord.EmbedBuilder()
-            .setColor(color)
-            .setTitle(`Timeout from ${message.guild.name}`)
-            .addFields({ name: 'Reason', value: `${kickReason}`, inline: true }, { name: 'Moderator', value: `${message.author.tag}`, inline: true });
+        const reason = args.slice(2).join(' ') || 'None';
+
+        const dmEmbed = createEmbed({
+            title: `Timeout in ${message.guild.name}`,
+            fields: [
+                { name: 'Duration', value: args[1], inline: true },
+                { name: 'Reason', value: `${reason}`, inline: true },
+                { name: 'Moderator', value: `${message.author.tag}` },
+            ],
+        });
 
         await member.send({ embeds: [dmEmbed] }).catch(console.error);
+        await member.timeout(duration, reason).catch(console.error);
 
-        await member.kick().catch(console.error);
-
-        if (shouldReturn) return;
-
-        const embed = new Discord.EmbedBuilder()
-            .setColor(color)
-            .setTitle('Put User in Timeout')
-            .setDescription(`<@${id}> has been put in timeout.`)
-            .addFields({ name: 'Reason', value: `${kickReason}`, inline: true }, { name: 'Moderator', value: `${message.author.tag}`, inline: true });
+        const embed = createEmbed({
+            title: 'Put User in Timeout',
+            description: `<@${id}> has been put in timeout.`,
+            fields: [
+                { name: 'Duration', value: args[1], inline: true },
+                { name: 'Reason', value: `${reason}`, inline: true },
+                { name: 'Moderator', value: `${message.author.tag}` },
+            ],
+        });
 
         await message.channel.send({ embeds: [embed] }).catch(console.error);
     },
 };
 
 const argToMs = (arg: string): number => {
+    if (!arg) return 0;
+
     const num = parseInt(arg.slice(0, -1));
-    console.log(num);
-    return 0;
     if (isNaN(num)) return 0;
+
     if (arg.endsWith('s')) return num * 1000;
     if (arg.endsWith('m')) return num * 1000 * 60;
     if (arg.endsWith('h')) return num * 1000 * 60 * 60;
     if (arg.endsWith('d')) return num * 1000 * 60 * 60 * 24;
+
     return 0;
 };

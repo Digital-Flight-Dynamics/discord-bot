@@ -1,10 +1,9 @@
-import Discord from 'discord.js';
 import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
-import { color } from '../..';
+import { createEmbed } from '../../lib/embed';
 
 export const unban: CommandDefinition = {
     names: ['unban'],
-    description: 'Unbans the mentioned user. Usage: `.unban id`',
+    description: 'Unbans the mentioned user. `Arguments: <id>`',
     category: CommandCategories.MODERATION,
     permissions: ['BanMembers'],
     execute: async (message, args) => {
@@ -37,11 +36,11 @@ export const unban: CommandDefinition = {
 
         if (shouldReturn) return;
 
-        const embed = new Discord.EmbedBuilder()
-            .setColor(color)
-            .setTitle('Unbanned User')
-            .setDescription(`<@${id}> has been unbanned.`)
-            .addFields({ name: 'Moderator', value: `${message.author.tag}`, inline: true });
+        const embed = createEmbed({
+            title: 'Unbanned User',
+            description: `<@${id}> has been unbanned.`,
+            fields: [{ name: 'Moderator', value: `${message.author.tag}`, inline: true }],
+        });
 
         await message.channel.send({ embeds: [embed] }).catch(console.error);
     },

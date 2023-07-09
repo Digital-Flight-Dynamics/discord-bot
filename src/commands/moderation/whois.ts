@@ -1,14 +1,13 @@
-import Discord from 'discord.js';
 import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
-import { color } from '../..';
+import { createEmbed } from '../../lib/embed';
 
 export const whois: CommandDefinition = {
     names: ['whois', 'userinfo'],
-    description: 'Displays information about the given user. Usage: `.whois | .userinfo @mention` | `.whois | .userinfo id`',
+    description: 'Displays information about the given user. `Arguments: <id>`',
     category: CommandCategories.MODERATION,
     permissions: ['ManageNicknames'],
     execute: async (message, args) => {
-        const invalidEmbed = createErrorEmbed('Please enter a valid user/id for someone in this server');
+        const invalidEmbed = createErrorEmbed('Please provide a valid user/id for someone in this server');
 
         const user = message.mentions.users.first();
         let id = undefined;
@@ -33,12 +32,11 @@ export const whois: CommandDefinition = {
         const joined = member.joinedAt.toString().split(' ');
         const registered = member.user.createdAt.toString().split(' ');
 
-        const embed = new Discord.EmbedBuilder()
-            .setColor(color)
-            .setAuthor({ name: member.user.tag, iconURL: member.user.avatarURL() })
-            .setDescription(`<@${id}>`)
-            .setThumbnail(member.user.avatarURL())
-            .addFields(
+        const embed = createEmbed({
+            author: { name: member.user.tag, iconURL: member.user.avatarURL() },
+            description: `<@${id}>`,
+            thumbnail: { url: member.user.avatarURL() },
+            fields: [
                 {
                     name: 'Registered',
                     value: `${registered[0]}, ${registered[1]} ${registered[2]}, ${registered[3]} at ${registered[4]} GMT`,
@@ -52,8 +50,10 @@ export const whois: CommandDefinition = {
                 { name: 'Nickname', value: member.nickname === null ? 'None' : `${member.nickname}` },
                 { name: 'Role Count', value: `${member.roles.cache.size - 1}`, inline: true },
                 { name: 'Highest Role', value: `${member.roles.highest}`, inline: true },
-            )
-            .setFooter({ text: `ID: ${id}` });
+            ],
+            footer: { text: `ID: ${id}` },
+        });
+
         await message.channel.send({ embeds: [embed] }).catch(console.error);
     },
 };

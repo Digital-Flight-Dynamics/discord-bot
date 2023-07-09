@@ -20,6 +20,8 @@ import { cabin } from './a350x/cabin';
 import { variants } from './a350x/variants';
 import { simbrief } from './a350x/simbrief';
 import { liveries } from './a350x/liveries';
+import { timeout } from './moderation/timeout';
+
 import { createEmbed } from '../lib/embed';
 
 export const enum CommandCategories {
@@ -60,4 +62,5 @@ export const commands: CommandDefinition[] = [
     variants,
     simbrief,
     liveries,
+    timeout,
 ];
