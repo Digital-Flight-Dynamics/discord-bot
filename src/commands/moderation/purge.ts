@@ -1,12 +1,12 @@
 import Discord from 'discord.js';
 import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
-import { color } from '../..';
+import { createEmbed } from '../../lib/embed';
 
 export const purge: CommandDefinition = {
     names: ['purge', 'clear'],
-    description: 'Clears the desired amount of messages. Usage: `.purge | .clear amount`',
+    description: 'Clears the desired amount of messages. `Arguments: <amount>`',
     category: CommandCategories.MODERATION,
-    permissions: ['MANAGE_MESSAGES'],
+    permissions: ['ManageMessages'],
     execute: async (message, args) => {
         const amount = parseInt(args[0]);
 
@@ -68,7 +68,7 @@ export const purge: CommandDefinition = {
 
         if (error) return;
 
-        const embed = new Discord.MessageEmbed().setColor(color).setTitle('Purged Messages').setDescription(`${amountDeleted} message(s) have been deleted`);
+        const embed = createEmbed({ title: 'Purged Messages', description: `${amountDeleted} message(s) have been deleted` });
         await message.channel
             .send({ embeds: [embed] })
             .then((msg) => {

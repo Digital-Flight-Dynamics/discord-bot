@@ -1,47 +1,42 @@
-import Discord from 'discord.js';
 import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
-import { color } from '../..';
+import { createEmbed } from '../../lib/embed';
 
 export const unban: CommandDefinition = {
     names: ['unban'],
-    description: 'Unbans the mentioned user. Usage: `.unban id`',
+    description: 'Unbans the mentioned user. `Arguments: <id>`',
     category: CommandCategories.MODERATION,
-    permissions: ['BAN_MEMBERS'],
+    permissions: ['BanMembers'],
     execute: async (message, args) => {
-        const id = args[0];
+        const invalidEmbed = createErrorEmbed('This user is not banned, or you provided an invalid id');
 
-        const invalidEmbed = createErrorEmbed('This user is not banned, or you entered an invalid ID');
-
+        let id = args[0];
         if (!id) {
-            await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
+            await message.channel.send({ embeds: [createErrorEmbed('Please provide a valid user/id')] }).catch(console.error);
             return;
         }
 
-        const ban = await message.guild.bans.fetch(id).catch(console.error);
+        // in case of a mention
+        if (id.startsWith('<@') && id.endsWith('>')) {
+            id = id.slice(2, -1);
+        }
 
+        // fetch ban to get reason or see if the user is even banned
+        const ban = await message.guild.bans.fetch(id).catch(console.error);
         if (!ban) {
             await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
             return;
         }
 
-        let shouldReturn = false;
+        const reason = ban.reason || 'None';
 
-        await message.guild.members.unban(id).catch(async (err) => {
-            console.error(err);
+        // attempt unban
+        await message.guild.members.unban(id).catch(console.error);
 
-            if (err.toString().includes('Unknown User')) {
-                await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
-                shouldReturn = true;
-            }
+        const embed = createEmbed({
+            title: 'Unbanned User',
+            description: `<@${id}> has been unbanned.`,
+            fields: [{ name: 'Ban Reason', value: reason }],
         });
-
-        if (shouldReturn) return;
-
-        const embed = new Discord.MessageEmbed()
-            .setColor(color)
-            .setTitle('Unbanned User')
-            .setDescription(`<@${id}> has been unbanned.`)
-            .addFields({ name: 'Moderator', value: `${message.author.tag}`, inline: true });
 
         await message.channel.send({ embeds: [embed] }).catch(console.error);
     },

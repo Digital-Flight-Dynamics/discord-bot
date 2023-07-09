@@ -1,10 +1,13 @@
+import { MessageReaction, User } from 'discord.js';
+import { UtilDefinition } from '.';
+
 const ANNOUNCEMENTS_EMOJI = '📣';
 const PROGRESS_EMOJI = '❕';
 const EVENTS_EMOJI = '✈';
 
-export const addRole = {
+export const addRole: UtilDefinition = {
     event: 'messageReactionAdd',
-    execute: async (reaction, user) => {
+    execute: async (reaction: MessageReaction, user: User) => {
         const roleChannel = await reaction.message.guild.channels.fetch('808791055184691211').catch(console.error);
 
         if (!roleChannel) {
@@ -36,6 +39,7 @@ export const addRole = {
 
         const emoji = reaction.emoji.name;
         const member = await reaction.message.guild.members.fetch(user.id).catch(console.error);
+        if (!member) return;
 
         if (emoji === ANNOUNCEMENTS_EMOJI) {
             await member.roles.add(announcementsRole).catch(console.error);

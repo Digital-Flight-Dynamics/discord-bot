@@ -1,7 +1,6 @@
 import axios from 'axios';
-import Discord from 'discord.js';
-import { color } from '../..';
 import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
+import { createEmbed } from '../../lib/embed';
 
 export const taf: CommandDefinition = {
     names: ['taf'],
@@ -28,27 +27,29 @@ export const taf: CommandDefinition = {
                 const report = response.data;
 
                 if (!report) {
-                    await message.channel.send({ embeds: [createErrorEmbed(`No station available at the moment near ${icao.toUpperCase()}`)] }).catch(console.error);
+                    await message.channel
+                        .send({ embeds: [createErrorEmbed(`No station available at the moment near ${icao.toUpperCase()}`)] })
+                        .catch(console.error);
                     shouldReturn = true;
                     return;
                 }
 
-                console.log(report);
-
                 const { raw, station } = report;
 
-                embed = new Discord.MessageEmbed()
-                    .setColor(color)
-                    .setTitle(`TAF for ${station}`)
-                    .addFields(
-                        { name: 'Raw Report', value: `${raw}` },
-                        {
-                            name: 'Readable Report',
-                            value: 'Coming soon',
-                        },
-                    )
-                    .setFooter('Source: AVWX')
-                    .setTimestamp();
+                embed = createEmbed(
+                    {
+                        title: `TAF for ${station}`,
+                        fields: [
+                            { name: 'Raw Report', value: `${raw}` },
+                            {
+                                name: 'Readable Report',
+                                value: 'Coming soon',
+                            },
+                        ],
+                        footer: { text: 'Source: AVWX' },
+                    },
+                    true,
+                );
             })
             .catch(async () => {
                 await message.channel.send({ embeds: [createErrorEmbed('Please provide a valid ICAO code')] }).catch(console.error);

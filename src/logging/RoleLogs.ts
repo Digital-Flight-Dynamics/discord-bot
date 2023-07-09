@@ -2,9 +2,9 @@ import { createEmbed } from '../lib/embed';
 import { Colors, LogDefinition, getLogChannel, snakeToNorm } from '.';
 import { Role } from 'discord.js';
 
-export const roleCreate: LogDefinition<[Role]> = {
+export const roleCreate: LogDefinition = {
     event: 'roleCreate',
-    execute: async (role) => {
+    execute: async (role: Role) => {
         const logChannel = getLogChannel(role);
         if (!logChannel) return;
 
@@ -12,7 +12,9 @@ export const roleCreate: LogDefinition<[Role]> = {
             {
                 color: Colors.GREEN,
                 title: 'Role Created',
-                description: `**Role:** <@&${role.id}>\n**Name:** ${role.name}\n**Color:** ${role.hexColor.toUpperCase()}\n**Mentionable:** ${role.mentionable}`,
+                description: `**Role:** <@&${role.id}>\n**Name:** ${role.name}\n**Color:** ${role.hexColor.toUpperCase()}\n**Mentionable:** ${
+                    role.mentionable
+                }`,
                 footer: { text: `Role ID: ${role.id}` },
             },
             true,
@@ -22,9 +24,9 @@ export const roleCreate: LogDefinition<[Role]> = {
     },
 };
 
-export const roleDelete: LogDefinition<[Role]> = {
+export const roleDelete: LogDefinition = {
     event: 'roleDelete',
-    execute: async (role) => {
+    execute: async (role: Role) => {
         const logChannel = getLogChannel(role);
         if (!logChannel) return;
 
@@ -42,9 +44,9 @@ export const roleDelete: LogDefinition<[Role]> = {
     },
 };
 
-export const roleUpdate: LogDefinition<[Role, Role]> = {
+export const roleUpdate: LogDefinition = {
     event: 'roleUpdate',
-    execute: async (oldRole, newRole) => {
+    execute: async (oldRole: Role, newRole: Role) => {
         const logChannel = getLogChannel(oldRole);
         if (!logChannel) return;
 
@@ -53,7 +55,9 @@ export const roleUpdate: LogDefinition<[Role, Role]> = {
                 {
                     color: Colors.ORANGE,
                     title: 'Role Color Updated',
-                    description: `**Role:** <@&${oldRole.id}>\n**Before:** ${oldRole.hexColor.toUpperCase()}\n**+After:** ${newRole.hexColor.toUpperCase()}`,
+                    description: `**Role:** <@&${
+                        oldRole.id
+                    }>\n**Before:** ${oldRole.hexColor.toUpperCase()}\n**+After:** ${newRole.hexColor.toUpperCase()}`,
                     footer: { text: `Role ID: ${oldRole.id}` },
                 },
                 true,

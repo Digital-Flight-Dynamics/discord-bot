@@ -20,6 +20,10 @@ import { cabin } from './a350x/cabin';
 import { variants } from './a350x/variants';
 import { simbrief } from './a350x/simbrief';
 import { liveries } from './a350x/liveries';
+import { timeout } from './moderation/timeout';
+import { tools } from './a350x/tools';
+
+import { createEmbed } from '../lib/embed';
 
 export const enum CommandCategories {
     A350X = 'A350X',
@@ -32,10 +36,10 @@ export type CommandDefinition = {
     names: string[];
     description: string;
     category: CommandCategories;
-    permissions?: Discord.PermissionString[];
+    permissions?: Discord.PermissionsString[];
     execute: (message: Discord.Message, args: Array<string>) => Promise<any>;
 };
-export const createErrorEmbed = (description: string) => new Discord.MessageEmbed().setColor('#FF0000').setTitle('Error').setDescription(description);
+export const createErrorEmbed = (description: string) => createEmbed({ color: 0xff0000, title: 'Error', description });
 
 export const commands: CommandDefinition[] = [
     when,
@@ -59,4 +63,6 @@ export const commands: CommandDefinition[] = [
     variants,
     simbrief,
     liveries,
+    timeout,
+    tools,
 ];

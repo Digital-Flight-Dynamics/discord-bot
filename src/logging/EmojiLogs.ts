@@ -1,10 +1,10 @@
+import { GuildEmoji } from 'discord.js';
 import { createEmbed } from '../lib/embed';
 import { Colors, LogDefinition, getLogChannel } from '.';
-import { GuildEmoji } from 'discord.js';
 
-export const emojiCreate: LogDefinition<[GuildEmoji]> = {
+export const emojiCreate: LogDefinition = {
     event: 'emojiCreate',
-    execute: async (emoji) => {
+    execute: async (emoji: GuildEmoji) => {
         const logChannel = getLogChannel(emoji);
         if (!logChannel) return;
 
@@ -21,9 +21,9 @@ export const emojiCreate: LogDefinition<[GuildEmoji]> = {
     },
 };
 
-export const emojiDelete: LogDefinition<[GuildEmoji]> = {
+export const emojiDelete: LogDefinition = {
     event: 'emojiDelete',
-    execute: async (emoji) => {
+    execute: async (emoji: GuildEmoji) => {
         const logChannel = getLogChannel(emoji);
         if (!logChannel) return;
 
@@ -41,9 +41,9 @@ export const emojiDelete: LogDefinition<[GuildEmoji]> = {
     },
 };
 
-export const emojiUpdate: LogDefinition<[GuildEmoji, GuildEmoji]> = {
+export const emojiUpdate: LogDefinition = {
     event: 'emojiUpdate',
-    execute: async (oldEmoji, newEmoji) => {
+    execute: async (oldEmoji: GuildEmoji, newEmoji: GuildEmoji) => {
         const logChannel = getLogChannel(oldEmoji);
         if (!logChannel) return;
 

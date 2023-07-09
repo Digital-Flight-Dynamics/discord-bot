@@ -1,9 +1,8 @@
-import { MessageEmbed, MessageEmbedOptions } from 'discord.js';
+import { EmbedBuilder, EmbedData } from 'discord.js';
 import { color } from '..';
 
-export const createEmbed = (options: MessageEmbedOptions, timestamp?: boolean) => {
-    const embed = new MessageEmbed({ color, ...options });
+export const createEmbed = (options: EmbedData, timestamp?: boolean) => {
+    const embed = new EmbedBuilder({ color, ...options });
     if (timestamp) embed.setTimestamp();
-
     return embed;
 };

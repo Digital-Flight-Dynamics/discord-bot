@@ -1,61 +1,33 @@
-import Discord from 'discord.js';
 import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
-import { color } from '../..';
+import { createEmbed } from '../../lib/embed';
 
 export const kick: CommandDefinition = {
     names: ['kick'],
-    description: 'Kicks the mentioned user. Usage: `.kick @mention reason` | `.kick id reason`',
+    description: 'Kicks the mentioned user. `Arguments: <id> <reason>`',
     category: CommandCategories.MODERATION,
-    permissions: ['KICK_MEMBERS'],
+    permissions: ['KickMembers'],
     execute: async (message, args) => {
-        const invalidEmbed = createErrorEmbed('Please enter a valid user/id');
+        const invalidEmbed = createErrorEmbed('Please provide a valid user/id');
 
-        const user = message.mentions.users.first();
-        let id = undefined;
-
-        if (user) {
-            id = user.id;
-        } else {
-            id = args[0];
-        }
-
+        let id = args[0];
         if (!id) {
             await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
             return;
         }
 
+        // in case of a mention
+        if (id.startsWith('<@') && id.endsWith('>')) {
+            id = id.slice(2, -1);
+        }
+
         if (id === message.author.id) {
-            await message.channel
-                .send({
-                    embeds: [createErrorEmbed('You cannot kick yourself')],
-                })
-                .catch(console.error);
+            await message.channel.send({ embeds: [createErrorEmbed('You cannot kick yourself')] }).catch(console.error);
             return;
         }
 
-        let shouldReturn = false;
-
-        const member = await message.guild.members.fetch(id).catch(async (err) => {
-            console.error(err);
-            const errString = err.toString();
-            if (errString.includes('Unknown User')) {
-                await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
-                shouldReturn = true;
-            } else if (errString.includes('Invalid Form Body')) {
-                await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
-                shouldReturn = true;
-            }
-        });
-
-        if (shouldReturn) return;
-        shouldReturn = false;
-
+        const member = await message.guild.members.fetch(id).catch(console.error);
         if (!member) {
-            await message.channel
-                .send({
-                    embeds: [createErrorEmbed('The given user is not in this server')],
-                })
-                .catch(console.error);
+            await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
             return;
         }
 
@@ -66,29 +38,23 @@ export const kick: CommandDefinition = {
 
         const kickReason = args.slice(1).join(' ') || 'None';
 
-        const dmEmbed = new Discord.MessageEmbed()
-            .setColor(color)
-            .setTitle(`Kicked from ${message.guild.name}`)
-            .addFields({ name: 'Reason', value: `${kickReason}`, inline: true }, { name: 'Moderator', value: `${message.author.tag}`, inline: true });
+        const dmEmbed = createEmbed({
+            title: `Kicked from ${message.guild.name}`,
+            fields: [
+                { name: 'Reason', value: `${kickReason}`, inline: true },
+                { name: 'Moderator', value: `${message.author.tag}`, inline: true },
+            ],
+        });
 
         await member.send({ embeds: [dmEmbed] }).catch(console.error);
 
-        await member.kick().catch(async (err) => {
-            console.error(err);
-            const errString = err.toString();
-            if (errString.includes('Missing Permissions')) {
-                await message.channel.send({ embeds: [createErrorEmbed('I cannot kick this user')] }).catch(console.error);
-                shouldReturn = true;
-            }
+        await member.kick().catch(console.error);
+
+        const embed = createEmbed({
+            title: 'Kicked User',
+            description: `<@${id}> has been kicked.`,
+            fields: [{ name: 'Reason', value: `${kickReason}`, inline: true }],
         });
-
-        if (shouldReturn) return;
-
-        const embed = new Discord.MessageEmbed()
-            .setColor(color)
-            .setTitle('Kicked User')
-            .setDescription(`<@${id}> has been kicked.`)
-            .addFields({ name: 'Reason', value: `${kickReason}`, inline: true }, { name: 'Moderator', value: `${message.author.tag}`, inline: true });
 
         await message.channel.send({ embeds: [embed] }).catch(console.error);
     },
