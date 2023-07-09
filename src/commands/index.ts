@@ -20,6 +20,7 @@ import { cabin } from './a350x/cabin';
 import { variants } from './a350x/variants';
 import { simbrief } from './a350x/simbrief';
 import { liveries } from './a350x/liveries';
+import { createEmbed } from '../lib/embed';
 
 export const enum CommandCategories {
     A350X = 'A350X',
@@ -35,7 +36,7 @@ export type CommandDefinition = {
     permissions?: Discord.PermissionsString[];
     execute: (message: Discord.Message, args: Array<string>) => Promise<any>;
 };
-export const createErrorEmbed = (description: string) => new Discord.EmbedBuilder().setColor(0xff0000).setTitle('Error').setDescription(description);
+export const createErrorEmbed = (description: string) => createEmbed({ color: 0xff0000, title: 'Error', description });
 
 export const commands: CommandDefinition[] = [
     when,

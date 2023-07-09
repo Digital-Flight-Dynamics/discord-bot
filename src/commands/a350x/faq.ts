@@ -1,6 +1,5 @@
-import Discord from 'discord.js';
 import { CommandCategories, CommandDefinition } from '../index';
-import { color } from '../..';
+import { createEmbed } from '../../lib/embed';
 
 export const faq: CommandDefinition = {
     names: ['faq'],
@@ -8,11 +7,10 @@ export const faq: CommandDefinition = {
     category: CommandCategories.A350X,
     permissions: ['ManageGuild'],
     execute: async (message, args) => {
-        const embed = new Discord.EmbedBuilder()
-            .setColor(color)
-            .setTitle('Frequently Asked Questions')
-            .setDescription('This will hopefully answer most of your questions. If you have any other questions, you may ask in <#808791475206094928>')
-            .addFields(
+        const embed = createEmbed({
+            title: 'Frequently Asked Questions',
+            description: 'This will hopefully answer most of your questions. If you have any other questions, you may ask in <#808791475206094928>',
+            fields: [
                 {
                     name: 'Q: When will the A350X release?',
                     value: 'A: It will release as an alpha version when all visuals are complete and when systems/avionics are usable for normal operations.',
@@ -35,8 +33,8 @@ export const faq: CommandDefinition = {
                     name: 'Q: I work on the A350 as a pilot/engineer/technician and I would like to help. Who should I contact?',
                     value: 'A: Please contact anyone from the <@&808792384112558100> team',
                 },
-            );
-
+            ],
+        });
         await message.channel.send({ embeds: [embed] }).catch(console.error);
     },
 };

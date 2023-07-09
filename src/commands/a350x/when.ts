@@ -1,16 +1,14 @@
-import Discord from 'discord.js';
 import { CommandCategories, CommandDefinition } from '../index';
-import { color } from '../../index';
+import { createEmbed } from '../../lib/embed';
 
-export const EMBED = new Discord.EmbedBuilder()
-    .setColor(0xff0000)
-    .setTitle('When is the A350X coming?')
-    .setDescription(
+export const EMBED = createEmbed({
+    title: 'When is the A350X coming?',
+    description:
         'Since this is a freeware project, we do not impose deadlines on our volunteer developers. ' +
-            'We value a high-quality release over an incomplete rapid publication. ' +
-            'Our developers are working hard to build the A350X addon as good and feature-complete as possible. ' +
-            'However, we cannot provide a release date or estimate for the reasons stated above.',
-    );
+        'We value a high-quality release over an incomplete rapid publication. ' +
+        'Our developers are working hard to build the A350X addon as good and feature-complete as possible. ' +
+        'However, we cannot provide a release date or estimate for the reasons stated above.',
+});
 
 export const when: CommandDefinition = {
     names: ['when'],

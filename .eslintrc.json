@@ -11,6 +11,7 @@
         "global-require": "off",
         "import/no-dynamic-require": "off",
         "no-console": "off",
-        "operator-linebreak": "off"
+        "operator-linebreak": "off",
+        "object-shorthand": "warn"
     }
 }

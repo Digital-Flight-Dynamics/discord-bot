@@ -1,8 +1,6 @@
-/* eslint-disable indent */
 import axios from 'axios';
-import Discord from 'discord.js';
-import { color } from '../..';
 import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
+import { createEmbed } from '../../lib/embed';
 
 export const metar: CommandDefinition = {
     names: ['metar'],
@@ -40,8 +38,6 @@ export const metar: CommandDefinition = {
                     return;
                 }
 
-                console.log(report);
-
                 const { raw, station, units, visibility, temperature, dewpoint, altimeter, clouds } = report;
                 const time = `${report.time.dt.replace('T', ' ')}`;
 
@@ -78,27 +74,29 @@ export const metar: CommandDefinition = {
 
                 const wind = `${degToDir(report.wind_direction.value)}-${report.wind_direction.value} ${windVarText} at ${report.wind_speed.value}${units.wind_speed}`;
 
-                embed = new Discord.EmbedBuilder()
-                    .setColor(color)
-                    .setTitle(`METAR for ${station}`)
-                    .addFields(
-                        { name: 'Raw Report', value: `${raw}` },
-                        {
-                            name: 'Readable Report',
-                            value:
-                                `**Station:** ${station}\n` +
-                                `**Observed at:** ${time}\n` +
-                                `**Wind:** ${wind}\n` +
-                                `**Visibility:** ${visibility.value === 9999 ? '10km' : visibility.value + units.visibility}\n` +
-                                `**Temperature:** ${temperature.value}°${units.temperature}\n` +
-                                `**Dew Point:** ${dewpoint.value}°${units.temperature}\n` +
-                                `**Altimeter:** ${units.altimeter === 'inHg' ? altimeter.value.toFixed(2) : altimeter.value} ${units.altimeter}\n` +
-                                `**Clouds:** ${cloudText}\n` +
-                                `**Flight Rules:** ${report.flight_rules}`,
-                        },
-                    )
-                    .setFooter({ text: 'Source: AVWX' })
-                    .setTimestamp();
+                embed = createEmbed(
+                    {
+                        title: `METAR for ${station}`,
+                        fields: [
+                            { name: 'Raw Report', value: `${raw}` },
+                            {
+                                name: 'Readable Report',
+                                value:
+                                    `**Station:** ${station}\n` +
+                                    `**Observed at:** ${time}\n` +
+                                    `**Wind:** ${wind}\n` +
+                                    `**Visibility:** ${visibility.value === 9999 ? '10km' : visibility.value + units.visibility}\n` +
+                                    `**Temperature:** ${temperature.value}°${units.temperature}\n` +
+                                    `**Dew Point:** ${dewpoint.value}°${units.temperature}\n` +
+                                    `**Altimeter:** ${units.altimeter === 'inHg' ? altimeter.value.toFixed(2) : altimeter.value} ${units.altimeter}\n` +
+                                    `**Clouds:** ${cloudText}\n` +
+                                    `**Flight Rules:** ${report.flight_rules}`,
+                            },
+                        ],
+                        footer: { text: 'Source: AVWX' },
+                    },
+                    true,
+                );
             })
             .catch(async () => {
                 await message.channel.send({ embeds: [createErrorEmbed('Please provide a valid ICAO code')] }).catch(console.error);

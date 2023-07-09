@@ -1,6 +1,6 @@
-import Discord from 'discord.js';
+import { APIEmbedField } from 'discord.js';
 import { CommandCategories, CommandDefinition, commands } from '../index';
-import { color } from '../../index';
+import { createEmbed } from '../../lib/embed';
 
 export const help: CommandDefinition = {
     names: ['help'],
@@ -10,16 +10,16 @@ export const help: CommandDefinition = {
         let category = args.join(' ');
 
         if (!category) {
-            const rootEmbed = new Discord.EmbedBuilder()
-                .setColor(color)
-                .setTitle('Command Categories')
-                .addFields(
+            const rootEmbed = createEmbed({
+                title: 'Command Categories',
+                fields: [
                     { name: 'A350X', value: 'Commands related to the A350X project' },
                     { name: 'General', value: 'Generic commands that can be used by anyone' },
                     { name: 'Fun', value: 'Commands that exist just for fun' },
                     { name: 'Moderation', value: 'Commands used by staff' },
                     { name: 'Support', value: 'Commands used for support purposes' },
-                );
+                ],
+            });
             await message.channel.send({ embeds: [rootEmbed] }).catch(console.error);
 
             return;
@@ -27,25 +27,28 @@ export const help: CommandDefinition = {
 
         category = category.toUpperCase();
 
-        const embed = new Discord.EmbedBuilder().setColor(color);
+        let embedTitle: string;
 
-        const cmds = [];
+        const cmds: CommandDefinition[] = [];
         for (const command of commands) {
             if (command.category.toUpperCase() === category) {
                 cmds.push(command);
-                embed.setTitle(`${command.category}`);
+                embedTitle = `${command.category}`;
             }
         }
 
         if (cmds.length === 0) return;
 
-        const fields = [];
+        const fields: APIEmbedField[] = [];
         for (const cmd of cmds) {
             if (!cmd.permissions) fields.push({ name: `.${cmd.names.join(' | .')}`, value: `${cmd.description}` });
             else fields.push({ name: `.${cmd.names.join(' | .')}\n\`Required Permissions: ${cmd.permissions.join(', ')}\``, value: `${cmd.description}` });
         }
 
-        embed.addFields(fields);
+        const embed = createEmbed({
+            title: embedTitle,
+            fields: fields,
+        });
 
         await message.channel.send({ embeds: [embed] }).catch(console.error);
     },

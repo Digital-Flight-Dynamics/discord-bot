@@ -1,4 +1,4 @@
-import { GuildChannel } from 'discord.js';
+import { ChannelType, GuildChannel, TextChannel } from 'discord.js';
 import { createEmbed } from '../lib/embed';
 import { Colors, LogDefinition, getLogChannel, snakeToNorm } from '.';
 
@@ -12,10 +12,7 @@ export const channelCreate: LogDefinition = {
             {
                 color: Colors.GREEN,
                 title: 'Channel Created',
-                description: `**Channel:** <#${channel.id}>\n
-                                **Name:** ${channel.name}\n
-                                ${channel.isTextBased() ? `**Topic:** ${channel.topic || 'None'}\n` : ''}
-                                **Type:** ${snakeToNorm(channel.type)}`,
+                description: `**Channel:** <#${channel.id}>\n**Name:** ${channel.name}\n${channel.isTextBased() ? `**Topic:** ${(channel as TextChannel).topic || 'None'}` : ''}`,
                 footer: { text: `Channel ID: ${channel.id}` },
             },
             true,
@@ -35,7 +32,7 @@ export const channelDelete: LogDefinition = {
             {
                 color: Colors.RED,
                 title: 'Channel Deleted',
-                description: `**Name:** ${channel.name}\n${channel.isTextBased() ? `**Topic:** ${channel.topic || 'None'}\n` : ''}**Type:** ${snakeToNorm(channel.type)}`,
+                description: `**Name:** ${channel.name}\n${channel.isTextBased() ? `**Topic:** ${(channel as TextChannel).topic || 'None'}\n` : ''}`,
                 footer: { text: `Channel ID: ${channel.id}` },
             },
             true,
@@ -69,12 +66,12 @@ export const channelUpdate: LogDefinition = {
 
         if (!oldChannel.isTextBased() || !newChannel.isTextBased()) return;
 
-        if (oldChannel.topic !== newChannel.topic) {
+        if ((oldChannel as TextChannel).topic !== (newChannel as TextChannel).topic) {
             const embed = createEmbed(
                 {
                     color: Colors.ORANGE,
                     title: 'Channel Topic Changed',
-                    description: `**Channel:** <#${oldChannel.id}>\n**Before:** ${oldChannel.topic}\n**+After:** ${newChannel.topic}`,
+                    description: `**Channel:** <#${oldChannel.id}>\n**Before:** ${(oldChannel as TextChannel).topic}\n**+After:** ${(newChannel as TextChannel).topic}`,
                     footer: { text: `Channel ID: ${oldChannel.id}` },
                 },
                 true,
@@ -83,7 +80,7 @@ export const channelUpdate: LogDefinition = {
             await logChannel.send({ embeds: [embed] }).catch(console.error);
         }
 
-        if (oldChannel.type === 'GUILD_NEWS' || newChannel.type === 'GUILD_NEWS') return;
+        if (oldChannel.type === ChannelType.GuildAnnouncement || newChannel.type === ChannelType.GuildAnnouncement) return;
 
         if (oldChannel.rateLimitPerUser !== newChannel.rateLimitPerUser) {
             const embed = createEmbed(
