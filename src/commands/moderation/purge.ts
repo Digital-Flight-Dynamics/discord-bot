@@ -4,7 +4,7 @@ import { createEmbed } from '../../lib/embed';
 
 export const purge: CommandDefinition = {
     names: ['purge', 'clear'],
-    description: 'Clears the desired amount of messages. Usage: `.purge | .clear amount`',
+    description: 'Clears the desired amount of messages. `Arguments: <amount>`',
     category: CommandCategories.MODERATION,
     permissions: ['ManageMessages'],
     execute: async (message, args) => {

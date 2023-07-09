@@ -91,7 +91,9 @@ export const channelUpdate: LogDefinition = {
                 {
                     color: Colors.ORANGE,
                     title: 'Channel Slowmode Updated',
-                    description: `**Channel:** <#${oldChannel.id}>\n**Before:** ${oldChannel.rateLimitPerUser}s\n**+After:** ${newChannel.rateLimitPerUser}s`,
+                    description:
+                        `**Channel:** <#${oldChannel.id}>\n**Before:** ${oldChannel.rateLimitPerUser}s\n` +
+                        `**+After:** ${newChannel.rateLimitPerUser}s`,
                     footer: { text: `Channel ID: ${oldChannel.id}` },
                 },
                 true,
