@@ -18,6 +18,8 @@ export const cryptoScamDelete: UtilDefinition = {
             message.content.includes('Telegram') ||
             content.includes('commission')
         ) {
+            // 1 hour timeout & delete message
+            message.guild.members.cache.get(message.author.id).timeout(3600000).catch(console.error);
             await message.delete().catch(console.error);
         }
     },
