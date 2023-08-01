@@ -16,7 +16,8 @@ export const cryptoScamDelete: UtilDefinition = {
             content.includes('https://') ||
             message.content.includes('WhatsApp') ||
             message.content.includes('Telegram') ||
-            content.includes('commission')
+            content.includes('commission') ||
+            content.includes('direct message')
         ) {
             // 1 hour timeout & delete message
             message.guild.members.cache.get(message.author.id).timeout(3600000).catch(console.error);
