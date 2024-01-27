@@ -9,10 +9,12 @@ export const liveries: CommandDefinition = {
         const embed = createEmbed({
             title: 'What liveries will be included?',
             description:
-                'Upon release, the A350X will include liveries for all IRL A350 operators. Fictional liveries will not be made by ' +
-                "our painting team, but there's a high likelihood that other painters will create and upload them onto " +
-                '[flightsim.to](https://www.flightsim.to). For the default DFD livery, we will host a livery design competition, ' +
-                'in which the highest rated design will be chosen as the default livery.',
+                'Upon release, the A350X will include a custom DFD livery and the Airbus house liveries. ' +
+                'Other airline liveries can be made by the community, and most will likely be available ' +
+                'via [flightsim.to](https://www.flightsim.to). ' +
+                'The custom DFD livery will not be made by us, but rather it will be designed by the community. ' +
+                'Sometime before release, we will be hosting a livery design competition, ' +
+                'in which the highest rated design will be chosen.',
         });
         await message.channel.send({ embeds: [embed] }).catch(console.error);
     },
