@@ -9,8 +9,8 @@ export const liveries: CommandDefinition = {
         const embed = createEmbed({
             title: 'What liveries will be included?',
             description:
-                'Upon release, the A350X will include a custom DFD livery and the Airbus house liveries. ' +
-                'Other airline liveries can be made by the community, and most will likely be available ' +
+                'Upon release, the A350X will include a custom DFD livery, the Airbus house liveries, and a select few airlines. ' +
+                "Other airline liveries can be made by the community, and they'll likely be available " +
                 'via [flightsim.to](https://www.flightsim.to). ' +
                 'The custom DFD livery will not be made by us, but rather it will be designed by the community. ' +
                 'Sometime before release, we will be hosting a livery design competition, ' +
