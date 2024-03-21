@@ -6,7 +6,7 @@ export const clearwarns: CommandDefinition = {
     names: ['clearwarns'],
     description: 'Clears the specified number of warns a user has. `Arguments: <id> <count>`',
     category: CommandCategories.MODERATION,
-    permissions: ['KickMembers'],
+    permissions: ['ModerateMembers'],
     execute: async (message, args) => {
         const invalidEmbed = createErrorEmbed('Please provide a valid user/id');
 

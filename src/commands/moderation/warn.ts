@@ -7,7 +7,7 @@ export const warn: CommandDefinition = {
     names: ['warn'],
     description: 'Warns the mentioned user, with the specified reason. `Arguments: <id> <reason>`',
     category: CommandCategories.MODERATION,
-    permissions: ['KickMembers'],
+    permissions: ['ModerateMembers'],
     execute: async (message, args) => {
         const invalidEmbed = createErrorEmbed('Please provide a valid user/id');
 
