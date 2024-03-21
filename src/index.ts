@@ -1,4 +1,5 @@
 import Discord, { Client, Partials, GatewayIntentBits } from 'discord.js';
+import { connect } from 'mongoose';
 import dotenv from 'dotenv';
 import { commands } from './commands';
 import { createEmbed } from './lib/embed';
@@ -102,3 +103,6 @@ client.on('messageCreate', async (message) => {
 });
 
 client.login(process.env.BOT_TOKEN).catch(console.error);
+connect(process.env.DATABASE_TOKEN)
+    .then(() => console.log('Connected to the database!'))
+    .catch(console.error);

@@ -20,7 +20,7 @@ export const timeout: CommandDefinition = {
     names: ['timeout'],
     description: 'Timeouts the mentioned user. `Arguments: <id> <duration> <reason>`',
     category: CommandCategories.MODERATION,
-    permissions: ['MuteMembers'],
+    permissions: ['ModerateMembers'],
     execute: async (message, args) => {
         const invalidEmbed = createErrorEmbed('Please provide a valid user/id');
 
