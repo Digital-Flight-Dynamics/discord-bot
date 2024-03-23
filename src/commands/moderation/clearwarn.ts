@@ -2,9 +2,9 @@ import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index
 import { createEmbed } from '../../lib/embed';
 import Warn from '../../schemas/warn';
 
-export const clearwarns: CommandDefinition = {
-    names: ['clearwarns'],
-    description: 'Clears the specified number of warns a user has. `Arguments: <id> <count>`',
+export const clearwarn: CommandDefinition = {
+    names: ['clearwarn'],
+    description: 'Clears a warn the user has with the specified index (1-indexed). `Arguments: <id> <index>`',
     category: CommandCategories.MODERATION,
     permissions: ['ModerateMembers'],
     execute: async (message, args) => {
@@ -32,27 +32,41 @@ export const clearwarns: CommandDefinition = {
             return;
         }
 
+        const warnIndex = parseInt(args[1]);
+
+        if (isNaN(warnIndex)) {
+            await message.channel.send({ embeds: [createErrorEmbed('Invalid index')] }).catch(console.error);
+            return;
+        }
+
         // Check from the database how many warns the user has
-        const warnProfile = await Warn.find({ userId: id }).catch(console.error);
+        let warnProfile = await Warn.find({ userId: id }).catch(console.error);
         if (!warnProfile) {
             await message.channel.send({ embeds: [createErrorEmbed('Error when searching database')] }).catch(console.error);
             return;
         }
         const warnCount = warnProfile.length;
+        warnProfile = warnProfile.filter((warn) => warn.warnIndex === warnIndex);
 
-        const countCleared = Math.min(parseInt(args[1]), warnCount);
-
-        // Clear the warns
-        for (let i = 0; i < countCleared; i++) {
-            await Warn.findOneAndDelete({ userId: id }).catch(console.error);
+        if (warnIndex < 1 || warnIndex > warnCount) {
+            await message.channel.send({ embeds: [createErrorEmbed('Invalid index, or user does not have any warns')] }).catch(console.error);
+            return;
         }
 
+        // Clear the warn
+        await Warn.deleteOne({ warnIndex, userId: id }).catch(console.error);
+
+        // Update the warn indexes
+        await Warn.updateMany({ userId: id, warnIndex: { $gt: warnIndex } }, { $inc: { warnIndex: -1 } }).catch(console.error);
+
         const embed = createEmbed({
-            title: 'Cleared Warns',
+            title: `Cleared Warn ${warnIndex}`,
             description: `<@${id}>`,
             fields: [
-                { name: 'Cleared', value: `${countCleared}`, inline: true },
-                { name: 'Updated Warn Count', value: `${warnCount - countCleared}`, inline: true },
+                { name: 'Reason', value: `${warnProfile[0].reason}`, inline: true },
+                { name: 'Moderator', value: `<@${warnProfile[0].moderatorId}>`, inline: true },
+                { name: 'Action Taken', value: `${warnProfile[0].actionTaken ?? 'None'}`, inline: true },
+                { name: 'Updated Warn Count', value: `${warnCount - 1}`, inline: false },
             ],
         });
 

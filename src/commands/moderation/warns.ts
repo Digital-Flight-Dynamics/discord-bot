@@ -3,8 +3,8 @@ import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index
 import { createEmbed } from '../../lib/embed';
 import Warn from '../../schemas/warn';
 
-export const getwarns: CommandDefinition = {
-    names: ['getwarns'],
+export const warns: CommandDefinition = {
+    names: ['warns'],
     description: 'Displays all the warns a user has. `Arguments: <id>`',
     category: CommandCategories.MODERATION,
     permissions: ['ModerateMembers'],
@@ -41,8 +41,14 @@ export const getwarns: CommandDefinition = {
             fields.push({ name: 'No Warns', value: '' });
         }
 
-        warnProfile.forEach((warn, i) => {
-            fields.push({ name: `Warn ${i + 1}`, value: `Reason: ${warn.reason}\nModerator: <@${warn.moderatorId}>` });
+        warnProfile.forEach((warn) => {
+            fields.push({
+                name: `Warn ${warn.warnIndex}`,
+                value: `__Reason:__ ${warn.reason}\n__Moderator:__ <@${warn.moderatorId}>\n__Action Taken:__ ${warn.actionTaken ?? 'None'}\n__Date:__ ${
+                    warn.timestamp?.toUTCString() ?? 'Unknown'
+                }`,
+                inline: true,
+            });
         });
 
         const embed = createEmbed({

@@ -16,8 +16,8 @@ import { kick } from './moderation/kick';
 import { dm } from './moderation/dm';
 import { whois } from './moderation/whois';
 import { warn } from './moderation/warn';
-import { clearwarns } from './moderation/clearwarns';
-import { getwarns } from './moderation/getwarns';
+import { warns } from './moderation/warns';
+import { clearwarn } from './moderation/clearwarn';
 import { msfs } from './support/msfs';
 import { cabin } from './a350x/cabin';
 import { variants } from './a350x/variants';
@@ -62,8 +62,8 @@ export const commands: CommandDefinition[] = [
     dm,
     whois,
     warn,
-    clearwarns,
-    getwarns,
+    warns,
+    clearwarn,
     msfs,
     cabin,
     variants,
