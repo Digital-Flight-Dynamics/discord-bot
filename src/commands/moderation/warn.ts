@@ -1,8 +1,8 @@
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import mongoose from 'mongoose';
 import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
 import { createEmbed } from '../../lib/embed';
-import Warn from '../../schemas/warn';
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
+import Warning from '../../schemas/warning';
 
 export const warn: CommandDefinition = {
     names: ['warn'],
@@ -43,7 +43,7 @@ export const warn: CommandDefinition = {
         const warnReason = args.slice(1).join(' ') || 'None';
 
         // Check from the database the user has been warned before
-        const warnProfile = await Warn.find({ userId: id }).catch(console.error);
+        const warnProfile = await Warning.find({ userId: id }).catch(console.error);
         if (!warnProfile) {
             await message.channel.send({ embeds: [createErrorEmbed('Error when searching database')] }).catch(console.error);
             return;
@@ -76,7 +76,7 @@ export const warn: CommandDefinition = {
         // Action prompt
         const actionEmbed = createEmbed({
             title: 'Action',
-            description: 'Will there be any action taken against this user?',
+            description: 'Will any further action be taken against this user?',
         });
 
         // Yes or no buttons for if there will be further action taken
@@ -126,7 +126,7 @@ export const warn: CommandDefinition = {
         }
 
         // Finally, create a new warn document in the db
-        const warn = await new Warn({
+        const warning = await new Warning({
             _id: new mongoose.Types.ObjectId(),
             warnIndex: newWarnCount,
             userId: id,
@@ -135,6 +135,6 @@ export const warn: CommandDefinition = {
             actionTaken: actionDescription,
             timestamp: new Date(),
         });
-        await warn.save().catch(console.error);
+        await warning.save().catch(console.error);
     },
 };

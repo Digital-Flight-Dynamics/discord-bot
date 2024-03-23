@@ -1,8 +1,7 @@
 import { model, Schema } from 'mongoose';
 
-const warnSchema = new Schema({
+const warningSchema = new Schema({
     _id: Schema.Types.ObjectId,
-    warnIndex: Number,
     userId: String,
     reason: String,
     moderatorId: String,
@@ -10,4 +9,4 @@ const warnSchema = new Schema({
     timestamp: Date,
 });
 
-export default model('Warn', warnSchema, 'warns');
+export default model('Warning', warningSchema, 'warnings');
