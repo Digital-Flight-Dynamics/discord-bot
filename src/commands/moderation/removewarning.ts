@@ -2,8 +2,8 @@ import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index
 import { createEmbed } from '../../lib/embed';
 import Warning from '../../schemas/warning';
 
-export const clearwarning: CommandDefinition = {
-    names: ['clearwarning', 'clearwarn'],
+export const removewarning: CommandDefinition = {
+    names: ['removewarning', 'rmwarn', 'deletewarning', 'delwarn'],
     description: 'Clears the warning using its unique id. `Arguments: <unique_id>`',
     category: CommandCategories.MODERATION,
     permissions: ['ModerateMembers'],
