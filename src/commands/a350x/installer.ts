@@ -2,7 +2,7 @@ import { CommandCategories, CommandDefinition } from '../index';
 import { createEmbed } from '../../lib/embed';
 
 export const installer: CommandDefinition = {
-    names: ['installer', 'xbox'],
+    names: ['installer'],
     description: "Provides information about the installer setup",
     category: CommandCategories.A350X,
     execute: async (message, args) => {
