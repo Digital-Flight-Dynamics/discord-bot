@@ -25,6 +25,7 @@ import { simbrief } from './a350x/simbrief';
 import { liveries } from './a350x/liveries';
 import { timeout } from './moderation/timeout';
 import { tools } from './a350x/tools';
+import { installer } from './a350x/installer';
 
 import { createEmbed } from '../lib/embed';
 
@@ -71,4 +72,5 @@ export const commands: CommandDefinition[] = [
     liveries,
     timeout,
     tools,
+    installer
 ];
