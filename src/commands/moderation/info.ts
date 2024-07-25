@@ -1,4 +1,5 @@
-import { CommandCategories, CommandDefinition } from '../index';
+import { CommandDefinition } from '../index';
+import { CommandCategories } from '../../constants';
 import { createEmbed } from '../../lib/embed';
 
 export const info: CommandDefinition = {

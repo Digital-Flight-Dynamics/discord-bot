@@ -1,4 +1,5 @@
 import Discord from 'discord.js';
+import { CommandCategories } from '../constants';
 import { when } from './a350x/when';
 import { marketplace } from './a350x/marketplace';
 import { faq } from './a350x/faq';
@@ -29,13 +30,6 @@ import { installer } from './a350x/installer';
 
 import { createEmbed } from '../lib/embed';
 
-export const enum CommandCategories {
-    A350X = 'A350X',
-    GENERAL = 'General',
-    FUN = 'Fun',
-    MODERATION = 'Moderation',
-    SUPPORT = 'Support',
-}
 export type CommandDefinition = {
     names: string[];
     description: string;
