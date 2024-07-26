@@ -1,6 +1,7 @@
 import { GuildEmoji } from 'discord.js';
 import { createEmbed } from '../lib/embed';
-import { Colors, LogDefinition, getLogChannel } from '.';
+import { LogDefinition, getLogChannel } from '.';
+import { Colors } from '../constants';
 
 export const emojiCreate: LogDefinition = {
     event: 'emojiCreate',
@@ -10,7 +11,7 @@ export const emojiCreate: LogDefinition = {
 
         const embed = createEmbed(
             {
-                color: Colors.GREEN,
+                color: Colors.SUCCESS,
                 title: 'Emoji Created',
                 description: `**Name:** ${emoji.name}\n**Animated:** ${emoji.animated}`,
                 footer: { text: `Emoji ID: ${emoji.id}` },
@@ -29,7 +30,7 @@ export const emojiDelete: LogDefinition = {
 
         const embed = createEmbed(
             {
-                color: Colors.RED,
+                color: Colors.ERROR,
                 title: 'Emoji Deleted',
                 description: `**Name:** ${emoji.name}\n**Animated:** ${emoji.animated}`,
                 footer: { text: `Emoji ID: ${emoji.id}` },
@@ -51,7 +52,7 @@ export const emojiUpdate: LogDefinition = {
 
         const embed = createEmbed(
             {
-                color: Colors.ORANGE,
+                color: Colors.WARNING,
                 title: 'Emoji Name Changed',
                 description: `**Before:** ${oldEmoji.name}\n**+After:** ${newEmoji.name}`,
                 footer: { text: `Emoji ID: ${oldEmoji.id}` },

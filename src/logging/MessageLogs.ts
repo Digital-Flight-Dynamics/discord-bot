@@ -1,6 +1,7 @@
 import { Collection, GuildChannel, Message, Snowflake } from 'discord.js';
 import { createEmbed } from '../lib/embed';
-import { Colors, LogDefinition, getLogChannel } from '.';
+import { LogDefinition, getLogChannel } from '.';
+import { Colors } from '../constants';
 
 const CHANNEL_BLACKLIST = ['908006127118204939'];
 
@@ -16,7 +17,7 @@ export const messageDelete: LogDefinition = {
 
         const embed = createEmbed(
             {
-                color: Colors.RED,
+                color: Colors.ERROR,
                 title: `Message deleted in #${message.channel.name}`,
                 description: `**Content:** ${message.content}`,
                 footer: { text: `User ID: ${message.author.id}` },
@@ -44,7 +45,7 @@ export const messageDeleteBulk: LogDefinition = {
 
         const embed = createEmbed(
             {
-                color: Colors.RED,
+                color: Colors.ERROR,
                 title: `${messages.size} Messages purged in #${channel.name}`,
                 description: desc.join('\n'),
                 footer: { text: `Channel ID: ${channel.id}` },
@@ -67,7 +68,7 @@ export const messageUpdate: LogDefinition = {
 
         const embed = createEmbed(
             {
-                color: Colors.ORANGE,
+                color: Colors.WARNING,
                 title: `Message edited in #${oldMsg.channel.name}`,
                 description: `**Before:** ${oldMsg.content}\n**+After:** ${newMsg.content}`,
                 footer: { text: `User ID: ${oldMsg.author.id}` },

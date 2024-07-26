@@ -1,6 +1,7 @@
 import { GuildBan } from 'discord.js';
 import { createEmbed } from '../lib/embed';
-import { Colors, LogDefinition, getLogChannel } from '.';
+import { LogDefinition, getLogChannel } from '.';
+import { Colors } from '../constants';
 
 export const guildBanAdd: LogDefinition = {
     event: 'guildBanAdd',
@@ -10,7 +11,7 @@ export const guildBanAdd: LogDefinition = {
 
         const embed = createEmbed(
             {
-                color: Colors.RED,
+                color: Colors.ERROR,
                 title: 'User Banned',
                 description: `**Reason:** ${ban.reason}`,
                 footer: { text: `User ID: ${ban.user.id}` },
@@ -31,7 +32,7 @@ export const guildBanRemove: LogDefinition = {
 
         const embed = createEmbed(
             {
-                color: Colors.GREEN,
+                color: Colors.SUCCESS,
                 title: 'User Unbanned',
                 description: `**Reason:** ${ban.reason}`,
                 footer: { text: `User ID: ${ban.user.id}` },

@@ -1,6 +1,6 @@
 import Discord from 'discord.js';
-import { color } from '../index';
 import { UtilDefinition } from '.';
+import { Colors } from '../constants';
 
 const BLACKLIST = [
     'csgo',
@@ -31,7 +31,7 @@ export const autoKick: UtilDefinition = {
         await message.delete().catch(console.error);
 
         const dmEmbed = new Discord.EmbedBuilder()
-            .setColor(color)
+            .setColor(Colors.DFD_CYAN)
             .setTitle(`Kicked from ${message.guild.name}`)
             .addFields(
                 { name: 'Reason', value: 'Kicked as a precaution - potential scam', inline: true },

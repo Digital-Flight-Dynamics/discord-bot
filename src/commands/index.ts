@@ -1,5 +1,5 @@
 import Discord from 'discord.js';
-import { CommandCategories } from '../constants';
+import { Colors, CommandCategories } from '../constants';
 import { when } from './a350x/when';
 import { marketplace } from './a350x/marketplace';
 import { faq } from './a350x/faq';
@@ -37,7 +37,7 @@ export type CommandDefinition = {
     permissions?: Discord.PermissionsString[];
     execute: (message: Discord.Message, args: Array<string>) => Promise<any>;
 };
-export const createErrorEmbed = (description: string) => createEmbed({ color: 0xff0000, title: 'Error', description });
+export const createErrorEmbed = (description: string) => createEmbed({ color: Colors.ERROR, title: 'Error', description });
 
 export const commands: CommandDefinition[] = [
     when,

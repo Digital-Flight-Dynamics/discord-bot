@@ -1,6 +1,6 @@
 import { CommandDefinition } from '../index';
+import { CommandCategories } from '../../constants';
 import { createEmbed } from '../../lib/embed';
-CommandCategories
 
 
 export const cabin: CommandDefinition = {
