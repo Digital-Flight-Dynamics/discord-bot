@@ -14,7 +14,8 @@ Just open the file for the command you want to edit in `src/commands/<category>`
 3. Import your command in `src/commands/index.ts` and add it to the `commands` array at the end of the file. Please note that the order you put in your command in the array will affect the order it will be displayed in the `.help` command. 
 #### Command Template
 ```ts
-import { CommandCategories, CommandDefinition } from '../index';
+import { CommandDefinition } from '../index';
+import { CommandCategories } from '../constants';
 
 export const name: CommandDefinition = {
     names: ['name'], // The command only requires 1 name, but it can have multiple
@@ -28,6 +29,6 @@ export const name: CommandDefinition = {
 ```
 ### Creating a Command Category
 If the command you want to create doesn't fit any of the existing categories, you'll need to create a new one.
-1. Add the category to the `CommandCategories` enum in `src/commands/index.ts`. `MY_CATEGORY = 'My Category',`
+1. Add the category to the `CommandCategories` enum in `src/commands/constants.ts`. `MY_CATEGORY = 'My Category',`
 2. Open the file for the `.help` command found at `src/commands/general/help.ts`. Find the embed called `rootEmbed` and add a new field. `{ name: 'My Category', value: 'Describe your category' },`
 3. Lastly, create a new folder in `src/commands/`, and name it based on your category in lower case. `src/commands/my category/`

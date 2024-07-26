@@ -1,11 +1,12 @@
-import { CommandCategories, CommandDefinition } from '../index';
+import { CommandDefinition } from '../index';
+import { CommandCategories } from '../../constants';
 import { createEmbed } from '../../lib/embed';
 
 export const msfs: CommandDefinition = {
     names: ['msfs'],
     description: 'Redirects user to MSFS server for support',
     category: CommandCategories.SUPPORT,
-    execute: async (message, args) => {
+    execute: async (message) => {
         const embed = createEmbed({
             title: 'Simulator Issue',
             description:

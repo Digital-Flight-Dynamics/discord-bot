@@ -1,4 +1,5 @@
-import { CommandCategories, CommandDefinition } from '../index';
+import { CommandDefinition } from '../index';
+import { CommandCategories } from '../../constants';
 import { createEmbed } from '../../lib/embed';
 
 export const faq: CommandDefinition = {
@@ -6,7 +7,7 @@ export const faq: CommandDefinition = {
     description: 'Displays an embed with FAQ for the A350X project',
     category: CommandCategories.A350X,
     permissions: ['ManageGuild'],
-    execute: async (message, args) => {
+    execute: async (message) => {
         const embed = createEmbed({
             title: 'Frequently Asked Questions',
             description: 'This will hopefully answer most of your questions. If you have any other questions, you may ask in <#808791475206094928>',

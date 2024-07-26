@@ -1,11 +1,12 @@
-import { CommandCategories, CommandDefinition } from '../index';
+import { CommandDefinition } from '../index';
+import { CommandCategories } from '../../constants';
 import { createEmbed } from '../../lib/embed';
 
 export const installer: CommandDefinition = {
     names: ['installer'],
     description: "Provides information about the installer setup",
     category: CommandCategories.A350X,
-    execute: async (message, args) => {
+    execute: async (message) => {
         const embed = createEmbed({
             title: 'How will the A350X be available?',
             description: 'Unless circumstances change, we plan on utilizing the FlyByWire installer to offer the A350X. ',
