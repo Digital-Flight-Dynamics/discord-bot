@@ -1,12 +1,12 @@
-import { GuildBan } from 'discord.js';
+import { GuildBan, TextChannel } from 'discord.js';
 import { createEmbed } from '../lib/embed';
-import { LogDefinition, getLogChannel } from '.';
-import { Colors } from '../constants';
+import { LogDefinition } from '.';
+import { Channels, Colors } from '../constants';
 
 export const guildBanAdd: LogDefinition = {
     event: 'guildBanAdd',
     execute: async (ban: GuildBan) => {
-        const logChannel = getLogChannel(ban);
+        const logChannel = ban.guild.channels.cache.get(Channels.LOGS) as TextChannel;
         if (!logChannel) return;
 
         const embed = createEmbed(
@@ -27,7 +27,7 @@ export const guildBanAdd: LogDefinition = {
 export const guildBanRemove: LogDefinition = {
     event: 'guildBanRemove',
     execute: async (ban: GuildBan) => {
-        const logChannel = getLogChannel(ban);
+        const logChannel = ban.guild.channels.cache.get(Channels.LOGS) as TextChannel;
         if (!logChannel) return;
 
         const embed = createEmbed(

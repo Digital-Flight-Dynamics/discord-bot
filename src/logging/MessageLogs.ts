@@ -1,6 +1,6 @@
-import { Collection, GuildChannel, Message, Snowflake } from 'discord.js';
+import { Collection, GuildChannel, Message, Snowflake, TextChannel } from 'discord.js';
 import { createEmbed } from '../lib/embed';
-import { LogDefinition, getLogChannel } from '.';
+import { LogDefinition } from '.';
 import { Channels, Colors } from '../constants';
 
 const CHANNEL_BLACKLIST = [Channels.MANAGEMENT];
@@ -12,7 +12,7 @@ export const messageDelete: LogDefinition = {
 
         if (CHANNEL_BLACKLIST.includes(message.channel.id as Channels)) return;
 
-        const logChannel = getLogChannel(message);
+        const logChannel = message.guild.channels.cache.get(Channels.LOGS) as TextChannel;
         if (!logChannel) return;
 
         const embed = createEmbed(
@@ -34,7 +34,7 @@ export const messageDeleteBulk: LogDefinition = {
     event: 'messageDeleteBulk',
     execute: async (messages: Collection<Snowflake, Message>) => {
         const channel = messages.at(0).channel as GuildChannel;
-        const logChannel = getLogChannel(channel);
+        const logChannel = channel.guild.channels.cache.get(Channels.LOGS) as TextChannel;
         if (!logChannel) return;
 
         const desc = [];
@@ -63,7 +63,7 @@ export const messageUpdate: LogDefinition = {
         if (!oldMsg.author || oldMsg.author.bot || oldMsg.channel.isDMBased()) return;
         if (CHANNEL_BLACKLIST.includes(oldMsg.channel.id as Channels)) return;
 
-        const logChannel = getLogChannel(oldMsg);
+        const logChannel = oldMsg.guild.channels.cache.get(Channels.LOGS) as TextChannel;
         if (!logChannel) return;
 
         const embed = createEmbed(

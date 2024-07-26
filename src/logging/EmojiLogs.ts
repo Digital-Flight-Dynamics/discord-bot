@@ -1,12 +1,12 @@
-import { GuildEmoji } from 'discord.js';
+import { GuildEmoji, TextChannel } from 'discord.js';
 import { createEmbed } from '../lib/embed';
-import { LogDefinition, getLogChannel } from '.';
-import { Colors } from '../constants';
+import { LogDefinition } from '.';
+import { Channels, Colors } from '../constants';
 
 export const emojiCreate: LogDefinition = {
     event: 'emojiCreate',
     execute: async (emoji: GuildEmoji) => {
-        const logChannel = getLogChannel(emoji);
+        const logChannel = emoji.guild.channels.cache.get(Channels.LOGS) as TextChannel;
         if (!logChannel) return;
 
         const embed = createEmbed(
@@ -25,7 +25,7 @@ export const emojiCreate: LogDefinition = {
 export const emojiDelete: LogDefinition = {
     event: 'emojiDelete',
     execute: async (emoji: GuildEmoji) => {
-        const logChannel = getLogChannel(emoji);
+        const logChannel = emoji.guild.channels.cache.get(Channels.LOGS) as TextChannel;
         if (!logChannel) return;
 
         const embed = createEmbed(
@@ -45,7 +45,7 @@ export const emojiDelete: LogDefinition = {
 export const emojiUpdate: LogDefinition = {
     event: 'emojiUpdate',
     execute: async (oldEmoji: GuildEmoji, newEmoji: GuildEmoji) => {
-        const logChannel = getLogChannel(oldEmoji);
+        const logChannel = oldEmoji.guild.channels.cache.get(Channels.LOGS) as TextChannel;
         if (!logChannel) return;
 
         if (oldEmoji.name === newEmoji.name) return;

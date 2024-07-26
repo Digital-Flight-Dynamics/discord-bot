@@ -1,12 +1,12 @@
 import { createEmbed } from '../lib/embed';
-import { LogDefinition, getLogChannel, snakeToNorm } from '.';
-import { Role } from 'discord.js';
-import { Colors } from '../constants';
+import { LogDefinition, snakeToNorm } from '.';
+import { Role, TextChannel } from 'discord.js';
+import { Channels, Colors } from '../constants';
 
 export const roleCreate: LogDefinition = {
     event: 'roleCreate',
     execute: async (role: Role) => {
-        const logChannel = getLogChannel(role);
+        const logChannel = role.guild.channels.cache.get(Channels.LOGS) as TextChannel;
         if (!logChannel) return;
 
         const embed = createEmbed(
@@ -28,7 +28,7 @@ export const roleCreate: LogDefinition = {
 export const roleDelete: LogDefinition = {
     event: 'roleDelete',
     execute: async (role: Role) => {
-        const logChannel = getLogChannel(role);
+        const logChannel = role.guild.channels.cache.get(Channels.LOGS) as TextChannel;
         if (!logChannel) return;
 
         const embed = createEmbed(
@@ -48,7 +48,7 @@ export const roleDelete: LogDefinition = {
 export const roleUpdate: LogDefinition = {
     event: 'roleUpdate',
     execute: async (oldRole: Role, newRole: Role) => {
-        const logChannel = getLogChannel(oldRole);
+        const logChannel = oldRole.guild.channels.cache.get(Channels.LOGS) as TextChannel;
         if (!logChannel) return;
 
         if (oldRole.color !== newRole.color) {

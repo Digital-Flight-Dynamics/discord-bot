@@ -1,12 +1,12 @@
 import { ChannelType, GuildChannel, TextChannel } from 'discord.js';
 import { createEmbed } from '../lib/embed';
-import { LogDefinition, getLogChannel } from '.';
-import { Colors } from '../constants';
+import { LogDefinition } from '.';
+import { Channels, Colors } from '../constants';
 
 export const channelCreate: LogDefinition = {
     event: 'channelCreate',
     execute: async (channel: GuildChannel) => {
-        const logChannel = getLogChannel(channel);
+        const logChannel = channel.guild.channels.cache.get(Channels.LOGS) as TextChannel;
         if (!logChannel) return;
 
         const embed = createEmbed(
@@ -28,7 +28,7 @@ export const channelCreate: LogDefinition = {
 export const channelDelete: LogDefinition = {
     event: 'channelDelete',
     execute: async (channel: GuildChannel) => {
-        const logChannel = getLogChannel(channel);
+        const logChannel = channel.guild.channels.cache.get(Channels.LOGS) as TextChannel;
         if (!logChannel) return;
 
         const embed = createEmbed(
@@ -50,7 +50,7 @@ export const channelUpdate: LogDefinition = {
     execute: async (oldChannel: GuildChannel, newChannel: GuildChannel) => {
         if (oldChannel.name.includes('Member Count:')) return; // Ignore membercount channel name change
 
-        const logChannel = getLogChannel(oldChannel);
+        const logChannel = oldChannel.guild.channels.cache.get(Channels.LOGS) as TextChannel;
         if (!logChannel) return;
 
         if (oldChannel.name !== newChannel.name) {
