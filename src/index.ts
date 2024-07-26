@@ -15,7 +15,6 @@ const client = new Client({
     }),
 });
 
-export const color = 0x18b1ab;
 const prefix = '.';
 
 client.on('ready', (client) => {
