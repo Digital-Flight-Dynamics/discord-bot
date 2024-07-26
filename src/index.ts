@@ -1,11 +1,11 @@
-import Discord, { Client, Partials, GatewayIntentBits } from 'discord.js';
+import Discord, { Client, Partials, GatewayIntentBits, TextChannel } from 'discord.js';
 import { connect } from 'mongoose';
 import dotenv from 'dotenv';
 import { commands } from './commands';
 import { createEmbed } from './lib/embed';
 import logs from './logging';
 import utils from './utils';
-import { Colors, Prefix } from './constants';
+import { Channels, Colors, Prefix } from './constants';
 
 dotenv.config();
 
@@ -36,7 +36,7 @@ client.on('messageCreate', async (message) => {
     // log all DMs which are sent to the bot
     if (isDm) {
         console.log(`DM sent by ${message.author.tag}`);
-        const dmCh = client.guilds.cache.at(0).channels.cache.find((c) => c.name === 'bot-dms') as Discord.TextChannel;
+        const dmCh = client.guilds.cache.at(0).channels.cache.get(Channels.BOT_MESSAGES) as TextChannel;
         if (!dmCh) return;
 
         const embed = createEmbed({
