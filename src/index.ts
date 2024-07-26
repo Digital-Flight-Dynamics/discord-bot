@@ -5,6 +5,7 @@ import { commands } from './commands';
 import { createEmbed } from './lib/embed';
 import logs from './logging';
 import utils from './utils';
+import { Colors, Prefix } from './constants';
 
 dotenv.config();
 
@@ -14,8 +15,6 @@ const client = new Client({
         return GatewayIntentBits[a];
     }),
 });
-
-const prefix = '.';
 
 client.on('ready', (client) => {
     console.log(`Bot is logged in as "${client.user.tag}"!`);
@@ -32,7 +31,7 @@ client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
     const isDm = message.channel.type === Discord.ChannelType.DM;
-    const isCommand = message.content.startsWith(prefix);
+    const isCommand = message.content.startsWith(Prefix);
 
     // log all DMs which are sent to the bot
     if (isDm) {
@@ -83,7 +82,7 @@ client.on('messageCreate', async (message) => {
             .send({
                 embeds: [
                     new Discord.EmbedBuilder()
-                        .setColor(0xff0000)
+                        .setColor(Colors.ERROR)
                         .setTitle('Error')
                         .setDescription('You do not have the required permissions to use that command'),
                 ],

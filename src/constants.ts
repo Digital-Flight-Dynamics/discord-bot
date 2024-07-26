@@ -1,3 +1,5 @@
+export const Prefix = '.'
+
 export enum Colors {
     DFD_ORANGE         = 0xF1BE4E,
     DFD_DARK_PINK      = 0x9B2358,
