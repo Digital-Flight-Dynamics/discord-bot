@@ -1,16 +1,16 @@
 import { Collection, GuildChannel, Message, Snowflake } from 'discord.js';
 import { createEmbed } from '../lib/embed';
 import { LogDefinition, getLogChannel } from '.';
-import { Colors } from '../constants';
+import { Channels, Colors } from '../constants';
 
-const CHANNEL_BLACKLIST = ['908006127118204939'];
+const CHANNEL_BLACKLIST = [Channels.MANAGEMENT];
 
 export const messageDelete: LogDefinition = {
     event: 'messageDelete',
     execute: async (message: Message) => {
         if (!message.author || message.channel.isDMBased()) return;
 
-        if (CHANNEL_BLACKLIST.includes(message.channel.id)) return;
+        if (CHANNEL_BLACKLIST.includes(message.channel.id as Channels)) return;
 
         const logChannel = getLogChannel(message);
         if (!logChannel) return;
@@ -61,7 +61,7 @@ export const messageUpdate: LogDefinition = {
     event: 'messageUpdate',
     execute: async (oldMsg: Message, newMsg: Message) => {
         if (!oldMsg.author || oldMsg.author.bot || oldMsg.channel.isDMBased()) return;
-        if (CHANNEL_BLACKLIST.includes(oldMsg.channel.id)) return;
+        if (CHANNEL_BLACKLIST.includes(oldMsg.channel.id as Channels)) return;
 
         const logChannel = getLogChannel(oldMsg);
         if (!logChannel) return;
