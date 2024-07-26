@@ -1,7 +1,12 @@
 export enum Colors {
+    DFD_ORANGE         = 0xF1BE4E,
+    DFD_DARK_PINK      = 0x9B2358,
+    DFD_RED_ORANGE     = 0xCD5530,
+    DFD_CYAN           = 0x01FCC9,
     ERROR              = 0xff0000,
     WARNING            = 0xffde00,
     INFORMATION        = 0x2652ee,
+    SUCCESS            = 0x3ef319,
     EMBED_TRANSPARENT  = 0x36393e
 }
 
