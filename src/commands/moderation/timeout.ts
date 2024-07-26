@@ -1,4 +1,5 @@
-import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
+import { CommandDefinition, createErrorEmbed } from '../index';
+import { CommandCategories } from '../../constants';
 import { createEmbed } from '../../lib/embed';
 
 const argToMs = (arg: string): number => {

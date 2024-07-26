@@ -1,6 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import mongoose from 'mongoose';
-import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
+import { CommandDefinition, createErrorEmbed } from '../index';
+import { CommandCategories } from '../../constants';
 import { createEmbed } from '../../lib/embed';
 import Warning from '../../schemas/warning';
 
