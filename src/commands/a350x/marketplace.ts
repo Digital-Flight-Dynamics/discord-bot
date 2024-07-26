@@ -6,7 +6,7 @@ export const marketplace: CommandDefinition = {
     names: ['marketplace', 'xbox'],
     description: "Explains why the A350X won't be coming to the MSFS marketplace",
     category: CommandCategories.A350X,
-    execute: async (message, args) => {
+    execute: async (message) => {
         const embed = createEmbed({
             title: 'Will the A350X come to the MSFS Marketplace or Xbox?',
             description:

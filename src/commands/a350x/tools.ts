@@ -6,7 +6,7 @@ export const tools: CommandDefinition = {
     names: ['devtools', 'tools'],
     description: 'Tools and languages used in the development of the A350X',
     category: CommandCategories.A350X,
-    execute: async (message, args) => {
+    execute: async (message) => {
         const embed = createEmbed({
             title: 'A350X Development Tools',
             description:

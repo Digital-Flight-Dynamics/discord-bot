@@ -6,7 +6,7 @@ export const msfs: CommandDefinition = {
     names: ['msfs'],
     description: 'Redirects user to MSFS server for support',
     category: CommandCategories.SUPPORT,
-    execute: async (message, args) => {
+    execute: async (message) => {
         const embed = createEmbed({
             title: 'Simulator Issue',
             description:

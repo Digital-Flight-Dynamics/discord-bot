@@ -6,7 +6,7 @@ export const liveries: CommandDefinition = {
     names: ['liveries', 'livery'],
     description: 'What liveries will be included in the A350X?',
     category: CommandCategories.A350X,
-    execute: async (message, args) => {
+    execute: async (message) => {
         const embed = createEmbed({
             title: 'What liveries will be included?',
             description:

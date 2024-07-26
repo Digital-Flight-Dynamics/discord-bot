@@ -7,9 +7,10 @@ import { roleCreate, roleDelete, roleUpdate } from './RoleLogs';
 
 export interface LogDefinition {
     event: keyof ClientEvents;
-    execute: (...args: any[]) => void;
+    execute: (...args: unknown[]) => void;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const getLogChannel = (guildProperty: any) => {
     return guildProperty.guild.channels.cache.find((c) => c.name === 'logs') as TextChannel;
 };

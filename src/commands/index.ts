@@ -35,6 +35,7 @@ export type CommandDefinition = {
     description: string;
     category: CommandCategories;
     permissions?: Discord.PermissionsString[];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     execute: (message: Discord.Message, args: Array<string>) => Promise<any>;
 };
 export const createErrorEmbed = (description: string) => createEmbed({ color: Colors.ERROR, title: 'Error', description });

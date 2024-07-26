@@ -16,7 +16,7 @@ export const when: CommandDefinition = {
     names: ['when'],
     description: "Explains how we don't know when the A350X will release",
     category: CommandCategories.A350X,
-    execute: async (message, args) => {
+    execute: async (message) => {
         await message.channel.send({ embeds: [EMBED] }).catch(console.error);
     },
 };
