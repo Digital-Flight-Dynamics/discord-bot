@@ -18,6 +18,12 @@ export const enum CommandCategories {
     SUPPORT     = 'Support',
 }
 
+export enum Emojis {
+    ANNOUNCEMENT = "📣",
+    PROGRESS     = "❕",
+    EVENTS       = "✈"
+}
+
 export enum Roles { 
     MANAGEMENT       = "808792384112558100",
     MODERATOR        = "809149811357777920",

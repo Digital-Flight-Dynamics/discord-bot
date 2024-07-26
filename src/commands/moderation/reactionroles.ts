@@ -1,5 +1,5 @@
 import { CommandDefinition } from '../index';
-import { CommandCategories } from '../../constants';
+import { CommandCategories, Emojis } from '../../constants';
 import { createEmbed } from '../../lib/embed';
 
 export const reactionroles: CommandDefinition = {
@@ -8,9 +8,6 @@ export const reactionroles: CommandDefinition = {
     category: CommandCategories.MODERATION,
     permissions: ['ManageGuild'],
     execute: async (message, args) => {
-        const announcementsEmoji = '📣';
-        const progressEmoji = '❕';
-        const eventsEmoji = '✈';
 
         const embed = createEmbed({
             title: 'Announcement Roles',
@@ -26,8 +23,8 @@ export const reactionroles: CommandDefinition = {
         const rrMessage = await message.channel.send({ embeds: [embed] }).catch(console.error);
         if (!rrMessage) return;
 
-        await rrMessage.react(announcementsEmoji);
-        await rrMessage.react(progressEmoji);
-        await rrMessage.react(eventsEmoji);
+        await rrMessage.react(Emojis.ANNOUNCEMENT);
+        await rrMessage.react(Emojis.PROGRESS);
+        await rrMessage.react(Emojis.EVENTS);
     },
 };
