@@ -93,6 +93,37 @@ client.on('messageCreate', async (message) => {
         return;
     }
 
+    // if the channel is QA channel and user isn't a contributor+
+    const projectTeamRoles = [ //TODO env this
+        '826583070421286952', // contributor
+        '808792308287537192', // dev
+        '809149811357777920', // mod
+        '808792384112558100'  // management
+    ];
+
+    if (message.channel.id === "808791475206094928") { //#q-and-a
+        if (!message.member.roles.cache.some(role => projectTeamRoles.includes(role.id))) {
+            await message.delete().catch(console.error);
+
+            try {
+                const dmChannel = await message.author.createDM();
+                const dmMessage = await dmChannel.send({
+                    embeds: [
+                        new Discord.EmbedBuilder()
+                            .setColor(0xff0000)
+                            .setDescription('Please use <#808791531427332136> for commands.'),
+                    ],
+                });
+
+                setTimeout(async () => {
+                    await dmMessage.delete().catch(console.error);
+                }, 5000);
+            } catch (error) {
+                console.error(error);
+            }
+        }
+    }
+
     // attempt to execute command
     try {
         await cmdToExec.execute(message, args).catch(console.error);
