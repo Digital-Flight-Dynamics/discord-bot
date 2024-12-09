@@ -1,8 +1,9 @@
-import { CommandCategories, CommandDefinition } from '../index';
+import { CommandDefinition } from '../index';
+import { Colors, CommandCategories } from '../../constants';
 import { createEmbed } from '../../lib/embed';
 
 export const EMBED = createEmbed({
-    color: 0x18b1ab,
+    color: Colors.DFD_CYAN,
     title: 'When is the A350X coming?',
     description:
         'Since this is a freeware project, we do not impose deadlines on our volunteer developers. ' +
@@ -15,7 +16,7 @@ export const when: CommandDefinition = {
     names: ['when'],
     description: "Explains how we don't know when the A350X will release",
     category: CommandCategories.A350X,
-    execute: async (message, args) => {
+    execute: async (message) => {
         await message.channel.send({ embeds: [EMBED] }).catch(console.error);
     },
 };

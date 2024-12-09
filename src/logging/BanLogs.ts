@@ -1,16 +1,17 @@
-import { GuildBan } from 'discord.js';
+import { GuildBan, TextChannel } from 'discord.js';
 import { createEmbed } from '../lib/embed';
-import { Colors, LogDefinition, getLogChannel } from '.';
+import { LogDefinition } from '.';
+import { Channels, Colors } from '../constants';
 
 export const guildBanAdd: LogDefinition = {
     event: 'guildBanAdd',
     execute: async (ban: GuildBan) => {
-        const logChannel = getLogChannel(ban);
+        const logChannel = ban.guild.channels.cache.get(Channels.LOGS) as TextChannel;
         if (!logChannel) return;
 
         const embed = createEmbed(
             {
-                color: Colors.RED,
+                color: Colors.ERROR,
                 title: 'User Banned',
                 description: `**Reason:** ${ban.reason}`,
                 footer: { text: `User ID: ${ban.user.id}` },
@@ -26,12 +27,12 @@ export const guildBanAdd: LogDefinition = {
 export const guildBanRemove: LogDefinition = {
     event: 'guildBanRemove',
     execute: async (ban: GuildBan) => {
-        const logChannel = getLogChannel(ban);
+        const logChannel = ban.guild.channels.cache.get(Channels.LOGS) as TextChannel;
         if (!logChannel) return;
 
         const embed = createEmbed(
             {
-                color: Colors.GREEN,
+                color: Colors.SUCCESS,
                 title: 'User Unbanned',
                 description: `**Reason:** ${ban.reason}`,
                 footer: { text: `User ID: ${ban.user.id}` },
