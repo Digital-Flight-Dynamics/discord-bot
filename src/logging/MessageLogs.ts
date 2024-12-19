@@ -65,6 +65,8 @@ export const messageUpdate: LogDefinition = {
         const logChannel = getLogChannel(oldMsg);
         if (!logChannel) return;
 
+        if (oldMsg.content = newMsg.content) return; // We do not want to log down messages just cuz the embed updated (we don't log the embed so it doesn't matter)
+
         const embed = createEmbed(
             {
                 color: Colors.ORANGE,
