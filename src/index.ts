@@ -117,10 +117,13 @@ client.on('messageCreate', async (message) => {
 
                 setTimeout(async () => {
                     await dmMessage.delete().catch(console.error);
-                }, 5000);
+                }, 120000);
+
             } catch (error) {
                 console.error(error);
             }
+
+            return; //stop execution of cmd
         }
     }
 
