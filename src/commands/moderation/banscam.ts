@@ -1,3 +1,6 @@
+import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
+import { createEmbed } from '../../lib/embed';
+
 export const banscam: CommandDefinition = {
     names: ['banscam'],
     description: 'Bans the mentioned user using the scam message template. `Arguments: <id>`',
