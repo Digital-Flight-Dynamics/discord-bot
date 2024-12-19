@@ -35,7 +35,7 @@ export const banscam: CommandDefinition = {
             return;
         }
 
-        const msgDeleteSecs = '86400';
+        const msgDeleteSecs = 86400;
         const reason = 'Scam Messages / Compromised Account';
 
         // don't immediately return if member is not found, because we want to be able to ban users who aren't in the server
