@@ -1,4 +1,5 @@
 import Discord from 'discord.js';
+import { Colors, CommandCategories } from '../constants';
 import { when } from './a350x/when';
 import { marketplace } from './a350x/marketplace';
 import { faq } from './a350x/faq';
@@ -30,21 +31,15 @@ import { installer } from './a350x/installer';
 
 import { createEmbed } from '../lib/embed';
 
-export const enum CommandCategories {
-    A350X = 'A350X',
-    GENERAL = 'General',
-    FUN = 'Fun',
-    MODERATION = 'Moderation',
-    SUPPORT = 'Support',
-}
 export type CommandDefinition = {
     names: string[];
     description: string;
     category: CommandCategories;
     permissions?: Discord.PermissionsString[];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     execute: (message: Discord.Message, args: Array<string>) => Promise<any>;
 };
-export const createErrorEmbed = (description: string) => createEmbed({ color: 0xff0000, title: 'Error', description });
+export const createErrorEmbed = (description: string) => createEmbed({ color: Colors.ERROR, title: 'Error', description });
 
 export const commands: CommandDefinition[] = [
     when,

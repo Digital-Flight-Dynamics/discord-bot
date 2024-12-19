@@ -1,11 +1,12 @@
-import { CommandCategories, CommandDefinition } from '../index';
+import { CommandDefinition } from '../index';
+import { CommandCategories } from '../../constants';
 import { createEmbed } from '../../lib/embed';
 
 export const cabin: CommandDefinition = {
     names: ['cabin'],
     description: 'Informs others about our plans for the A350X cabin',
     category: CommandCategories.A350X,
-    execute: async (message, args) => {
+    execute: async (message) => {
         const embed = createEmbed({
             title: 'Will there be a cabin?',
             description:

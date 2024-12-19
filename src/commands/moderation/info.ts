@@ -1,4 +1,5 @@
-import { CommandCategories, CommandDefinition } from '../index';
+import { CommandDefinition } from '../index';
+import { CommandCategories } from '../../constants';
 import { createEmbed } from '../../lib/embed';
 
 export const info: CommandDefinition = {
@@ -6,7 +7,7 @@ export const info: CommandDefinition = {
     description: 'Displays an embed with core information about the Discord server',
     category: CommandCategories.MODERATION,
     permissions: ['ManageGuild'],
-    execute: async (message, args) => {
+    execute: async (message) => {
         const embed = createEmbed({
             title: 'Information',
             description:

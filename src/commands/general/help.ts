@@ -1,5 +1,6 @@
 import { APIEmbedField } from 'discord.js';
-import { CommandCategories, CommandDefinition, commands } from '../index';
+import { CommandDefinition, commands } from '../index';
+import { CommandCategories } from '../../constants';
 import { createEmbed } from '../../lib/embed';
 
 export const help: CommandDefinition = {

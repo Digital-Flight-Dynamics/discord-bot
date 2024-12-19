@@ -1,10 +1,11 @@
-import Discord, { Client, Partials, GatewayIntentBits } from 'discord.js';
+import Discord, { Client, Partials, GatewayIntentBits, TextChannel } from 'discord.js';
 import { connect } from 'mongoose';
 import dotenv from 'dotenv';
 import { commands } from './commands';
 import { createEmbed } from './lib/embed';
 import logs from './logging';
 import utils from './utils';
+import { Channels, Colors, Prefix } from './constants';
 
 dotenv.config();
 
@@ -14,9 +15,6 @@ const client = new Client({
         return GatewayIntentBits[a];
     }),
 });
-
-export const color = 0x18b1ab;
-const prefix = '.';
 
 client.on('ready', (client) => {
     console.log(`Bot is logged in as "${client.user.tag}"!`);
@@ -33,12 +31,12 @@ client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
     const isDm = message.channel.type === Discord.ChannelType.DM;
-    const isCommand = message.content.startsWith(prefix);
+    const isCommand = message.content.startsWith(Prefix);
 
     // log all DMs which are sent to the bot
     if (isDm) {
         console.log(`DM sent by ${message.author.tag}`);
-        const dmCh = client.guilds.cache.at(0).channels.cache.find((c) => c.name === 'bot-dms') as Discord.TextChannel;
+        const dmCh = client.guilds.cache.at(0).channels.cache.get(Channels.BOT_MESSAGES) as TextChannel;
         if (!dmCh) return;
 
         const embed = createEmbed({
@@ -84,7 +82,7 @@ client.on('messageCreate', async (message) => {
             .send({
                 embeds: [
                     new Discord.EmbedBuilder()
-                        .setColor(0xff0000)
+                        .setColor(Colors.ERROR)
                         .setTitle('Error')
                         .setDescription('You do not have the required permissions to use that command'),
                 ],
