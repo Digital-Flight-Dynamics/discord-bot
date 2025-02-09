@@ -1,4 +1,4 @@
-<img src="https://cdn.discordapp.com/attachments/918930153608990770/928235894723457144/LogoWithText.png">
+<img src="https://github.com/Digital-Flight-Dynamics/discord-bot/blob/master/.github/LogoWithText.png?raw=true">
 
 # Digital Flight Dynamics Discord Bot
 
