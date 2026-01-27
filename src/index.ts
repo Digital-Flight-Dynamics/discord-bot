@@ -5,6 +5,7 @@ import { commands } from './commands';
 import { createEmbed } from './lib/embed';
 import logs from './logging';
 import utils from './utils';
+import { startHealthServer } from './health';
 
 dotenv.config();
 
@@ -20,6 +21,7 @@ const prefix = '.';
 
 client.on('ready', (client) => {
     console.log(`Bot is logged in as "${client.user.tag}"!`);
+    startHealthServer(client);
 });
 
 for (const log of logs) {
