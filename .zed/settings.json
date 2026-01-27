@@ -1,0 +1,23 @@
+{
+    "format_on_save": "off",
+    "code_actions_on_format": {
+        "source.fixAll.eslint": false
+    },
+    "lsp": {
+        "eslint": {
+            "settings": {
+                "validate": ["typescript"]
+            }
+        }
+    },
+    "languages": {
+        "TypeScript": {
+            "formatter": "prettier",
+            "format_on_save": "off"
+        },
+        "JSON": {
+            "formatter": "prettier",
+            "format_on_save": "off"
+        }
+    }
+}
