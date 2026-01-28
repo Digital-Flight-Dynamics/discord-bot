@@ -45,7 +45,7 @@
             "eslint --max-warnings=0 --fix"
         ],
         "*.{ts,js,json}": [
-            "prettier --check"
+            "prettier --write"
         ],
         "*.md": [
             "markdownlint --config .markdownlintrc.json"
