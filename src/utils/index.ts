@@ -1,5 +1,6 @@
 import { ClientEvents } from 'discord.js';
 import { autoKick } from './autoKick';
+import { autoroleOnBoot } from './autoroleOnBoot';
 import { cryptoScamDelete } from './cryptoScamDelete';
 import { joinMessages, leaveMessages } from './joinLeave';
 import { memberCounter } from './memberCounter';
@@ -10,4 +11,4 @@ export interface UtilDefinition {
     execute: (...args: any[]) => void;
 }
 
-export default [addRole, autoKick, cryptoScamDelete, joinMessages, leaveMessages, memberCounter, removeRole];
+export default [addRole, autoKick, autoroleOnBoot, cryptoScamDelete, joinMessages, leaveMessages, memberCounter, removeRole];
