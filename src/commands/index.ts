@@ -12,6 +12,7 @@ import { rules } from './moderation/rules';
 import { reactionroles } from './moderation/reactionroles';
 import { purge } from './moderation/purge';
 import { ban } from './moderation/ban';
+import { banscam } from './moderation/banscam';
 import { unban } from './moderation/unban';
 import { kick } from './moderation/kick';
 import { dm } from './moderation/dm';
@@ -53,6 +54,7 @@ export const commands: CommandDefinition[] = [
     reactionroles,
     purge,
     ban,
+    banscam,
     unban,
     kick,
     dm,

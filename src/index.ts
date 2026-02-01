@@ -6,6 +6,7 @@ import { createEmbed } from './lib/embed';
 import logs from './logging';
 import utils from './utils';
 import { Channels, Colors, Prefix } from './constants';
+import { startHealthServer } from './health';
 
 dotenv.config();
 
@@ -18,6 +19,7 @@ const client = new Client({
 
 client.on('ready', (client) => {
     console.log(`Bot is logged in as "${client.user.tag}"!`);
+    startHealthServer(client);
 });
 
 for (const log of logs) {
@@ -89,6 +91,40 @@ client.on('messageCreate', async (message) => {
             })
             .catch(console.error);
         return;
+    }
+
+    // if the channel is QA channel and user isn't a contributor+
+    const projectTeamRoles = [ //TODO env this
+        '826583070421286952', // contributor
+        '808792308287537192', // dev
+        '809149811357777920', // mod
+        '808792384112558100'  // management
+    ];
+
+    if (message.channel.id === "808791475206094928") { //#q-and-a
+        if (!message.member.roles.cache.some(role => projectTeamRoles.includes(role.id))) {
+            await message.delete().catch(console.error);
+
+            try {
+                const dmChannel = await message.author.createDM();
+                const dmMessage = await dmChannel.send({
+                    embeds: [
+                        new Discord.EmbedBuilder()
+                            .setColor(0xff0000)
+                            .setDescription('Please use <#808791531427332136> for commands.'),
+                    ],
+                });
+
+                setTimeout(async () => {
+                    await dmMessage.delete().catch(console.error);
+                }, 120000);
+
+            } catch (error) {
+                console.error(error);
+            }
+
+            return; //stop execution of cmd
+        }
     }
 
     // attempt to execute command

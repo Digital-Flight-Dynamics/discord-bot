@@ -66,6 +66,8 @@ export const messageUpdate: LogDefinition = {
         const logChannel = oldMsg.guild.channels.cache.get(Channels.LOGS) as TextChannel;
         if (!logChannel) return;
 
+        if (oldMsg.content === newMsg.content) return; // We do not want to log down messages just cuz the embed updated (we don't log the embed so it doesn't matter)
+
         const embed = createEmbed(
             {
                 color: Colors.WARNING,
