@@ -6,6 +6,7 @@
 - Write your commands with readability in mind.
 - Test your code thoroughly before submitting a pull request.
 - Run `npm run check` and `npm run lint:md` before submitting a pull request.
+- Install hooks with `npm install` so the pre-commit lint flow runs automatically.
 
 ## Editing a Command
 
