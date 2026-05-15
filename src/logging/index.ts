@@ -1,8 +1,8 @@
-import { ClientEvents, TextChannel } from 'discord.js';
+import type { ClientEvents, TextChannel } from 'discord.js';
+import { guildBanAdd, guildBanRemove } from './BanLogs';
 import { channelCreate, channelDelete, channelUpdate } from './ChannelLogs';
 import { emojiCreate, emojiDelete, emojiUpdate } from './EmojiLogs';
 import { messageDelete, messageDeleteBulk, messageUpdate } from './MessageLogs';
-import { guildBanAdd, guildBanRemove } from './BanLogs';
 import { roleCreate, roleDelete, roleUpdate } from './RoleLogs';
 
 export enum Colors {

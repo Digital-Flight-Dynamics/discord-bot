@@ -1,36 +1,35 @@
-import Discord from 'discord.js';
-import { when } from './a350x/when';
-import { marketplace } from './a350x/marketplace';
+import type Discord from 'discord.js';
+import { createEmbed } from '../lib/embed';
+import { cabin } from './a350x/cabin';
 import { faq } from './a350x/faq';
+import { installer } from './a350x/installer';
+import { liveries } from './a350x/liveries';
+import { marketplace } from './a350x/marketplace';
+import { simbrief } from './a350x/simbrief';
+import { tools } from './a350x/tools';
+import { variants } from './a350x/variants';
+import { when } from './a350x/when';
+import { whoosh } from './fun/whoosh';
 import { help } from './general/help';
 import { metar } from './general/metar';
 import { taf } from './general/taf';
-import { whoosh } from './fun/whoosh';
-import { info } from './moderation/info';
-import { rules } from './moderation/rules';
-import { reactionroles } from './moderation/reactionroles';
-import { purge } from './moderation/purge';
 import { ban } from './moderation/ban';
 import { banscam } from './moderation/banscam';
-import { unban } from './moderation/unban';
-import { kick } from './moderation/kick';
 import { dm } from './moderation/dm';
-import { whois } from './moderation/whois';
+import { info } from './moderation/info';
+import { kick } from './moderation/kick';
+import { purge } from './moderation/purge';
+import { reactionroles } from './moderation/reactionroles';
+import { removewarning } from './moderation/removewarning';
+import { rules } from './moderation/rules';
+import { timeout } from './moderation/timeout';
+import { unban } from './moderation/unban';
 import { warn } from './moderation/warn';
 import { warnings } from './moderation/warnings';
-import { removewarning } from './moderation/removewarning';
+import { whois } from './moderation/whois';
 import { msfs } from './support/msfs';
-import { cabin } from './a350x/cabin';
-import { variants } from './a350x/variants';
-import { simbrief } from './a350x/simbrief';
-import { liveries } from './a350x/liveries';
-import { timeout } from './moderation/timeout';
-import { tools } from './a350x/tools';
-import { installer } from './a350x/installer';
 
-import { createEmbed } from '../lib/embed';
-
-export const enum CommandCategories {
+export enum CommandCategories {
     A350X = 'A350X',
     GENERAL = 'General',
     FUN = 'Fun',
@@ -74,5 +73,5 @@ export const commands: CommandDefinition[] = [
     liveries,
     timeout,
     tools,
-    installer
+    installer,
 ];
