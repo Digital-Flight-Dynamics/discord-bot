@@ -1,5 +1,5 @@
-import { CommandCategories, CommandDefinition } from '../index';
 import { createEmbed } from '../../lib/embed';
+import { CommandCategories, type CommandDefinition } from '../index';
 
 export const msfs: CommandDefinition = {
     names: ['msfs'],

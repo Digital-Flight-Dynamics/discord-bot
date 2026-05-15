@@ -1,6 +1,6 @@
-import Discord from 'discord.js';
-import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
+import type Discord from 'discord.js';
 import { createEmbed } from '../../lib/embed';
+import { CommandCategories, type CommandDefinition, createErrorEmbed } from '../index';
 
 export const purge: CommandDefinition = {
     names: ['purge', 'clear'],
@@ -8,7 +8,7 @@ export const purge: CommandDefinition = {
     category: CommandCategories.MODERATION,
     permissions: ['ManageMessages'],
     execute: async (message, args) => {
-        const amount = parseInt(args[0]);
+        const amount = parseInt(args[0], 10);
 
         if (!amount || Number.isNaN(amount)) {
             await message.channel

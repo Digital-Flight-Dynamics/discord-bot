@@ -1,5 +1,5 @@
-import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
 import { createEmbed } from '../../lib/embed';
+import { CommandCategories, type CommandDefinition, createErrorEmbed } from '../index';
 
 export const whois: CommandDefinition = {
     names: ['whois', 'userinfo'],
