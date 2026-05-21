@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { createEmbed } from '../../lib/embed';
-import { CommandCategories, type CommandDefinition, createErrorEmbed } from '../index';
+import { CommandCategories, type CommandDefinition, createErrorEmbed } from '../definitions';
 
 export const metar: CommandDefinition = {
     names: ['metar'],

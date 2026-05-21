@@ -1,5 +1,5 @@
 import { createEmbed } from '../../lib/embed';
-import { CommandCategories, type CommandDefinition } from '../index';
+import { CommandCategories, type CommandDefinition } from '../definitions';
 
 export const EMBED = createEmbed({
     color: 0x18b1ab,

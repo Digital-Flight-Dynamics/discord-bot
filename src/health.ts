@@ -18,12 +18,17 @@ export function startHealthServer(client: Client): void {
         }
     });
 
-    server.listen(port, () => {
-        console.log(`Health check server listening on port ${port}`);
+    server.on('error', (error) => {
+        if ('code' in error && error.code === 'EADDRINUSE') {
+            console.warn(`Health check server skipped: port ${port} is already in use`);
+            return;
+        }
+
+        console.error('Health check server error:', error);
     });
 
-    server.on('error', (error) => {
-        console.error('Health check server error:', error);
+    server.listen(port, () => {
+        console.log(`Health check server listening on port ${port}`);
     });
 }
 

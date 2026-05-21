@@ -2,7 +2,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBu
 import mongoose from 'mongoose';
 import { createEmbed } from '../../lib/embed';
 import Warning from '../../schemas/warning';
-import { CommandCategories, type CommandDefinition, createErrorEmbed } from '../index';
+import { CommandCategories, type CommandDefinition, createErrorEmbed } from '../definitions';
 
 export const warn: CommandDefinition = {
     names: ['warn'],

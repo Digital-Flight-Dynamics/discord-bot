@@ -1,5 +1,5 @@
 import { EmbedBuilder, type EmbedData } from 'discord.js';
-import { color } from '..';
+import { color } from '../constants';
 
 export const createEmbed = (options: EmbedData, timestamp?: boolean) => {
     const embed = new EmbedBuilder({ color, ...options });

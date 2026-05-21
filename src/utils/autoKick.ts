@@ -1,5 +1,5 @@
 import Discord from 'discord.js';
-import { color } from '../index';
+import { color } from '../constants';
 import type { UtilDefinition } from '.';
 
 const BLACKLIST = [

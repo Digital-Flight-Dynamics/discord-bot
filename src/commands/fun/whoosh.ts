@@ -1,5 +1,5 @@
 import { createEmbed } from '../../lib/embed';
-import { CommandCategories, type CommandDefinition } from '../index';
+import { CommandCategories, type CommandDefinition } from '../definitions';
 
 export const whoosh: CommandDefinition = {
     names: ['whoosh'],

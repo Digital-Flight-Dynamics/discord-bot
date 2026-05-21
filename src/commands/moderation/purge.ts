@@ -1,6 +1,6 @@
 import type Discord from 'discord.js';
 import { createEmbed } from '../../lib/embed';
-import { CommandCategories, type CommandDefinition, createErrorEmbed } from '../index';
+import { CommandCategories, type CommandDefinition, createErrorEmbed } from '../definitions';
 
 export const purge: CommandDefinition = {
     names: ['purge', 'clear'],
