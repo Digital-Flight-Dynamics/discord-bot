@@ -1,5 +1,5 @@
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import type { Client } from 'discord.js';
+import { createServer, IncomingMessage, ServerResponse } from 'http';
+import { Client } from 'discord.js';
 import mongoose from 'mongoose';
 
 /**
@@ -7,7 +7,7 @@ import mongoose from 'mongoose';
  * @param client - Discord client instance to check connection status
  */
 export function startHealthServer(client: Client): void {
-    const port = process.env.HEALTH_PORT ? parseInt(process.env.HEALTH_PORT, 10) : 3000;
+    const port = process.env.HEALTH_PORT ? parseInt(process.env.HEALTH_PORT) : 3000;
 
     const server = createServer((req: IncomingMessage, res: ServerResponse) => {
         if (req.url === '/health' && req.method === 'GET') {

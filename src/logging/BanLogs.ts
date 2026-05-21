@@ -1,6 +1,6 @@
-import type { GuildBan } from 'discord.js';
+import { GuildBan } from 'discord.js';
 import { createEmbed } from '../lib/embed';
-import { Colors, getLogChannel, type LogDefinition } from '.';
+import { Colors, LogDefinition, getLogChannel } from '.';
 
 export const guildBanAdd: LogDefinition = {
     event: 'guildBanAdd',

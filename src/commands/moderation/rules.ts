@@ -1,7 +1,6 @@
 /* eslint-disable max-len */
-
+import { CommandCategories, CommandDefinition } from '../index';
 import { createEmbed } from '../../lib/embed';
-import { CommandCategories, type CommandDefinition } from '../index';
 
 export const rules: CommandDefinition = {
     names: ['rules'],

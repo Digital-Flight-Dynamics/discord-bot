@@ -1,6 +1,6 @@
-import type { Role } from 'discord.js';
 import { createEmbed } from '../lib/embed';
-import { Colors, getLogChannel, type LogDefinition, snakeToNorm } from '.';
+import { Colors, LogDefinition, getLogChannel, snakeToNorm } from '.';
+import { Role } from 'discord.js';
 
 export const roleCreate: LogDefinition = {
     event: 'roleCreate',

@@ -1,11 +1,11 @@
+import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
 import { createEmbed } from '../../lib/embed';
-import { CommandCategories, type CommandDefinition, createErrorEmbed } from '../index';
 
 const argToSec = (arg: string): number => {
     if (!arg) return 0;
 
-    const num = parseInt(arg.slice(0, -1), 10);
-    if (Number.isNaN(num)) return 0;
+    const num = parseInt(arg.slice(0, -1));
+    if (isNaN(num)) return 0;
 
     if (arg.endsWith('s')) return num;
     if (arg.endsWith('m')) return num * 60;
