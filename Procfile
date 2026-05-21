@@ -1,1 +1,1 @@
-Worker: node out/index.js
+Worker: bun src/index.ts

@@ -1,21 +1,17 @@
-FROM node:18
+FROM oven/bun:1.3.12 AS production-dependencies
 
-# Set the working directory in the container
 WORKDIR /bot
 
-# Copy package.json and package-lock.json to the container
-COPY package*.json ./
+COPY package.json bun.lock ./
+RUN HUSKY=0 bun install --frozen-lockfile --production
 
-# Install dependencies
-RUN npm install
+FROM oven/bun:1.3.12 AS runtime
 
-# Copy the rest of the application code to the container
-COPY . .
+WORKDIR /bot
+ENV NODE_ENV=production
 
-# Build the application
-RUN npm run build
+COPY package.json bun.lock ./
+COPY --from=production-dependencies /bot/node_modules ./node_modules
+COPY src ./src
 
-# EXPOSE XXXX
-
-# Start the application
-CMD ["npm", "start"]
+CMD ["bun", "run", "start"]
