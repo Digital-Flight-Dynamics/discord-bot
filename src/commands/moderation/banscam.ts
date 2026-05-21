@@ -1,5 +1,5 @@
-import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
 import { createEmbed } from '../../lib/embed';
+import { CommandCategories, type CommandDefinition, createErrorEmbed } from '../definitions';
 
 export const banscam: CommandDefinition = {
     names: ['banscam'],
@@ -53,7 +53,7 @@ export const banscam: CommandDefinition = {
                 fields: [
                     { name: 'Reason', value: `${reason}`, inline: true },
                     { name: 'Moderator', value: `${message.author.tag}`, inline: true },
-                    { name: 'Appeal', value: 'Should you recover your account and wish to appeal your ban, please reach out to us.'},
+                    { name: 'Appeal', value: 'Should you recover your account and wish to appeal your ban, please reach out to us.' },
                 ],
             });
             await member.send({ embeds: [dmEmbed] }).catch(console.error);
@@ -64,9 +64,7 @@ export const banscam: CommandDefinition = {
         const embed = createEmbed({
             title: 'Banned User',
             description: `<@${id}> has been banned.`,
-            fields: [
-                { name: 'Reason', value: `${reason}`, inline: true },
-            ],
+            fields: [{ name: 'Reason', value: `${reason}`, inline: true }],
         });
         await message.channel.send({ embeds: [embed] }).catch(console.error);
     },

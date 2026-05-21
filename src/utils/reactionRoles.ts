@@ -1,5 +1,5 @@
-import { MessageReaction, User } from 'discord.js';
-import { UtilDefinition } from '.';
+import type { MessageReaction, User } from 'discord.js';
+import type { UtilDefinition } from '.';
 
 const ANNOUNCEMENTS_EMOJI = '📣';
 const PROGRESS_EMOJI = '❕';

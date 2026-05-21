@@ -1,5 +1,5 @@
 import Discord from 'discord.js';
-import { UtilDefinition } from '.';
+import type { UtilDefinition } from '.';
 
 export const cryptoScamDelete: UtilDefinition = {
     event: 'messageCreate',

@@ -1,6 +1,6 @@
 import axios from 'axios';
-import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
 import { createEmbed } from '../../lib/embed';
+import { CommandCategories, type CommandDefinition, createErrorEmbed } from '../definitions';
 
 export const metar: CommandDefinition = {
     names: ['metar'],
@@ -20,7 +20,7 @@ export const metar: CommandDefinition = {
             return dirs[index];
         };
 
-        let embed = undefined;
+        let embed: ReturnType<typeof createEmbed> | undefined;
         let shouldReturn = false;
 
         await axios
@@ -108,6 +108,8 @@ export const metar: CommandDefinition = {
             });
 
         if (shouldReturn) return;
+
+        if (!embed) return;
 
         await message.channel.send({ embeds: [embed] }).catch(console.error);
     },

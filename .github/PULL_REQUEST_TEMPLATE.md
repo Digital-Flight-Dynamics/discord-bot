@@ -1,4 +1,4 @@
-<!-- ## Title -->
+# Pull Request
 
 <!-- Please use the appropriate prefix in your PR title:
 
