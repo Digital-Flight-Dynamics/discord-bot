@@ -1,7 +1,7 @@
-import type { APIEmbedField } from 'discord.js';
+import { APIEmbedField } from 'discord.js';
+import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
 import { createEmbed } from '../../lib/embed';
 import Warning from '../../schemas/warning';
-import { CommandCategories, type CommandDefinition, createErrorEmbed } from '../index';
 
 export const warnings: CommandDefinition = {
     names: ['warnings', 'warns'],

@@ -1,6 +1,6 @@
-import type { GuildEmoji } from 'discord.js';
+import { GuildEmoji } from 'discord.js';
 import { createEmbed } from '../lib/embed';
-import { Colors, getLogChannel, type LogDefinition } from '.';
+import { Colors, LogDefinition, getLogChannel } from '.';
 
 export const emojiCreate: LogDefinition = {
     event: 'emojiCreate',

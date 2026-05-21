@@ -1,6 +1,6 @@
 import Discord from 'discord.js';
 import { color } from '../index';
-import type { UtilDefinition } from '.';
+import { UtilDefinition } from '.';
 
 const BLACKLIST = [
     'csgo',

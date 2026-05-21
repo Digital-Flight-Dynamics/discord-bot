@@ -1,6 +1,6 @@
-import { ChannelType, type GuildChannel, type TextChannel } from 'discord.js';
+import { ChannelType, GuildChannel, TextChannel } from 'discord.js';
 import { createEmbed } from '../lib/embed';
-import { Colors, getLogChannel, type LogDefinition } from '.';
+import { Colors, LogDefinition, getLogChannel } from '.';
 
 export const channelCreate: LogDefinition = {
     event: 'channelCreate',

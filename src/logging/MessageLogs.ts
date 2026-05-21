@@ -1,6 +1,6 @@
-import type { Collection, GuildChannel, Message, Snowflake } from 'discord.js';
+import { Collection, GuildChannel, Message, Snowflake } from 'discord.js';
 import { createEmbed } from '../lib/embed';
-import { Colors, getLogChannel, type LogDefinition } from '.';
+import { Colors, LogDefinition, getLogChannel } from '.';
 
 const CHANNEL_BLACKLIST = ['908006127118204939'];
 

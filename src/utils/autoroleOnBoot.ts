@@ -1,5 +1,5 @@
-import type { Client, GuildMember } from 'discord.js';
-import type { UtilDefinition } from './index';
+import { Client, GuildMember } from 'discord.js';
+import { UtilDefinition } from './index';
 
 const DEFAULT_ROLE_ID = '808792283515191326';
 

@@ -1,4 +1,4 @@
-import type { ClientEvents } from 'discord.js';
+import { ClientEvents } from 'discord.js';
 import { autoKick } from './autoKick';
 import { autoroleOnBoot } from './autoroleOnBoot';
 import { cryptoScamDelete } from './cryptoScamDelete';

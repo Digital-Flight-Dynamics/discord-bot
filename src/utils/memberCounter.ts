@@ -1,5 +1,5 @@
-import type { Client } from 'discord.js';
-import type { UtilDefinition } from '.';
+import { Client } from 'discord.js';
+import { UtilDefinition } from '.';
 
 export const memberCounter: UtilDefinition = {
     event: 'ready',

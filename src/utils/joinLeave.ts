@@ -1,4 +1,4 @@
-import type { GuildMember } from 'discord.js';
+import { GuildMember } from 'discord.js';
 
 export const joinMessages = {
     event: 'guildMemberAdd',
