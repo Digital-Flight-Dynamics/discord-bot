@@ -12,6 +12,7 @@
         "lint": "biome lint .",
         "lint:md": "markdownlint-cli2 \"**/*.md\"",
         "lint:md:fix": "markdownlint-cli2 --fix \"**/*.md\"",
+        "typecheck": "tsc --noEmit",
         "prepare": "husky || true"
     },
     "lint-staged": {
