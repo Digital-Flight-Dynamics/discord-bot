@@ -1,5 +1,8 @@
 import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
-import { createEmbed } from '../../lib/embed';
+import { createEmbed, EmbedColors } from '../../lib/embed';
+import { captureIdentitySnapshot } from '../../db/repositories/snapshots';
+import { liftBansForUser } from '../../db/repositories/bans';
+import { parseUserId } from '../../lib/moderation';
 
 export const unban: CommandDefinition = {
     names: ['unban'],
@@ -9,35 +12,59 @@ export const unban: CommandDefinition = {
     execute: async (message, args) => {
         const invalidEmbed = createErrorEmbed('This user is not banned, or you provided an invalid id');
 
-        let id = args[0];
+        const id = parseUserId(args[0]);
         if (!id) {
-            await message.channel.send({ embeds: [createErrorEmbed('Please provide a valid user/id')] }).catch(console.error);
+            await message.reply({ embeds: [createErrorEmbed('Please provide a valid user/id')] }).catch(console.error);
             return;
         }
 
-        // in case of a mention
-        if (id.startsWith('<@') && id.endsWith('>')) {
-            id = id.slice(2, -1);
-        }
-
-        // fetch ban to get reason or see if the user is even banned
         const ban = await message.guild.bans.fetch(id).catch(console.error);
         if (!ban) {
-            await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
+            await message.reply({ embeds: [invalidEmbed] }).catch(console.error);
             return;
         }
 
         const reason = ban.reason || 'None';
 
-        // attempt unban
         await message.guild.members.unban(id).catch(console.error);
 
-        const embed = createEmbed({
-            title: 'Unbanned User',
-            description: `<@${id}> has been unbanned.`,
-            fields: [{ name: 'Ban Reason', value: reason }],
-        });
+        try {
+            const moderatorSnap = await captureIdentitySnapshot({
+                member: message.member,
+                user: message.author,
+                enrichProfile: false,
+            });
+            const lifted = await liftBansForUser({
+                guildId: message.guild.id,
+                discordUserId: id,
+                liftedByModeratorSnapshotId: moderatorSnap.id,
+                liftReason: 'manual',
+            });
 
-        await message.channel.send({ embeds: [embed] }).catch(console.error);
+            const embed = createEmbed({
+                color: EmbedColors.SUCCESS,
+                title: 'Unbanned User',
+                description: `<@${id}> has been unbanned.`,
+                fields: [
+                    { name: 'Ban Reason', value: reason },
+                    { name: 'Records lifted', value: `${lifted.length}` },
+                ],
+            });
+            await message.reply({ embeds: [embed] }).catch(console.error);
+        } catch (err) {
+            console.error(err);
+            await message
+                .reply({
+                    embeds: [
+                        createEmbed({
+                            color: EmbedColors.WARNING,
+                            title: 'Unbanned User',
+                            description: `<@${id}> has been unbanned (DB lift may have failed).`,
+                            fields: [{ name: 'Ban Reason', value: reason }],
+                        }),
+                    ],
+                })
+                .catch(console.error);
+        }
     },
 };

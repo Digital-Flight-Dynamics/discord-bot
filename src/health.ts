@@ -1,6 +1,6 @@
 import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { Client } from 'discord.js';
-import mongoose from 'mongoose';
+import { isDatabaseHealthy } from './db/client';
 
 /**
  * Starts a simple HTTP health check server
@@ -11,7 +11,11 @@ export function startHealthServer(client: Client): void {
 
     const server = createServer((req: IncomingMessage, res: ServerResponse) => {
         if (req.url === '/health' && req.method === 'GET') {
-            handleHealthCheck(client, res);
+            handleHealthCheck(client, res).catch((err) => {
+                console.error('Health check error:', err);
+                res.writeHead(503, { 'Content-Type': 'text/plain' });
+                res.end('ERROR');
+            });
         } else {
             res.writeHead(404, { 'Content-Type': 'text/plain' });
             res.end('Not Found');
@@ -31,9 +35,9 @@ export function startHealthServer(client: Client): void {
  * Handles the /health endpoint request
  * Checks Discord bot and database connectivity
  */
-function handleHealthCheck(client: Client, res: ServerResponse): void {
+async function handleHealthCheck(client: Client, res: ServerResponse): Promise<void> {
     const discordHealthy = client.isReady();
-    const dbHealthy = mongoose.connection.readyState === 1; // 1 = connected
+    const dbHealthy = await isDatabaseHealthy();
 
     const isHealthy = discordHealthy && dbHealthy;
 

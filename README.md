@@ -4,8 +4,24 @@
 
 [![Discord](https://img.shields.io/discord/808790838163406848.svg?label=&logo=discord&logoColor=ffffff&color=7289DA&labelColor=7289DA)](https://discord.gg/REGJgP4gZd)
 
-Official Repository of the Digital Flight Dynamics Discord bot.
+Official bot for the [Digital Flight Dynamics](https://discord.gg/REGJgP4gZd) Discord server.
 
-# Contributing
+## Quick start
 
-Kindly follow the steps detailed in [CONTRIBUTING.md](.github/CONTRIBUTING.md) to contribute to the repository.
+```bash
+cp .env.example .env          # fill BOT_TOKEN, DATABASE_URL, …
+npm install
+npm run dev                   # connects to Postgres + ensures schema on boot
+# or: npm start (after npm run build)
+```
+
+## Docs
+
+| Doc | Contents |
+|-----|----------|
+| [DEVELOPMENT.md](./DEVELOPMENT.md) | Local setup, workspace constants, env vars, dev commands |
+| [CONTRIBUTING.md](./.github/CONTRIBUTING.md) | How to contribute |
+
+## License
+
+AGPL-3.0 — see [LICENSE](./LICENSE).

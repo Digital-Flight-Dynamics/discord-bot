@@ -1,14 +1,11 @@
 import { MessageReaction, User } from 'discord.js';
 import { UtilDefinition } from '.';
-
-const ANNOUNCEMENTS_EMOJI = '📣';
-const PROGRESS_EMOJI = '❕';
-const EVENTS_EMOJI = '✈';
+import { channels, emojis, roles } from '../config';
 
 export const addRole: UtilDefinition = {
     event: 'messageReactionAdd',
     execute: async (reaction: MessageReaction, user: User) => {
-        const roleChannel = await reaction.message.guild.channels.fetch('808791055184691211').catch(console.error);
+        const roleChannel = await reaction.message.guild.channels.fetch(channels.roles).catch(console.error);
 
         if (!roleChannel) {
             console.error('Error: Could not find channel #roles');
@@ -18,11 +15,11 @@ export const addRole: UtilDefinition = {
         if (reaction.message.channel.id !== roleChannel.id) return;
         if (user.bot) return;
 
-        const { roles } = reaction.message.guild;
+        const { roles: guildRoles } = reaction.message.guild;
 
-        const announcementsRole = await roles.fetch('808794106003193867').catch(console.error);
-        const progressRole = await roles.fetch('808794053205688381').catch(console.error);
-        const eventsRole = await roles.fetch('855698159257911327').catch(console.error);
+        const announcementsRole = await guildRoles.fetch(roles.announcements).catch(console.error);
+        const progressRole = await guildRoles.fetch(roles.progress).catch(console.error);
+        const eventsRole = await guildRoles.fetch(roles.events).catch(console.error);
 
         if (!announcementsRole) {
             console.error('Error: Could not find announcements role');
@@ -41,11 +38,11 @@ export const addRole: UtilDefinition = {
         const member = await reaction.message.guild.members.fetch(user.id).catch(console.error);
         if (!member) return;
 
-        if (emoji === ANNOUNCEMENTS_EMOJI) {
+        if (emoji === emojis.announcement) {
             await member.roles.add(announcementsRole).catch(console.error);
-        } else if (emoji === PROGRESS_EMOJI) {
+        } else if (emoji === emojis.progress) {
             await member.roles.add(progressRole).catch(console.error);
-        } else if (emoji === EVENTS_EMOJI) {
+        } else if (emoji === emojis.events) {
             await member.roles.add(eventsRole).catch(console.error);
         }
     },
@@ -53,7 +50,7 @@ export const addRole: UtilDefinition = {
 export const removeRole = {
     event: 'messageReactionRemove',
     execute: async (reaction, user) => {
-        const roleChannel = await reaction.message.guild.channels.fetch('808791055184691211').catch(console.error);
+        const roleChannel = await reaction.message.guild.channels.fetch(channels.roles).catch(console.error);
 
         if (!roleChannel) {
             console.error('Error: Could not find channel #roles');
@@ -63,11 +60,11 @@ export const removeRole = {
         if (reaction.message.channel.id !== roleChannel.id) return;
         if (user.bot) return;
 
-        const { roles } = reaction.message.guild;
+        const { roles: guildRoles } = reaction.message.guild;
 
-        const announcementsRole = await roles.fetch('808794106003193867').catch(console.error);
-        const progressRole = await roles.fetch('808794053205688381').catch(console.error);
-        const eventsRole = await roles.fetch('855698159257911327').catch(console.error);
+        const announcementsRole = await guildRoles.fetch(roles.announcements).catch(console.error);
+        const progressRole = await guildRoles.fetch(roles.progress).catch(console.error);
+        const eventsRole = await guildRoles.fetch(roles.events).catch(console.error);
 
         if (!announcementsRole) {
             console.error('Error: Could not find announcements role');
@@ -84,12 +81,13 @@ export const removeRole = {
 
         const emoji = reaction.emoji.name;
         const member = await reaction.message.guild.members.fetch(user.id).catch(console.error);
+        if (!member) return;
 
-        if (emoji === ANNOUNCEMENTS_EMOJI) {
+        if (emoji === emojis.announcement) {
             await member.roles.remove(announcementsRole).catch(console.error);
-        } else if (emoji === PROGRESS_EMOJI) {
+        } else if (emoji === emojis.progress) {
             await member.roles.remove(progressRole).catch(console.error);
-        } else if (emoji === EVENTS_EMOJI) {
+        } else if (emoji === emojis.events) {
             await member.roles.remove(eventsRole).catch(console.error);
         }
     },

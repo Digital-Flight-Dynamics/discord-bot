@@ -5,10 +5,16 @@ import { messageDelete, messageDeleteBulk, messageUpdate } from './MessageLogs';
 import { guildBanAdd, guildBanRemove } from './BanLogs';
 import { roleCreate, roleDelete, roleUpdate } from './RoleLogs';
 
+import { EmbedColors } from '../lib/embed';
+import { channels } from '../config';
+
+/** Log embed colors aligned with the global palette. */
 export enum Colors {
-    RED = 0xdd4400,
-    ORANGE = 0xff8800,
-    GREEN = 0x00bb00,
+    RED = EmbedColors.FAILURE,
+    ORANGE = EmbedColors.WARNING,
+    GREEN = EmbedColors.SUCCESS,
+    BLUE = EmbedColors.DFD_BLUE,
+    DARK = EmbedColors.PENDING,
 }
 
 export interface LogDefinition {
@@ -16,8 +22,24 @@ export interface LogDefinition {
     execute: (...args: any[]) => void;
 }
 
+/** Audit log channel (messages, roles, channels, Discord ban events). */
 export const getLogChannel = (guildProperty: any) => {
-    return guildProperty.guild.channels.cache.find((c) => c.name === 'logs') as TextChannel;
+    const guild = guildProperty.guild;
+    return (
+        (guild.channels.cache.get(channels.logs) as TextChannel | undefined) ||
+        (guild.channels.cache.find(
+            (c: { name: string }) => c.name === 'audit-logs' || c.name === 'logs',
+        ) as TextChannel | undefined)
+    );
+};
+
+/** Punishment / case log channel (warns, kicks, bans, timeouts). */
+export const getModLogChannel = (guildProperty: any) => {
+    const guild = guildProperty.guild;
+    return (
+        (guild.channels.cache.get(channels.modLogs) as TextChannel | undefined) ||
+        (guild.channels.cache.find((c: { name: string }) => c.name === 'mod-logs') as TextChannel | undefined)
+    );
 };
 
 export const snakeToNorm = (str: string) => {

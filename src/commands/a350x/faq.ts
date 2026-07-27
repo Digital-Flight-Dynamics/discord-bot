@@ -1,15 +1,16 @@
 import { CommandCategories, CommandDefinition } from '../index';
 import { createEmbed } from '../../lib/embed';
+import { channels } from '../../config';
 
 export const faq: CommandDefinition = {
     names: ['faq'],
     description: 'Displays an embed with FAQ for the A350X project',
     category: CommandCategories.A350X,
     permissions: ['ManageGuild'],
-    execute: async (message, args) => {
+    execute: async (message) => {
         const embed = createEmbed({
             title: 'Frequently Asked Questions',
-            description: 'This will hopefully answer most of your questions. If you have any other questions, you may ask in <#808791475206094928>',
+            description: `This will hopefully answer most of your questions. If you have any other questions, you may ask in <#${channels.qAndA}>`,
             fields: [
                 {
                     name: 'Q: When will the A350X release?',

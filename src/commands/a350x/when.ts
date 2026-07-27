@@ -2,7 +2,6 @@ import { CommandCategories, CommandDefinition } from '../index';
 import { createEmbed } from '../../lib/embed';
 
 export const EMBED = createEmbed({
-    color: 0x18b1ab,
     title: 'When is the A350X coming?',
     description:
         'Since this is a freeware project, we do not impose deadlines on our volunteer developers. ' +

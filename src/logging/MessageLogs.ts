@@ -1,8 +1,9 @@
 import { Collection, GuildChannel, Message, Snowflake } from 'discord.js';
 import { createEmbed } from '../lib/embed';
 import { Colors, LogDefinition, getLogChannel } from '.';
+import { channels } from '../config';
 
-const CHANNEL_BLACKLIST = ['908006127118204939'];
+const CHANNEL_BLACKLIST = [channels.management];
 
 export const messageDelete: LogDefinition = {
     event: 'messageDelete',

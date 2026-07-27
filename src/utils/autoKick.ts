@@ -1,6 +1,8 @@
 import Discord from 'discord.js';
 import { color } from '../index';
 import { UtilDefinition } from '.';
+import { captureIdentitySnapshot } from '../db/repositories/snapshots';
+import { createKick } from '../db/repositories/kicks';
 
 const BLACKLIST = [
     'csgo',
@@ -28,6 +30,15 @@ export const autoKick: UtilDefinition = {
 
         const member = message.guild.members.cache.get(message.author.id);
 
+        const linked = message.guildId
+            ? {
+                  linkedMessageId: message.id,
+                  linkedChannelId: message.channelId,
+                  linkedMessageUrl: `https://discord.com/channels/${message.guildId}/${message.channelId}/${message.id}`,
+                  linkedMessageDeleted: true,
+              }
+            : null;
+
         await message.delete().catch(console.error);
 
         const dmEmbed = new Discord.EmbedBuilder()
@@ -47,6 +58,20 @@ export const autoKick: UtilDefinition = {
         if (!shouldKick) return;
 
         await member.user.send({ embeds: [dmEmbed] }).catch(console.error);
-        await member.kick().catch(console.error);
+        await member.kick('Automated kick - potential scam').catch(console.error);
+
+        try {
+            const subjectSnap = await captureIdentitySnapshot({ member, user: member.user });
+            await createKick({
+                guildId: message.guild.id,
+                subjectSnapshotId: subjectSnap.id,
+                moderatorSnapshotId: null,
+                reason: 'Kicked as a precaution - potential scam',
+                linked,
+                isAutomated: true,
+            });
+        } catch (err) {
+            console.error('autoKick DB record failed:', err);
+        }
     },
 };

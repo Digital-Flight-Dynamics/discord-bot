@@ -1,17 +1,23 @@
-import { GuildMember } from 'discord.js';
+import { GuildMember, TextChannel } from 'discord.js';
+import { channels, roles } from '../config';
 
 export const joinMessages = {
     event: 'guildMemberAdd',
     execute: async (member: GuildMember) => {
-        const memberRole = member.guild.roles.cache.find((r) => r.name === 'Member');
-        const arrivals = member.guild.channels.cache.find((c) => c.name === 'arrivals');
+        const memberRole =
+            (roles.member && (await member.guild.roles.fetch(roles.member).catch(() => null))) ||
+            member.guild.roles.cache.find((r) => r.name === 'Member');
+
+        const arrivals =
+            (member.guild.channels.cache.get(channels.memberArrivals) as TextChannel | undefined) ||
+            (member.guild.channels.cache.find((c) => c.name === 'arrivals') as TextChannel | undefined);
 
         if (!arrivals) {
-            console.error('Error: Failed to find channel #arrivals');
+            console.error('Error: Failed to find arrivals channel');
             return;
         }
         if (!memberRole) {
-            console.error('Error: Failed to find role "Member"');
+            console.error('Error: Failed to find Member role');
             return;
         }
 
@@ -24,10 +30,12 @@ export const joinMessages = {
 export const leaveMessages = {
     event: 'guildMemberRemove',
     execute: async (member: GuildMember) => {
-        const leaves = member.guild.channels.cache.find((c) => c.name === 'leaves');
+        const leaves =
+            (member.guild.channels.cache.get(channels.memberDepartures) as TextChannel | undefined) ||
+            (member.guild.channels.cache.find((c) => c.name === 'leaves') as TextChannel | undefined);
 
         if (!leaves) {
-            console.error('Error: Failed to find channel #leaves');
+            console.error('Error: Failed to find leaves channel');
             return;
         }
 

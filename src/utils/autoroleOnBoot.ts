@@ -1,7 +1,6 @@
 import { Client, GuildMember } from 'discord.js';
 import { UtilDefinition } from './index';
-
-const DEFAULT_ROLE_ID = '808792283515191326';
+import { roles } from '../config';
 
 export const autoroleOnBoot: UtilDefinition = {
     event: 'ready',
@@ -9,8 +8,13 @@ export const autoroleOnBoot: UtilDefinition = {
         const guild = client.guilds.cache.first();
         if (!guild) return;
 
+        if (!roles.member) {
+            console.error('Error: config.roles.member is not set');
+            return;
+        }
+
         const members = await guild.members.fetch();
-        const role = await guild.roles.fetch(DEFAULT_ROLE_ID);
+        const role = await guild.roles.fetch(roles.member);
         if (!role) return;
 
         members.forEach(async (member: GuildMember) => {
