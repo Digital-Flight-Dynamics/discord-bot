@@ -21,6 +21,7 @@ import {
 } from './runtime/softLock';
 import { startPresenceRotation } from './runtime/presence';
 import { resumeStalePendingModeration } from './lib/moderationExecute';
+import { registerDiscordModerationTracker } from './lib/discordModerationTracker';
 import {
     handleModerationAutocomplete,
     handleModerationSlashCommand,
@@ -50,7 +51,7 @@ export { EmbedColors };
 
 let dbReady = false;
 
-client.on('ready', (readyClient) => {
+client.on('clientReady', (readyClient) => {
     console.log(`Bot is logged in as "${readyClient.user.tag}"!`);
     void registerModerationSlashCommands(readyClient, config.guildId);
     startPresenceRotation(readyClient, config.presence);
@@ -70,6 +71,7 @@ for (const log of logs) {
 for (const util of utils) {
     client.on(util.event, util.execute);
 }
+registerDiscordModerationTracker(client);
 
 client.on('interactionCreate', async (interaction) => {
     if (interaction.isAutocomplete()) {

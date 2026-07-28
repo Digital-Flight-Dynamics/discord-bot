@@ -38,6 +38,7 @@ export async function createBan(input: {
     expiresAt?: Date | null;
     deleteMessageSeconds?: number | null;
     linked?: LinkedMessage | null;
+    source?: string;
 }): Promise<Ban> {
     const db = getDb();
     const [row] = await db
@@ -55,6 +56,7 @@ export async function createBan(input: {
             linkedChannelId: input.linked?.linkedChannelId ?? null,
             linkedMessageUrl: input.linked?.linkedMessageUrl ?? null,
             linkedMessageDeleted: input.linked?.linkedMessageDeleted ?? false,
+            source: input.source ?? 'bot',
         })
         .returning();
 

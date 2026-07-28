@@ -16,6 +16,7 @@ export const timeouts = pgTable('timeouts', {
     durationToken: text('duration_token'),
     expiresAt: timestamp('expires_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    source: text('source').notNull().default('bot'),
 });
 
 export type Timeout = typeof timeouts.$inferSelect;

@@ -12,6 +12,7 @@ export async function createTimeout(input: {
     durationMs: number;
     durationToken?: string | null;
     expiresAt?: Date | null;
+    source?: string;
 }): Promise<Timeout> {
     const db = getDb();
     const [row] = await db
@@ -25,6 +26,7 @@ export async function createTimeout(input: {
             durationMs: input.durationMs,
             durationToken: input.durationToken ?? null,
             expiresAt: input.expiresAt ?? null,
+            source: input.source ?? 'bot',
         })
         .returning();
 

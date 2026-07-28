@@ -44,8 +44,11 @@ CREATE TABLE IF NOT EXISTS "kicks" (
 	"linked_message_url" text,
 	"linked_message_deleted" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"is_automated" boolean DEFAULT false NOT NULL
+	"is_automated" boolean DEFAULT false NOT NULL,
+	"source" text DEFAULT 'bot' NOT NULL
 );
+
+ALTER TABLE "kicks" ADD COLUMN IF NOT EXISTS "source" text DEFAULT 'bot' NOT NULL;
 
 CREATE TABLE IF NOT EXISTS "bans" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
@@ -65,8 +68,11 @@ CREATE TABLE IF NOT EXISTS "bans" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"lifted_at" timestamp with time zone,
 	"lifted_by_moderator_snapshot_id" uuid,
-	"lift_reason" text
+	"lift_reason" text,
+	"source" text DEFAULT 'bot' NOT NULL
 );
+
+ALTER TABLE "bans" ADD COLUMN IF NOT EXISTS "source" text DEFAULT 'bot' NOT NULL;
 
 DO $$ BEGIN
  ALTER TABLE "warnings" ADD CONSTRAINT "warnings_subject_snapshot_id_identity_snapshots_id_fk" FOREIGN KEY ("subject_snapshot_id") REFERENCES "public"."identity_snapshots"("id") ON DELETE no action ON UPDATE no action;
@@ -152,8 +158,12 @@ CREATE TABLE IF NOT EXISTS "timeouts" (
 	"duration_ms" bigint NOT NULL,
 	"duration_token" text,
 	"expires_at" timestamp with time zone,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"source" text DEFAULT 'bot' NOT NULL
 );
+
+ALTER TABLE "timeouts" ADD COLUMN IF NOT EXISTS "source" text DEFAULT 'bot' NOT NULL;
+ALTER TABLE "timeouts" ALTER COLUMN "duration_ms" TYPE bigint;
 
 DO $$ BEGIN
  ALTER TABLE "timeouts" ADD CONSTRAINT "timeouts_subject_snapshot_id_identity_snapshots_id_fk" FOREIGN KEY ("subject_snapshot_id") REFERENCES "public"."identity_snapshots"("id") ON DELETE no action ON UPDATE no action;
@@ -181,6 +191,8 @@ CREATE TABLE IF NOT EXISTS "moderation_presets" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
+
+ALTER TABLE "moderation_presets" ALTER COLUMN "duration_ms" TYPE bigint;
 
 ALTER TABLE "moderation_presets" DROP COLUMN IF EXISTS "action_type";
 ALTER TABLE "moderation_presets" DROP COLUMN IF EXISTS "ban_type";
@@ -259,6 +271,8 @@ CREATE TABLE IF NOT EXISTS "pending_moderation_actions" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"completed_at" timestamp with time zone
 );
+
+ALTER TABLE "pending_moderation_actions" ALTER COLUMN "duration_ms" TYPE bigint;
 
 CREATE INDEX IF NOT EXISTS "pending_moderation_actions_status_idx" ON "pending_moderation_actions" ("status") WHERE "status" = 'pending';
 CREATE INDEX IF NOT EXISTS "pending_moderation_actions_guild_id_idx" ON "pending_moderation_actions" ("guild_id");

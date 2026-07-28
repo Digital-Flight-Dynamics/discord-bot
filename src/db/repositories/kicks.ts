@@ -36,6 +36,7 @@ export async function createKick(input: {
     privateNote?: string | null;
     linked?: LinkedMessage | null;
     isAutomated?: boolean;
+    source?: string;
 }): Promise<Kick> {
     const db = getDb();
     const [row] = await db
@@ -51,6 +52,7 @@ export async function createKick(input: {
             linkedMessageUrl: input.linked?.linkedMessageUrl ?? null,
             linkedMessageDeleted: input.linked?.linkedMessageDeleted ?? false,
             isAutomated: input.isAutomated ?? false,
+            source: input.source ?? 'bot',
         })
         .returning();
 

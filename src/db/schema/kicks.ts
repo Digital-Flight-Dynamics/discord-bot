@@ -17,6 +17,7 @@ export const kicks = pgTable('kicks', {
     linkedMessageDeleted: boolean('linked_message_deleted').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     isAutomated: boolean('is_automated').notNull().default(false),
+    source: text('source').notNull().default('bot'),
 });
 
 export type Kick = typeof kicks.$inferSelect;
