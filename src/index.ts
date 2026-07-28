@@ -150,6 +150,7 @@ client.on('messageCreate', async (message) => {
     }
 
     if (!isCommand) return;
+    if (!message.inGuild()) return;
 
     const commandUsed = message.content.substring(1).toLowerCase().split(' ')[0];
     const args = message.content.split(' ').slice(1);

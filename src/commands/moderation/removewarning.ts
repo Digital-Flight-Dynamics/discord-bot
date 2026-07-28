@@ -5,7 +5,7 @@ import { findWarningByIdOrLegacy, softRemoveWarning } from '../../db/repositorie
 
 export const removewarning: CommandDefinition = {
     names: ['removewarning', 'rmwarn', 'deletewarning', 'delwarn'],
-    description: 'Soft-removes a warning by unique id (UUID or legacy Mongo id). `Arguments: <unique_id>`',
+    description: 'Soft-removes a warning by Action ID (A26…), UUID, or legacy Mongo id. `Arguments: <id>`',
     category: CommandCategories.MODERATION,
     permissions: ['ModerateMembers'],
     execute: async (message, args) => {
@@ -16,7 +16,7 @@ export const removewarning: CommandDefinition = {
         }
 
         try {
-            const existing = await findWarningByIdOrLegacy(id);
+            const existing = await findWarningByIdOrLegacy(id, message.guild.id);
             if (!existing) {
                 await message.channel.send({ embeds: [createErrorEmbed('Invalid ID')] }).catch(console.error);
                 return;
@@ -28,7 +28,7 @@ export const removewarning: CommandDefinition = {
                 enrichProfile: false,
             });
 
-            const removed = await softRemoveWarning(existing.id, moderatorSnap.id);
+            const removed = await softRemoveWarning(existing.id, message.guild.id, moderatorSnap.id);
             if (!removed) {
                 await message.channel.send({ embeds: [createErrorEmbed('Invalid ID')] }).catch(console.error);
                 return;

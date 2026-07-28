@@ -1,4 +1,4 @@
-FROM node:18
+FROM node:22
 
 # Set the working directory in the container
 WORKDIR /bot

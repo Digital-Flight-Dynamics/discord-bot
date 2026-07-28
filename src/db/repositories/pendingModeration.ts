@@ -76,6 +76,21 @@ export async function getPendingModerationById(id: string): Promise<PendingModer
     return rows[0] ?? null;
 }
 
+/**
+ * Atomically transition a row from `pending` to `processing`. Returns null if the row
+ * is missing or was already claimed/completed/cancelled by another caller, preventing
+ * concurrent workers or a crash-then-restart replay from executing the same action twice.
+ */
+export async function claimPendingModeration(id: string): Promise<PendingModerationAction | null> {
+    const db = getDb();
+    const [row] = await db
+        .update(pendingModerationActions)
+        .set({ status: 'processing', updatedAt: new Date() })
+        .where(and(eq(pendingModerationActions.id, id), eq(pendingModerationActions.status, 'pending')))
+        .returning();
+    return row ?? null;
+}
+
 export async function listPendingModerationActions(): Promise<PendingModerationAction[]> {
     const db = getDb();
     return db.select().from(pendingModerationActions).where(eq(pendingModerationActions.status, 'pending'));
@@ -102,6 +117,13 @@ export async function markPendingCompleted(id: string, resultCaseId: string | nu
 export async function markPendingCancelled(id: string): Promise<void> {
     await updatePendingModeration(id, {
         status: 'cancelled',
+        completedAt: new Date(),
+    });
+}
+
+export async function markPendingFailed(id: string): Promise<void> {
+    await updatePendingModeration(id, {
+        status: 'failed',
         completedAt: new Date(),
     });
 }

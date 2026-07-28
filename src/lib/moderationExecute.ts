@@ -18,9 +18,11 @@ import { createKick } from '../db/repositories/kicks';
 import { createBan, liftBanById } from '../db/repositories/bans';
 import { createTimeout } from '../db/repositories/timeouts';
 import {
+    claimPendingModeration,
     getPendingModerationById,
     markPendingCancelled,
     markPendingCompleted,
+    markPendingFailed,
 } from '../db/repositories/pendingModeration';
 import { createModerationActionNotification } from '../db/repositories/moderationActionNotifications';
 import type { PendingModerationAction } from '../db/schema';
@@ -82,13 +84,10 @@ export async function executePendingModeration(
     pending: PendingModerationAction,
     opts?: { privateNote?: string | null; timedOut?: boolean; cancelled?: boolean },
 ): Promise<ModerationExecutionResult> {
-    const current = (await getPendingModerationById(pending.id).catch(() => null)) || pending;
-    if (current.status !== 'pending') {
-        return null;
-    }
-    pending = current;
-
     if (opts?.cancelled) {
+        const current = (await getPendingModerationById(pending.id).catch(() => null)) || pending;
+        if (current.status !== 'pending') return null;
+        pending = current;
         await markPendingCancelled(pending.id);
         await editConfirm(
             client,
@@ -102,6 +101,14 @@ export async function executePendingModeration(
         return null;
     }
 
+    // Atomically claim the row so concurrent workers / a crash-then-restart replay
+    // cannot both execute the same pending action.
+    const claimed = await claimPendingModeration(pending.id);
+    if (!claimed) {
+        return null;
+    }
+    pending = claimed;
+
     const privateNote =
         opts?.privateNote !== undefined
             ? opts.privateNote
@@ -114,6 +121,7 @@ export async function executePendingModeration(
     const guild = client.guilds.cache.get(pending.guildId) || (await client.guilds.fetch(pending.guildId).catch(() => null));
     if (!guild) {
         console.error(`[ERROR] Pending mod ${pending.id}: guild ${pending.guildId} not available`);
+        await markPendingFailed(pending.id);
         return null;
     }
 
@@ -187,6 +195,18 @@ export async function executePendingModeration(
         }
     } catch (err) {
         console.error(`[ERROR] Failed to execute pending ${pending.id}:`, err);
+        await markPendingFailed(pending.id);
+        await editConfirm(
+            client,
+            pending,
+            createEmbed({
+                color: EmbedColors.FAILURE,
+                title: 'Action failed',
+                description:
+                    `Discord rejected this action, so no punishment was applied and no case was recorded. ` +
+                    `Please retry the command.`,
+            }),
+        );
     }
     return null;
 }
@@ -434,6 +454,11 @@ async function executeKick(
         enrichProfile: false,
     });
 
+    if (!ctx.member?.kickable) {
+        throw new Error(`Cannot kick ${pending.subjectUserId} in guild ${guild.id}: member not kickable`);
+    }
+    await ctx.member.kick(pending.reason);
+
     const row = await createKick({
         guildId: guild.id,
         subjectSnapshotId: subjectSnap.id,
@@ -467,10 +492,6 @@ async function executeKick(
         userId: pending.subjectUserId,
         dm,
     });
-
-    if (ctx.member?.kickable) {
-        await ctx.member.kick(pending.reason).catch(console.error);
-    }
 
     const modLog = await logModerationAction(guild, {
         color: EmbedColors.WARNING,
@@ -537,6 +558,21 @@ async function executeBan(
         enrichProfile: false,
     });
 
+    await guild.members.ban(pending.subjectUserId, {
+        deleteMessageSeconds: pending.deleteMessageSeconds || 0,
+        reason: pending.reason,
+    });
+
+    let softUnbanned = false;
+    if (ctx.soft) {
+        try {
+            await guild.members.unban(pending.subjectUserId, 'Soft-ban completed');
+            softUnbanned = true;
+        } catch (err) {
+            console.error(`[ERROR] Soft-ban follow-up unban failed for ${pending.subjectUserId} in guild ${guild.id}:`, err);
+        }
+    }
+
     const row = await createBan({
         guildId: guild.id,
         subjectSnapshotId: subjectSnap.id,
@@ -548,6 +584,9 @@ async function executeBan(
         deleteMessageSeconds: pending.deleteMessageSeconds,
         linked: ctx.linked,
     });
+    if (softUnbanned) {
+        await liftBanById(row.id, 'soft-ban completed').catch(console.error);
+    }
 
     const counts = await getInfractionCounts(guild.id, pending.subjectUserId);
     const publicId = row.actionId || row.id;
@@ -573,19 +612,6 @@ async function executeBan(
         userId: pending.subjectUserId,
         dm,
     });
-
-    await guild.members
-        .ban(pending.subjectUserId, {
-            deleteMessageSeconds: pending.deleteMessageSeconds || 0,
-            reason: pending.reason,
-        })
-        .catch(console.error);
-    if (ctx.soft) {
-        await guild.members
-            .unban(pending.subjectUserId, 'Soft-ban completed')
-            .catch(console.error);
-        await liftBanById(row.id, 'soft-ban completed').catch(console.error);
-    }
 
     const modLog = await logModerationAction(guild, {
         color: EmbedColors.FAILURE,
@@ -655,6 +681,15 @@ async function executeTimeout(
         enrichProfile: false,
     });
 
+    const discordTimeoutMs = Math.min(durationMs, MAX_DISCORD_TIMEOUT_MS);
+    const timeoutClamped = durationMs > MAX_DISCORD_TIMEOUT_MS;
+    if (!ctx.member?.manageable) {
+        throw new Error(`Cannot time out ${pending.subjectUserId} in guild ${guild.id}: member not manageable`);
+    }
+    if (discordTimeoutMs > 0) {
+        await ctx.member.timeout(discordTimeoutMs, pending.reason);
+    }
+
     const row = await createTimeout({
         guildId: guild.id,
         subjectSnapshotId: subjectSnap.id,
@@ -668,12 +703,6 @@ async function executeTimeout(
 
     const counts = await getInfractionCounts(guild.id, pending.subjectUserId);
     const publicId = row.actionId || row.id;
-
-    const discordTimeoutMs = Math.min(durationMs, MAX_DISCORD_TIMEOUT_MS);
-    const timeoutClamped = durationMs > MAX_DISCORD_TIMEOUT_MS;
-    if (ctx.member?.manageable && discordTimeoutMs > 0) {
-        await ctx.member.timeout(discordTimeoutMs, pending.reason).catch(console.error);
-    }
 
     const dm = await tryDmUser(ctx.subjectUser, {
         embeds: [

@@ -2,7 +2,7 @@ import { and, desc, eq, gt, inArray, isNull, or, SQL } from 'drizzle-orm';
 import { getDb } from '../client';
 import { identitySnapshots, warnings, Warning } from '../schema';
 import { LinkedMessage } from '../../lib/moderation';
-import { allocateActionId } from '../../lib/actionId';
+import { allocateActionId, resolveActionId } from '../../lib/actionId';
 
 export type WarningWithSnapshots = Warning & {
     subject: typeof identitySnapshots.$inferSelect;
@@ -109,21 +109,42 @@ export async function listAllWarnings(guildId: string, discordUserId: string): P
     return hydrateWarnings(rows.map((r) => r.warnings));
 }
 
-export async function findWarningByIdOrLegacy(id: string): Promise<WarningWithSnapshots | null> {
+/**
+ * Resolve a warning by its public Action ID (A26…), UUID, or legacy Mongo id,
+ * always scoped to `guildId` so IDs cannot be used to reach another guild's data.
+ */
+export async function findWarningByIdOrLegacy(id: string, guildId: string): Promise<WarningWithSnapshots | null> {
     const db = getDb();
-    let rows: Warning[];
-    if (UUID_RE.test(id)) {
-        rows = await db.select().from(warnings).where(or(eq(warnings.id, id), eq(warnings.legacyMongoId, id))).limit(1);
-    } else {
-        rows = await db.select().from(warnings).where(eq(warnings.legacyMongoId, id)).limit(1);
+
+    if (!UUID_RE.test(id)) {
+        const resolved = await resolveActionId(id, guildId);
+        if (!resolved || resolved.recordType !== 'warning') return null;
+        const rows = await db
+            .select()
+            .from(warnings)
+            .where(and(eq(warnings.id, resolved.recordUuid), eq(warnings.guildId, guildId)))
+            .limit(1);
+        if (rows.length === 0) return null;
+        const hydrated = await hydrateWarnings(rows);
+        return hydrated[0] || null;
     }
+
+    const rows = await db
+        .select()
+        .from(warnings)
+        .where(and(eq(warnings.guildId, guildId), or(eq(warnings.id, id), eq(warnings.legacyMongoId, id))))
+        .limit(1);
     if (rows.length === 0) return null;
     const hydrated = await hydrateWarnings(rows);
     return hydrated[0] || null;
 }
 
-export async function softRemoveWarning(id: string, removedByModeratorSnapshotId: string | null): Promise<Warning | null> {
-    const existing = await findWarningByIdOrLegacy(id);
+export async function softRemoveWarning(
+    id: string,
+    guildId: string,
+    removedByModeratorSnapshotId: string | null,
+): Promise<Warning | null> {
+    const existing = await findWarningByIdOrLegacy(id, guildId);
     if (!existing) return null;
     if (existing.removedAt) return existing;
 
@@ -134,7 +155,7 @@ export async function softRemoveWarning(id: string, removedByModeratorSnapshotId
             removedAt: new Date(),
             removedByModeratorSnapshotId,
         })
-        .where(eq(warnings.id, existing.id))
+        .where(and(eq(warnings.id, existing.id), eq(warnings.guildId, guildId)))
         .returning();
     return row;
 }

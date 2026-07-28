@@ -7,6 +7,12 @@ import { listKicksForUser } from '../../db/repositories/kicks';
 import { listBansForUser } from '../../db/repositories/bans';
 import { parseUserId, warningStatusLabel } from '../../lib/moderation';
 
+const MAX_FIELD_VALUE = 1024;
+
+function fieldValue(value: string): string {
+    return value.length > MAX_FIELD_VALUE ? `${value.slice(0, MAX_FIELD_VALUE - 1)}…` : value;
+}
+
 export const background: CommandDefinition = {
     names: ['background', 'bgcheck', 'infractions'],
     description: 'Full moderation background check (includes removed/expired). `Arguments: <id>`',
@@ -38,18 +44,20 @@ export const background: CommandDefinition = {
                     const status = warningStatusLabel(w);
                     fields.push({
                         name: `Warning #${i + 1} [${status}]`,
-                        value: [
-                            `ID: \`${w.id}\``,
-                            `Reason: ${w.reason}`,
-                            `Private Note: ${w.privateNote ?? 'None'}`,
-                            `Mod: ${formatSnapshotLabel(w.moderator)}`,
-                            `Date: ${w.createdAt?.toUTCString() ?? 'Unknown'}`,
-                            w.expiresAt ? `Expires: ${w.expiresAt.toUTCString()}` : null,
-                            w.removedAt ? `Removed: ${w.removedAt.toUTCString()}` : null,
-                            w.linkedMessageUrl ? `Message: [jump](${w.linkedMessageUrl})` : null,
-                        ]
-                            .filter(Boolean)
-                            .join('\n'),
+                        value: fieldValue(
+                            [
+                                `ID: \`${w.id}\``,
+                                `Reason: ${w.reason}`,
+                                `Private Note: ${w.privateNote ?? 'None'}`,
+                                `Mod: ${formatSnapshotLabel(w.moderator)}`,
+                                `Date: ${w.createdAt?.toUTCString() ?? 'Unknown'}`,
+                                w.expiresAt ? `Expires: ${w.expiresAt.toUTCString()}` : null,
+                                w.removedAt ? `Removed: ${w.removedAt.toUTCString()}` : null,
+                                w.linkedMessageUrl ? `Message: [jump](${w.linkedMessageUrl})` : null,
+                            ]
+                                .filter(Boolean)
+                                .join('\n'),
+                        ),
                     });
                 });
                 if (warns.length > 10) {
@@ -63,16 +71,18 @@ export const background: CommandDefinition = {
                 kickRows.slice(0, 5).forEach((k, i) => {
                     fields.push({
                         name: `Kick #${i + 1}${k.isAutomated ? ' [AUTO]' : ''}`,
-                        value: [
-                            `ID: \`${k.id}\``,
-                            `Reason: ${k.reason}`,
-                            `Private Note: ${k.privateNote ?? 'None'}`,
-                            `Mod: ${k.moderator ? formatSnapshotLabel(k.moderator) : 'Automated'}`,
-                            `Date: ${k.createdAt?.toUTCString() ?? 'Unknown'}`,
-                            k.linkedMessageUrl ? `Message: [jump](${k.linkedMessageUrl})` : null,
-                        ]
-                            .filter(Boolean)
-                            .join('\n'),
+                        value: fieldValue(
+                            [
+                                `ID: \`${k.id}\``,
+                                `Reason: ${k.reason}`,
+                                `Private Note: ${k.privateNote ?? 'None'}`,
+                                `Mod: ${k.moderator ? formatSnapshotLabel(k.moderator) : 'Automated'}`,
+                                `Date: ${k.createdAt?.toUTCString() ?? 'Unknown'}`,
+                                k.linkedMessageUrl ? `Message: [jump](${k.linkedMessageUrl})` : null,
+                            ]
+                                .filter(Boolean)
+                                .join('\n'),
+                        ),
                     });
                 });
             }
@@ -84,18 +94,20 @@ export const background: CommandDefinition = {
                     const state = b.liftedAt ? `LIFTED (${b.liftReason || 'unknown'})` : 'ACTIVE';
                     fields.push({
                         name: `Ban #${i + 1} [${b.banType.toUpperCase()}] [${state}]`,
-                        value: [
-                            `ID: \`${b.id}\``,
-                            `Reason: ${b.reason}`,
-                            `Private Note: ${b.privateNotes ?? 'None'}`,
-                            `Mod: ${b.moderator ? formatSnapshotLabel(b.moderator) : 'Unknown'}`,
-                            `Date: ${b.createdAt?.toUTCString() ?? 'Unknown'}`,
-                            b.expiresAt ? `Expires: ${b.expiresAt.toUTCString()}` : null,
-                            b.liftedAt ? `Lifted: ${b.liftedAt.toUTCString()}` : null,
-                            b.linkedMessageUrl ? `Message: [jump](${b.linkedMessageUrl})` : null,
-                        ]
-                            .filter(Boolean)
-                            .join('\n'),
+                        value: fieldValue(
+                            [
+                                `ID: \`${b.id}\``,
+                                `Reason: ${b.reason}`,
+                                `Private Note: ${b.privateNotes ?? 'None'}`,
+                                `Mod: ${b.moderator ? formatSnapshotLabel(b.moderator) : 'Unknown'}`,
+                                `Date: ${b.createdAt?.toUTCString() ?? 'Unknown'}`,
+                                b.expiresAt ? `Expires: ${b.expiresAt.toUTCString()}` : null,
+                                b.liftedAt ? `Lifted: ${b.liftedAt.toUTCString()}` : null,
+                                b.linkedMessageUrl ? `Message: [jump](${b.linkedMessageUrl})` : null,
+                            ]
+                                .filter(Boolean)
+                                .join('\n'),
+                        ),
                     });
                 });
             }

@@ -356,16 +356,17 @@ async function applyActionUpdate(
         const durationMs = parseDurationToMs(rawValue);
         if (durationMs <= 0) throw new Error('Please enter a valid duration.');
         const expiresAt = new Date(Date.now() + durationMs);
+        const clamped = loaded.caseType === 'timeout' && durationMs > MAX_TIMEOUT_MS;
         if (loaded.caseType === 'ban') {
             await db.update(bans).set({ expiresAt }).where(eq(bans.id, id));
         } else {
-            await db.update(timeouts).set({ durationMs, durationToken: rawValue, expiresAt }).where(eq(timeouts.id, id));
             await updateDiscordTimeout(guild, loaded.subjectUserId, durationMs, rationale);
+            await db.update(timeouts).set({ durationMs, durationToken: rawValue, expiresAt }).where(eq(timeouts.id, id));
         }
         return {
             label: 'Duration Updated',
             oldDisplay: displayExpiresAt(loaded.record.expiresAt),
-            newDisplay: `${rawValue} (${displayExpiresAt(expiresAt)})`,
+            newDisplay: `${rawValue} (${displayExpiresAt(expiresAt)})${clamped ? ' — Discord timeout capped at 28 days' : ''}`,
             metadata: { durationMs, expiresAt: expiresAt.toISOString() },
         };
     }
@@ -381,13 +382,17 @@ async function applyActionUpdate(
             if (!expiresAt) throw new Error('Timeout expiration cannot be cleared.');
             const durationMs = expiresAt.getTime() - Date.now();
             if (durationMs <= 0) throw new Error('Expiration must be in the future.');
-            await db.update(timeouts).set({ durationMs, durationToken: rawValue, expiresAt }).where(eq(timeouts.id, id));
             await updateDiscordTimeout(guild, loaded.subjectUserId, durationMs, rationale);
+            await db.update(timeouts).set({ durationMs, durationToken: rawValue, expiresAt }).where(eq(timeouts.id, id));
         }
         return {
             label: 'Expiration Updated',
             oldDisplay: displayExpiresAt(loaded.record.expiresAt),
-            newDisplay: displayExpiresAt(expiresAt),
+            newDisplay:
+                displayExpiresAt(expiresAt) +
+                (loaded.caseType === 'timeout' && expiresAt && expiresAt.getTime() - Date.now() > MAX_TIMEOUT_MS
+                    ? ' — Discord timeout capped at 28 days'
+                    : ''),
             metadata: { expiresAt: expiresAt?.toISOString() ?? null },
         };
     }
@@ -644,10 +649,11 @@ function userFacingValueForChange(changeLabel: string, newValue: string, actionN
 }
 
 async function updateDiscordTimeout(guild: Guild, userId: string | null, durationMs: number, reason: string): Promise<void> {
-    if (!userId) return;
+    if (!userId) throw new Error('No subject user recorded for this action.');
     const member = await guild.members.fetch(userId).catch(() => null);
-    if (!member?.manageable) return;
-    await member.timeout(Math.min(durationMs, MAX_TIMEOUT_MS), reason).catch(console.error);
+    if (!member) throw new Error('Member is no longer in this server; Discord timeout could not be updated.');
+    if (!member.manageable) throw new Error('This member cannot be managed by the bot (role hierarchy); Discord timeout could not be updated.');
+    await member.timeout(Math.min(durationMs, MAX_TIMEOUT_MS), reason);
 }
 
 function parseExpiration(raw: string): Date | null {

@@ -5,6 +5,13 @@ import { formatSnapshotLabel } from '../../db/repositories/snapshots';
 import { listActiveWarnings } from '../../db/repositories/warnings';
 import { parseUserId } from '../../lib/moderation';
 
+const MAX_EMBED_FIELDS = 25;
+const MAX_FIELD_VALUE = 1024;
+
+function fieldValue(value: string): string {
+    return value.length > MAX_FIELD_VALUE ? `${value.slice(0, MAX_FIELD_VALUE - 1)}…` : value;
+}
+
 export const warnings: CommandDefinition = {
     names: ['warnings', 'warns'],
     description: 'Displays active warnings for a user. `Arguments: <id>`',
@@ -34,7 +41,10 @@ export const warnings: CommandDefinition = {
             fields.push({ name: '\u200b', value: 'This user has no active warnings.' });
         }
 
-        warningProfile.forEach((warning, i) => {
+        const hasOverflow = warningProfile.length > MAX_EMBED_FIELDS;
+        const shown = hasOverflow ? warningProfile.slice(0, MAX_EMBED_FIELDS - 1) : warningProfile;
+
+        shown.forEach((warning, i) => {
             const lines = [
                 `__Action ID:__ \`${warning.actionId || warning.id}\``,
                 `__Reason:__ ${warning.reason}`,
@@ -50,9 +60,16 @@ export const warnings: CommandDefinition = {
             }
             fields.push({
                 name: `Warn #${i + 1}`,
-                value: lines.join('\n'),
+                value: fieldValue(lines.join('\n')),
             });
         });
+
+        if (hasOverflow) {
+            fields.push({
+                name: '​',
+                value: `…and ${warningProfile.length - shown.length} more active warning(s) not shown. Use the moderation portal for the full history.`,
+            });
+        }
 
         const member = await message.guild.members.fetch(id).catch(console.error);
         const embed = createEmbed({

@@ -40,7 +40,7 @@ export type CommandDefinition = {
     description: string;
     category: CommandCategories;
     permissions?: Discord.PermissionsString[];
-    execute: (message: Discord.Message, args: Array<string>) => Promise<any>;
+    execute: (message: Discord.Message<true>, args: Array<string>) => Promise<any>;
 };
 export const createErrorEmbed = (description: string) =>
     createEmbed({ color: EmbedColors.FAILURE, title: 'Error', description });

@@ -38,4 +38,4 @@ export const pendingModerationActions = pgTable('pending_moderation_actions', {
 export type PendingModerationAction = typeof pendingModerationActions.$inferSelect;
 export type NewPendingModerationAction = typeof pendingModerationActions.$inferInsert;
 export type PendingActionType = 'warn' | 'kick' | 'ban' | 'timeout';
-export type PendingActionStatus = 'pending' | 'completed' | 'cancelled';
+export type PendingActionStatus = 'pending' | 'processing' | 'completed' | 'cancelled' | 'failed';

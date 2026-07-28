@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { getDb } from '../db/client';
 import { actionIds } from '../db/schema';
 
@@ -75,6 +75,20 @@ export async function actionIdExists(actionId: string): Promise<boolean> {
         .where(eq(actionIds.actionId, actionId))
         .limit(1);
     return rows.length > 0;
+}
+
+/** Resolve a public Action ID to its underlying record, scoped to a guild. */
+export async function resolveActionId(
+    actionId: string,
+    guildId: string,
+): Promise<{ recordType: string; recordUuid: string } | null> {
+    const db = getDb();
+    const rows = await db
+        .select({ recordType: actionIds.recordType, recordUuid: actionIds.recordUuid })
+        .from(actionIds)
+        .where(and(eq(actionIds.actionId, actionId), eq(actionIds.guildId, guildId)))
+        .limit(1);
+    return rows[0] ?? null;
 }
 
 /**

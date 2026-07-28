@@ -1,6 +1,5 @@
-import { Client } from 'discord.js';
+import { Client, DiscordAPIError, RESTJSONErrorCodes } from 'discord.js';
 import { listExpiredOpenBans, liftBanById } from './repositories/bans';
-import { guildId as configGuildId } from '../config';
 
 const DEFAULT_INTERVAL_MS = 60_000;
 
@@ -17,24 +16,29 @@ export function startExpiryWorker(client: Client, intervalMs = DEFAULT_INTERVAL_
                 if (!userId) continue;
 
                 const guild =
-                    client.guilds.cache.get(ban.guildId) ||
-                    (process.env.GUILD_ID ? client.guilds.cache.get(process.env.GUILD_ID) : undefined) ||
-                    (configGuildId ? client.guilds.cache.get(configGuildId) : undefined) ||
-                    client.guilds.cache.first();
+                    client.guilds.cache.get(ban.guildId) || (await client.guilds.fetch(ban.guildId).catch(() => null));
                 if (!guild) {
-                    console.error(`Expiry worker: guild ${ban.guildId} not in cache`);
+                    console.error(`Expiry worker: guild ${ban.guildId} not available, skipping (will retry)`);
                     continue;
                 }
 
+                let shouldLift = false;
                 try {
                     await guild.members.unban(userId, 'Temporary ban expired');
+                    shouldLift = true;
                 } catch (err) {
-                    // Already unbanned or unknown — still lift the row
-                    console.error(`Expiry worker: Discord unban failed for ${userId}:`, err);
+                    if (err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownBan) {
+                        // Already unbanned — safe to lift the row.
+                        shouldLift = true;
+                    } else {
+                        console.error(`Expiry worker: Discord unban failed for ${userId}, will retry:`, err);
+                    }
                 }
 
-                await liftBanById(ban.id, 'expired');
-                console.log(`Expiry worker: lifted ban ${ban.id} for user ${userId}`);
+                if (shouldLift) {
+                    await liftBanById(ban.id, 'expired');
+                    console.log(`Expiry worker: lifted ban ${ban.id} for user ${userId}`);
+                }
             }
         } catch (err) {
             console.error('Expiry worker tick failed:', err);
