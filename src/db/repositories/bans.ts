@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, isNotNull, isNull, lte } from 'drizzle-orm';
 import { getDb } from '../client';
-import { bans, Ban, BanType, identitySnapshots } from '../schema';
+import { actionIds, bans, Ban, BanType, identitySnapshots } from '../schema';
 import { LinkedMessage } from '../../lib/moderation';
 import { allocateActionId } from '../../lib/actionId';
 
@@ -143,4 +143,12 @@ export async function liftBanById(id: string, liftReason: string): Promise<Ban |
         .where(and(eq(bans.id, id), isNull(bans.liftedAt)))
         .returning();
     return row || null;
+}
+
+export async function deleteBanById(id: string): Promise<void> {
+    const db = getDb();
+    await db.transaction(async (tx) => {
+        await tx.delete(actionIds).where(eq(actionIds.recordUuid, id));
+        await tx.delete(bans).where(eq(bans.id, id));
+    });
 }

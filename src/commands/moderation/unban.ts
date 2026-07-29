@@ -1,8 +1,9 @@
 import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
 import { createEmbed, EmbedColors } from '../../lib/embed';
 import { captureIdentitySnapshot } from '../../db/repositories/snapshots';
-import { liftBansForUser } from '../../db/repositories/bans';
+import { liftBansForUser, listActiveBansForUser } from '../../db/repositories/bans';
 import { parseUserId } from '../../lib/moderation';
+import { discordAuditReason } from '../../lib/moderationFormat';
 
 export const unban: CommandDefinition = {
     names: ['unban'],
@@ -25,8 +26,12 @@ export const unban: CommandDefinition = {
         }
 
         const reason = ban.reason || 'None';
+        const activeRecords = await listActiveBansForUser(message.guild.id, id).catch(() => []);
+        const actionId = activeRecords[0]?.actionId || activeRecords[0]?.id || 'Unknown';
 
-        await message.guild.members.unban(id).catch(console.error);
+        await message.guild.members
+            .unban(id, discordAuditReason(actionId, message.author.username, message.author.id, 'Manual unban'))
+            .catch(console.error);
 
         try {
             const moderatorSnap = await captureIdentitySnapshot({

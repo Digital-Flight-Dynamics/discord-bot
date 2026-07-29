@@ -10,13 +10,14 @@ import {
     modLogMessageUrl,
     modPortalUrl,
     notifiedLine,
+    discordAuditReason,
 } from './moderationFormat';
 import { logModerationAction, tryDmUser, type DmResult } from './moderationNotify';
 import { captureIdentitySnapshot } from '../db/repositories/snapshots';
 import { createWarning, countActiveWarnings } from '../db/repositories/warnings';
-import { createKick } from '../db/repositories/kicks';
-import { createBan, liftBanById } from '../db/repositories/bans';
-import { createTimeout } from '../db/repositories/timeouts';
+import { createKick, deleteKickById } from '../db/repositories/kicks';
+import { createBan, deleteBanById, liftBanById } from '../db/repositories/bans';
+import { createTimeout, deleteTimeoutById } from '../db/repositories/timeouts';
 import {
     claimPendingModeration,
     getPendingModerationById,
@@ -464,8 +465,6 @@ async function executeKick(
     if (!ctx.member?.kickable) {
         throw new Error(`Cannot kick ${pending.subjectUserId} in guild ${guild.id}: member not kickable`);
     }
-    await ctx.member.kick(pending.reason);
-
     const row = await createKick({
         guildId: guild.id,
         subjectSnapshotId: subjectSnap.id,
@@ -475,9 +474,22 @@ async function executeKick(
         linked: ctx.linked,
         isAutomated: false,
     });
+    const publicId = row.actionId || row.id;
+    try {
+        await ctx.member.kick(
+            discordAuditReason(
+                publicId,
+                ctx.moderatorUser?.username || 'Unknown',
+                pending.moderatorUserId,
+                pending.reason,
+            ),
+        );
+    } catch (err) {
+        await deleteKickById(row.id).catch(console.error);
+        throw err;
+    }
 
     const counts = await getInfractionCounts(guild.id, pending.subjectUserId);
-    const publicId = row.actionId || row.id;
     const dm = await tryDmUser(ctx.subjectUser, {
         embeds: [
             userActionDmEmbed({
@@ -565,21 +577,6 @@ async function executeBan(
         enrichProfile: false,
     });
 
-    await guild.members.ban(pending.subjectUserId, {
-        deleteMessageSeconds: pending.deleteMessageSeconds || 0,
-        reason: pending.reason,
-    });
-
-    let softUnbanned = false;
-    if (ctx.soft) {
-        try {
-            await guild.members.unban(pending.subjectUserId, 'Soft-ban completed');
-            softUnbanned = true;
-        } catch (err) {
-            console.error(`[ERROR] Soft-ban follow-up unban failed for ${pending.subjectUserId} in guild ${guild.id}:`, err);
-        }
-    }
-
     const row = await createBan({
         guildId: guild.id,
         subjectSnapshotId: subjectSnap.id,
@@ -591,12 +588,37 @@ async function executeBan(
         deleteMessageSeconds: pending.deleteMessageSeconds,
         linked: ctx.linked,
     });
+    const publicId = row.actionId || row.id;
+    const auditReason = discordAuditReason(
+        publicId,
+        ctx.moderatorUser?.username || 'Unknown',
+        pending.moderatorUserId,
+        pending.reason,
+    );
+    try {
+        await guild.members.ban(pending.subjectUserId, {
+            deleteMessageSeconds: pending.deleteMessageSeconds || 0,
+            reason: auditReason,
+        });
+    } catch (err) {
+        await deleteBanById(row.id).catch(console.error);
+        throw err;
+    }
+
+    let softUnbanned = false;
+    if (ctx.soft) {
+        try {
+            await guild.members.unban(pending.subjectUserId, auditReason);
+            softUnbanned = true;
+        } catch (err) {
+            console.error(`[ERROR] Soft-ban follow-up unban failed for ${pending.subjectUserId} in guild ${guild.id}:`, err);
+        }
+    }
     if (softUnbanned) {
         await liftBanById(row.id, 'soft-ban completed').catch(console.error);
     }
 
     const counts = await getInfractionCounts(guild.id, pending.subjectUserId);
-    const publicId = row.actionId || row.id;
     const dm =
         ctx.dmOverride ??
         (await tryDmUser(ctx.subjectUser, {
@@ -695,10 +717,6 @@ async function executeTimeout(
     if (!ctx.member?.manageable) {
         throw new Error(`Cannot time out ${pending.subjectUserId} in guild ${guild.id}: member not manageable`);
     }
-    if (discordTimeoutMs > 0) {
-        await ctx.member.timeout(discordTimeoutMs, pending.reason);
-    }
-
     const row = await createTimeout({
         guildId: guild.id,
         subjectSnapshotId: subjectSnap.id,
@@ -709,9 +727,25 @@ async function executeTimeout(
         durationToken: pending.durationToken,
         expiresAt,
     });
+    const publicId = row.actionId || row.id;
+    if (discordTimeoutMs > 0) {
+        try {
+            await ctx.member.timeout(
+                discordTimeoutMs,
+                discordAuditReason(
+                    publicId,
+                    ctx.moderatorUser?.username || 'Unknown',
+                    pending.moderatorUserId,
+                    pending.reason,
+                ),
+            );
+        } catch (err) {
+            await deleteTimeoutById(row.id).catch(console.error);
+            throw err;
+        }
+    }
 
     const counts = await getInfractionCounts(guild.id, pending.subjectUserId);
-    const publicId = row.actionId || row.id;
 
     const dm = await tryDmUser(ctx.subjectUser, {
         embeds: [

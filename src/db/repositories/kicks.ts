@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { getDb } from '../client';
-import { identitySnapshots, kicks, Kick } from '../schema';
+import { actionIds, identitySnapshots, kicks, Kick } from '../schema';
 import { LinkedMessage } from '../../lib/moderation';
 import { allocateActionId } from '../../lib/actionId';
 
@@ -78,4 +78,12 @@ export async function listKicksForUser(guildId: string, discordUserId: string): 
         .where(and(eq(kicks.guildId, guildId), eq(identitySnapshots.discordUserId, discordUserId)))
         .orderBy(desc(kicks.createdAt));
     return hydrate(rows.map((r) => r.kicks));
+}
+
+export async function deleteKickById(id: string): Promise<void> {
+    const db = getDb();
+    await db.transaction(async (tx) => {
+        await tx.delete(actionIds).where(eq(actionIds.recordUuid, id));
+        await tx.delete(kicks).where(eq(kicks.id, id));
+    });
 }

@@ -1,5 +1,6 @@
 import { Client, DiscordAPIError, RESTJSONErrorCodes } from 'discord.js';
 import { listExpiredOpenBans, liftBanById } from './repositories/bans';
+import { discordAuditReason } from '../lib/moderationFormat';
 
 const DEFAULT_INTERVAL_MS = 60_000;
 
@@ -24,7 +25,15 @@ export function startExpiryWorker(client: Client, intervalMs = DEFAULT_INTERVAL_
 
                 let shouldLift = false;
                 try {
-                    await guild.members.unban(userId, 'Temporary ban expired');
+                    await guild.members.unban(
+                        userId,
+                        discordAuditReason(
+                            ban.actionId || ban.id,
+                            client.user?.username || 'Unknown',
+                            client.user?.id || 'Unknown',
+                            'Temporary ban expired',
+                        ),
+                    );
                     shouldLift = true;
                 } catch (err) {
                     if (err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownBan) {

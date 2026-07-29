@@ -27,7 +27,7 @@ import { bans, identitySnapshots, kicks, timeouts, warnings, type ActionIdRow, t
 import { createEmbed, EmbedColors } from './lib/embed';
 import { tryDmUser } from './lib/moderationNotify';
 import { parseDurationToMs, parseDurationToSeconds } from './lib/moderation';
-import { appealUrl, modLogMessageUrl, modPortalUrl } from './lib/moderationFormat';
+import { appealUrl, discordAuditReason, modLogMessageUrl, modPortalUrl } from './lib/moderationFormat';
 
 const MAX_TIMEOUT_MS = 28 * 24 * 60 * 60 * 1000;
 const MAX_PURGE_SECONDS = 7 * 24 * 60 * 60;
@@ -196,7 +196,14 @@ export async function handleUpdateActionCommand(interaction: ChatInputCommandInt
             return true;
         }
 
-        const applied = await applyActionUpdate(interaction.guild, loaded, kind, newValue, rationale);
+        const applied = await applyActionUpdate(
+            interaction.guild,
+            loaded,
+            kind,
+            newValue,
+            rationale,
+            interaction.user,
+        );
         const moderatorMember = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
         const moderatorSnap = await captureIdentitySnapshot({
             member: moderatorMember || undefined,
@@ -294,7 +301,7 @@ async function handleActionResolution(interaction: ChatInputCommandInteraction):
             enrichProfile: false,
         });
 
-        await applyActionResolution(guild, loaded, status, reason, publicNote, moderatorSnap.id);
+        await applyActionResolution(guild, loaded, status, reason, publicNote, moderatorSnap.id, interaction.user);
         const audit = await createModerationActionAudit({
             guildId: guild.id,
             actionId: loaded.actionId.actionId,
@@ -450,6 +457,7 @@ async function applyActionResolution(
     reason: string,
     publicNote: string | null,
     moderatorSnapshotId: string,
+    moderator: User,
 ): Promise<void> {
     const db = getDb();
     const id = loaded.actionId.recordUuid;
@@ -468,7 +476,10 @@ async function applyActionResolution(
             throw err;
         });
         if (activeBan) {
-            await guild.members.unban(loaded.subjectUserId, `${resolutionLabel(status)}: ${reason}`);
+            await guild.members.unban(
+                loaded.subjectUserId,
+                discordAuditReason(loaded.actionId.actionId, moderator.username, moderator.id, reason),
+            );
         }
     }
 
@@ -476,7 +487,10 @@ async function applyActionResolution(
         const member = await guild.members.fetch(loaded.subjectUserId).catch(() => null);
         if (member?.communicationDisabledUntilTimestamp && member.communicationDisabledUntilTimestamp > Date.now()) {
             if (!member.manageable) throw new Error('The timeout could not be removed because this member is not manageable.');
-            await member.timeout(null, `${resolutionLabel(status)}: ${reason}`);
+            await member.timeout(
+                null,
+                discordAuditReason(loaded.actionId.actionId, moderator.username, moderator.id, reason),
+            );
         }
     }
 
@@ -512,6 +526,7 @@ async function applyActionUpdate(
     kind: UpdateChangeKind,
     rawValue: string,
     rationale: string,
+    moderator: User,
 ): Promise<{ label: string; oldDisplay: string | null; newDisplay: string; metadata: Record<string, unknown> }> {
     if (!rawValue) throw new Error('New value cannot be empty.');
     const db = getDb();
@@ -542,7 +557,7 @@ async function applyActionUpdate(
         if (loaded.caseType === 'ban') {
             await db.update(bans).set({ expiresAt }).where(eq(bans.id, id));
         } else {
-            await updateDiscordTimeout(guild, loaded.subjectUserId, durationMs, rationale);
+            await updateDiscordTimeout(guild, loaded, durationMs, rationale, moderator);
             await db.update(timeouts).set({ durationMs, durationToken: rawValue, expiresAt }).where(eq(timeouts.id, id));
         }
         return {
@@ -564,7 +579,7 @@ async function applyActionUpdate(
             if (!expiresAt) throw new Error('Timeout expiration cannot be cleared.');
             const durationMs = expiresAt.getTime() - Date.now();
             if (durationMs <= 0) throw new Error('Expiration must be in the future.');
-            await updateDiscordTimeout(guild, loaded.subjectUserId, durationMs, rationale);
+            await updateDiscordTimeout(guild, loaded, durationMs, rationale, moderator);
             await db.update(timeouts).set({ durationMs, durationToken: rawValue, expiresAt }).where(eq(timeouts.id, id));
         }
         return {
@@ -944,12 +959,21 @@ function userFacingValueForChange(changeLabel: string, newValue: string, actionN
     return newValue;
 }
 
-async function updateDiscordTimeout(guild: Guild, userId: string | null, durationMs: number, reason: string): Promise<void> {
-    if (!userId) throw new Error('No subject user recorded for this action.');
-    const member = await guild.members.fetch(userId).catch(() => null);
+async function updateDiscordTimeout(
+    guild: Guild,
+    loaded: LoadedAction,
+    durationMs: number,
+    reason: string,
+    moderator: User,
+): Promise<void> {
+    if (!loaded.subjectUserId) throw new Error('No subject user recorded for this action.');
+    const member = await guild.members.fetch(loaded.subjectUserId).catch(() => null);
     if (!member) throw new Error('Member is no longer in this server; Discord timeout could not be updated.');
     if (!member.manageable) throw new Error('This member cannot be managed by the bot (role hierarchy); Discord timeout could not be updated.');
-    await member.timeout(Math.min(durationMs, MAX_TIMEOUT_MS), reason);
+    await member.timeout(
+        Math.min(durationMs, MAX_TIMEOUT_MS),
+        discordAuditReason(loaded.actionId.actionId, moderator.username, moderator.id, reason),
+    );
 }
 
 function parseExpiration(raw: string): Date | null {

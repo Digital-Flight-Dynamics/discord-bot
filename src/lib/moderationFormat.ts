@@ -179,3 +179,14 @@ export function notifiedLine(dmSent: boolean, reason?: string): string {
 export function modLogMessageUrl(guildId: string, channelId: string, messageId: string): string {
     return `https://discord.com/channels/${guildId}/${channelId}/${messageId}`;
 }
+
+/** Discord audit-log reasons are limited to 512 characters. */
+export function discordAuditReason(
+    actionId: string,
+    moderatorUsername: string,
+    moderatorId: string,
+    reason: string,
+): string {
+    const prefix = `Action ID: ${actionId} | Moderator: ${moderatorUsername} - ${moderatorId} | Reason: `;
+    return `${prefix}${reason}`.slice(0, 512);
+}

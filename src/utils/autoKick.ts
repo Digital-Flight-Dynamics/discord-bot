@@ -2,7 +2,8 @@ import Discord from 'discord.js';
 import { color } from '../index';
 import { UtilDefinition } from '.';
 import { captureIdentitySnapshot } from '../db/repositories/snapshots';
-import { createKick } from '../db/repositories/kicks';
+import { createKick, deleteKickById } from '../db/repositories/kicks';
+import { discordAuditReason } from '../lib/moderationFormat';
 
 const BLACKLIST = [
     'csgo',
@@ -57,12 +58,9 @@ export const autoKick: UtilDefinition = {
         }
         if (!shouldKick) return;
 
-        await member.user.send({ embeds: [dmEmbed] }).catch(console.error);
-        await member.kick('Automated kick - potential scam').catch(console.error);
-
         try {
             const subjectSnap = await captureIdentitySnapshot({ member, user: member.user });
-            await createKick({
+            const row = await createKick({
                 guildId: message.guild.id,
                 subjectSnapshotId: subjectSnap.id,
                 moderatorSnapshotId: null,
@@ -70,8 +68,22 @@ export const autoKick: UtilDefinition = {
                 linked,
                 isAutomated: true,
             });
+            await member.user.send({ embeds: [dmEmbed] }).catch(console.error);
+            try {
+                await member.kick(
+                    discordAuditReason(
+                        row.actionId || row.id,
+                        message.client.user.username,
+                        message.client.user.id,
+                        'Kicked as a precaution - potential scam',
+                    ),
+                );
+            } catch (err) {
+                await deleteKickById(row.id).catch(console.error);
+                throw err;
+            }
         } catch (err) {
-            console.error('autoKick DB record failed:', err);
+            console.error('autoKick failed:', err);
         }
     },
 };

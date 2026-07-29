@@ -1,6 +1,6 @@
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { getDb } from '../client';
-import { identitySnapshots, timeouts, Timeout } from '../schema';
+import { actionIds, identitySnapshots, timeouts, Timeout } from '../schema';
 import { allocateActionId } from '../../lib/actionId';
 
 export async function createTimeout(input: {
@@ -68,4 +68,12 @@ export async function listTimeoutsForUser(guildId: string, discordUserId: string
         .where(and(eq(timeouts.guildId, guildId), eq(identitySnapshots.discordUserId, discordUserId)))
         .orderBy(desc(timeouts.createdAt));
     return rows.map((r) => r.timeout);
+}
+
+export async function deleteTimeoutById(id: string): Promise<void> {
+    const db = getDb();
+    await db.transaction(async (tx) => {
+        await tx.delete(actionIds).where(eq(actionIds.recordUuid, id));
+        await tx.delete(timeouts).where(eq(timeouts.id, id));
+    });
 }
