@@ -54,6 +54,7 @@ export async function handleHoneypotMessage(client: Client, message: Message): P
             reason: HONEYPOT_REASON,
             deleteMessageSeconds: HONEYPOT_PURGE_SECONDS,
             banType: 'hard',
+            payload: { automation: 'Honeypot' },
         });
         await executePendingModeration(client, pending, { preActionDm: dm });
     } catch (err) {

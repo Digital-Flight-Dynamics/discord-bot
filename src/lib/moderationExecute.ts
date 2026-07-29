@@ -123,6 +123,12 @@ export async function executePendingModeration(
               : null;
     const noteDisplay = privateNote || (opts?.timedOut ? 'None (auto — no response)' : 'None');
     const timedOut = Boolean(opts?.timedOut);
+    const automation =
+        pending.moderatorUserId === client.user?.id
+            ? typeof pending.payload.automation === 'string'
+                ? pending.payload.automation
+                : 'Automated moderation'
+            : null;
 
     const guild = client.guilds.cache.get(pending.guildId) || (await client.guilds.fetch(pending.guildId).catch(() => null));
     if (!guild) {
@@ -160,6 +166,7 @@ export async function executePendingModeration(
                     noteDisplay,
                     timedOut,
                     linked,
+                    automation,
                 });
             case 'kick':
                 return executeKick(client, guild, pending, {
@@ -171,6 +178,7 @@ export async function executePendingModeration(
                     noteDisplay,
                     timedOut,
                     linked,
+                    automation,
                 });
             case 'ban':
                 return executeBan(client, guild, pending, {
@@ -184,6 +192,7 @@ export async function executePendingModeration(
                     linked,
                     soft: pending.banType === 'soft',
                     dmOverride: opts?.preActionDm,
+                    automation,
                 });
             case 'timeout':
                 return executeTimeout(client, guild, pending, {
@@ -194,6 +203,7 @@ export async function executePendingModeration(
                     privateNote,
                     noteDisplay,
                     timedOut,
+                    automation,
                 });
             default:
                 console.error(`[ERROR] Unknown pending action type: ${pending.actionType}`);
@@ -228,6 +238,7 @@ type ExecCtx = {
     timedOut: boolean;
     linked?: LinkedMessage | null;
     dmOverride?: DmResult;
+    automation?: string | null;
 };
 
 const fieldValue = (value: string) => value.slice(0, 1024);
@@ -422,6 +433,7 @@ async function executeWarn(
             reason: pending.reason,
             privateNote: ctx.noteDisplay,
             actionId: publicId,
+            automation: ctx.automation,
         }),
         footerUrl: modPortalUrl(publicId),
     });
@@ -473,6 +485,7 @@ async function executeKick(
         privateNote: ctx.privateNote,
         linked: ctx.linked,
         isAutomated: false,
+        source: ctx.automation ? ctx.automation.toLowerCase() : 'bot',
     });
     const publicId = row.actionId || row.id;
     try {
@@ -535,6 +548,7 @@ async function executeKick(
             reason: pending.reason,
             privateNote: ctx.noteDisplay,
             actionId: publicId,
+            automation: ctx.automation,
         }),
         footerUrl: modPortalUrl(publicId),
     });
@@ -587,6 +601,7 @@ async function executeBan(
         expiresAt: pending.expiresAt,
         deleteMessageSeconds: pending.deleteMessageSeconds,
         linked: ctx.linked,
+        source: ctx.automation ? ctx.automation.toLowerCase() : 'bot',
     });
     const publicId = row.actionId || row.id;
     const auditReason = discordAuditReason(
@@ -669,6 +684,7 @@ async function executeBan(
             reason: pending.reason,
             privateNote: ctx.noteDisplay,
             actionId: publicId,
+            automation: ctx.automation,
         }),
         footerUrl: modPortalUrl(publicId),
     });
@@ -726,6 +742,7 @@ async function executeTimeout(
         durationMs,
         durationToken: pending.durationToken,
         expiresAt,
+        source: ctx.automation ? ctx.automation.toLowerCase() : 'bot',
     });
     const publicId = row.actionId || row.id;
     if (discordTimeoutMs > 0) {
@@ -791,6 +808,7 @@ async function executeTimeout(
             reason: pending.reason,
             privateNote: ctx.noteDisplay,
             actionId: publicId,
+            automation: ctx.automation,
         }),
         footerUrl: modPortalUrl(publicId),
     });
@@ -840,6 +858,7 @@ function buildModLogFields(opts: {
     privateNote?: string | null;
     /** Public Action ID */
     actionId: string;
+    automation?: string | null;
 }) {
     const fields = [
         {
@@ -868,11 +887,13 @@ function buildModLogFields(opts: {
         },
         {
             name: 'Moderator',
-            value: formatModeratorBlock({
-                member: opts.moderatorMember,
-                user: opts.moderatorUser,
-                snap: opts.moderatorSnap,
-            }),
+            value: opts.automation
+                ? `Bot Automation (${opts.automation})`
+                : formatModeratorBlock({
+                      member: opts.moderatorMember,
+                      user: opts.moderatorUser,
+                      snap: opts.moderatorSnap,
+                  }),
             inline: false,
         },
     ];
