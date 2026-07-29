@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { getDb } from '../client';
 import { modLogMessages, type ModCaseType, type ModLogMessage } from '../schema';
 
@@ -45,4 +45,14 @@ export async function findModLogByCase(caseType: ModCaseType, caseId: string): P
         .where(eq(modLogMessages.caseId, caseId))
         .limit(5);
     return rows.find((r) => r.caseType === caseType) ?? rows[0] ?? null;
+}
+
+export async function findModLogByActionId(guildId: string, actionId: string): Promise<ModLogMessage | null> {
+    const db = getDb();
+    const rows = await db
+        .select()
+        .from(modLogMessages)
+        .where(and(eq(modLogMessages.guildId, guildId), eq(modLogMessages.actionId, actionId)))
+        .limit(1);
+    return rows[0] ?? null;
 }

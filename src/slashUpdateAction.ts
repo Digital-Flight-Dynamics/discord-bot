@@ -652,7 +652,7 @@ async function refreshModLogAudit(
     embed.setFields(fields);
     if (resolutionStatus) {
         const currentTitle = (current.title || `A user has received a ${loaded.actionName}`).replace(
-            /^\[(?:REVOKED|APPEAL APPROVED)\]\s*/i,
+            /^\[(?:PENDING APPEAL|REVOKED|APPEAL APPROVED)\]\s*/i,
             '',
         );
         embed.setTitle(`[${resolutionTitle(resolutionStatus)}] ${currentTitle}`);
