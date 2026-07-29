@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 /** Discord mod-log parent message + discussion thread for a punishment case. */
 export const modLogMessages = pgTable('mod_log_messages', {
@@ -17,6 +17,8 @@ export const modLogMessages = pgTable('mod_log_messages', {
     threadId: text('thread_id'),
     subjectUserId: text('subject_user_id'),
     moderatorUserId: text('moderator_user_id'),
+    messageDeleted: boolean('message_deleted').notNull().default(false),
+    threadDeleted: boolean('thread_deleted').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

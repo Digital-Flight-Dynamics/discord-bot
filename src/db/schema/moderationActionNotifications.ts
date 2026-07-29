@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 /** Bot-authored user DM messages related to an action, so later updates can edit/reference them. */
 export const moderationActionNotifications = pgTable('moderation_action_notifications', {
@@ -13,6 +13,9 @@ export const moderationActionNotifications = pgTable('moderation_action_notifica
     channelId: text('channel_id').notNull(),
     messageId: text('message_id').notNull(),
     auditId: uuid('audit_id'),
+    messageDeleted: boolean('message_deleted').notNull().default(false),
+    failureReason: text('failure_reason'),
+    failedAt: timestamp('failed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

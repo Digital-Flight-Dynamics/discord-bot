@@ -27,3 +27,28 @@ export async function findLatestActionNotification(
         .limit(1);
     return rows[0] ?? null;
 }
+
+export async function findActionNotificationByMessageId(
+    messageId: string,
+): Promise<ModerationActionNotification | null> {
+    const db = getDb();
+    const rows = await db
+        .select()
+        .from(moderationActionNotifications)
+        .where(eq(moderationActionNotifications.messageId, messageId))
+        .limit(1);
+    return rows[0] ?? null;
+}
+
+export async function markActionNotificationFailed(id: string, reason: string): Promise<void> {
+    const db = getDb();
+    await db
+        .update(moderationActionNotifications)
+        .set({
+            messageDeleted: true,
+            failureReason: reason,
+            failedAt: new Date(),
+            updatedAt: new Date(),
+        })
+        .where(eq(moderationActionNotifications.id, id));
+}

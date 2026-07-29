@@ -67,12 +67,27 @@ export function buildActionIdCandidate(
 /** Regex for the Action ID shape. */
 export const ACTION_ID_RE = /^A\d{2}\d{2}\.\d{2}[TWKBSX]\d{2}-[XYZ]$/i;
 
+/**
+ * Accept Action IDs with either separator omitted, with no separators, and
+ * optionally without the visual `A` prefix.
+ */
+export function normalizeActionId(raw: string): string {
+    const cleaned = raw.trim().replace(/[`#]/g, '').toUpperCase();
+    if (ACTION_ID_RE.test(cleaned)) return cleaned;
+
+    let compact = cleaned.replace(/[^A-Z0-9]/g, '');
+    if (/^\d{6}[TWKBSX]\d{2}[XYZ]$/.test(compact)) compact = `A${compact}`;
+    if (!/^A\d{6}[TWKBSX]\d{2}[XYZ]$/.test(compact)) return cleaned;
+
+    return `${compact.slice(0, 5)}.${compact.slice(5, 10)}-${compact.slice(10)}`;
+}
+
 export async function actionIdExists(actionId: string): Promise<boolean> {
     const db = getDb();
     const rows = await db
         .select({ id: actionIds.actionId })
         .from(actionIds)
-        .where(eq(actionIds.actionId, actionId))
+        .where(eq(actionIds.actionId, normalizeActionId(actionId)))
         .limit(1);
     return rows.length > 0;
 }
@@ -86,7 +101,7 @@ export async function resolveActionId(
     const rows = await db
         .select({ recordType: actionIds.recordType, recordUuid: actionIds.recordUuid })
         .from(actionIds)
-        .where(and(eq(actionIds.actionId, actionId), eq(actionIds.guildId, guildId)))
+        .where(and(eq(actionIds.actionId, normalizeActionId(actionId)), eq(actionIds.guildId, guildId)))
         .limit(1);
     return rows[0] ?? null;
 }

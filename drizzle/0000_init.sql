@@ -155,12 +155,16 @@ CREATE TABLE IF NOT EXISTS "mod_log_messages" (
 	"thread_id" text,
 	"subject_user_id" text,
 	"moderator_user_id" text,
+	"message_deleted" boolean DEFAULT false NOT NULL,
+	"thread_deleted" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "mod_log_messages_message_id_unique" UNIQUE("message_id")
 );
 
 CREATE INDEX IF NOT EXISTS "mod_log_messages_guild_id_created_at_idx" ON "mod_log_messages" ("guild_id", "created_at" DESC);
 CREATE INDEX IF NOT EXISTS "mod_log_messages_case_id_idx" ON "mod_log_messages" ("case_id");
+ALTER TABLE "mod_log_messages" ADD COLUMN IF NOT EXISTS "message_deleted" boolean DEFAULT false NOT NULL;
+ALTER TABLE "mod_log_messages" ADD COLUMN IF NOT EXISTS "thread_deleted" boolean DEFAULT false NOT NULL;
 
 CREATE TABLE IF NOT EXISTS "timeouts" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
@@ -303,11 +307,17 @@ CREATE TABLE IF NOT EXISTS "moderation_action_notifications" (
 	"channel_id" text NOT NULL,
 	"message_id" text NOT NULL,
 	"audit_id" uuid,
+	"message_deleted" boolean DEFAULT false NOT NULL,
+	"failure_reason" text,
+	"failed_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS "moderation_action_notifications_action_id_kind_idx" ON "moderation_action_notifications" ("action_id", "kind");
+ALTER TABLE "moderation_action_notifications" ADD COLUMN IF NOT EXISTS "message_deleted" boolean DEFAULT false NOT NULL;
+ALTER TABLE "moderation_action_notifications" ADD COLUMN IF NOT EXISTS "failure_reason" text;
+ALTER TABLE "moderation_action_notifications" ADD COLUMN IF NOT EXISTS "failed_at" timestamp with time zone;
 
 CREATE TABLE IF NOT EXISTS "pending_moderation_actions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,

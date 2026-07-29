@@ -22,6 +22,7 @@ import {
 import { startPresenceRotation } from './runtime/presence';
 import { resumeStalePendingModeration } from './lib/moderationExecute';
 import { registerDiscordModerationTracker } from './lib/discordModerationTracker';
+import { registerModerationMessageTracker } from './lib/moderationMessageTracker';
 import { handleHoneypotMessage } from './lib/honeypot';
 import {
     handleModerationAutocomplete,
@@ -73,6 +74,7 @@ for (const util of utils) {
     client.on(util.event, util.execute);
 }
 registerDiscordModerationTracker(client);
+registerModerationMessageTracker(client);
 
 client.on('interactionCreate', async (interaction) => {
     if (interaction.isAutocomplete()) {

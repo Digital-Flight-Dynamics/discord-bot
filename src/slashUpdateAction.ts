@@ -20,14 +20,17 @@ import {
 import {
     createModerationActionNotification,
     findLatestActionNotification,
+    markActionNotificationFailed,
 } from './db/repositories/moderationActionNotifications';
-import { findModLogByCase } from './db/repositories/modLogMessages';
+import { findModLogByCase, markModLogMessageDeleted } from './db/repositories/modLogMessages';
 import { captureIdentitySnapshot } from './db/repositories/snapshots';
 import { bans, identitySnapshots, kicks, timeouts, warnings, type ActionIdRow, type ModCaseType } from './db/schema';
 import { createEmbed, EmbedColors } from './lib/embed';
 import { tryDmUser } from './lib/moderationNotify';
 import { parseDurationToMs, parseDurationToSeconds } from './lib/moderation';
 import { appealUrl, discordAuditReason, modLogMessageUrl, modPortalUrl } from './lib/moderationFormat';
+import { handleDeletedModLogThread } from './lib/moderationMessageTracker';
+import { normalizeActionId } from './lib/actionId';
 
 const MAX_TIMEOUT_MS = 28 * 24 * 60 * 60 * 1000;
 const MAX_PURGE_SECONDS = 7 * 24 * 60 * 60;
@@ -243,19 +246,17 @@ export async function handleUpdateActionCommand(interaction: ChatInputCommandInt
             notificationChannelId: notificationResult.channelId ?? null,
             notificationMessageId: notificationResult.messageId ?? null,
         });
-        await Promise.all([
-            refreshModLogAudit(interaction.client, interaction.guild, loaded),
-            postThreadAuditEmbed(
-                interaction.client,
-                interaction.guild,
-                loaded,
-                interaction.user,
-                applied.label,
-                applied.newDisplay,
-                rationale,
-                notificationResult,
-            ),
-        ]);
+        await refreshModLogAudit(interaction.client, interaction.guild, loaded);
+        await postThreadAuditEmbed(
+            interaction.client,
+            interaction.guild,
+            loaded,
+            interaction.user,
+            applied.label,
+            applied.newDisplay,
+            rationale,
+            notificationResult,
+        );
 
         const links = await updateActionLinks(interaction.guild.id, loaded);
         await interaction.editReply({
@@ -332,19 +333,17 @@ async function handleActionResolution(interaction: ChatInputCommandInteraction):
             notificationMessageId: notificationResult.messageId ?? null,
         });
 
-        await Promise.all([
-            refreshModLogAudit(interaction.client, guild, loaded, status),
-            postThreadResolutionEmbed(
-                interaction.client,
-                guild,
-                loaded,
-                interaction.user,
-                status,
-                reason,
-                publicNote,
-                notificationResult,
-            ),
-        ]);
+        await refreshModLogAudit(interaction.client, guild, loaded, status);
+        await postThreadResolutionEmbed(
+            interaction.client,
+            guild,
+            loaded,
+            interaction.user,
+            status,
+            reason,
+            publicNote,
+            notificationResult,
+        );
 
         const links = await updateActionLinks(guild.id, loaded);
         await interaction.editReply({
@@ -361,10 +360,6 @@ async function handleActionResolution(interaction: ChatInputCommandInteraction):
             .editReply({ embeds: [errorEmbed(err instanceof Error ? err.message : 'Something went wrong.')] })
             .catch(console.error);
     }
-}
-
-function normalizeActionId(raw: string): string {
-    return raw.trim().replace(/^`|`$/g, '').replace(/^#/, '').toUpperCase();
 }
 
 function getNewValue(interaction: ChatInputCommandInteraction, kind: UpdateChangeKind): string {
@@ -634,11 +629,18 @@ async function refreshModLogAudit(
     resolutionStatus?: ResolutionStatus,
 ): Promise<void> {
     const modLog = await findModLogByCase(loaded.caseType, loaded.actionId.recordUuid);
-    if (!modLog) return;
+    if (!modLog || modLog.messageDeleted) return;
     const channel = await client.channels.fetch(modLog.channelId).catch(() => null);
-    if (!channel?.isTextBased() || channel.isDMBased()) return;
+    if (!channel?.isTextBased() || channel.isDMBased()) {
+        await markModLogMessageDeleted(modLog.id);
+        return;
+    }
     const message = await channel.messages.fetch(modLog.messageId).catch(() => null);
-    if (!message || message.embeds.length === 0) return;
+    if (!message) {
+        await markModLogMessageDeleted(modLog.id);
+        return;
+    }
+    if (message.embeds.length === 0) return;
 
     const audits = await listModerationActionAudits(loaded.actionId.actionId);
     const auditValue = formatAuditLogField(audits);
@@ -671,9 +673,12 @@ async function postThreadAuditEmbed(
     notificationResult: NotificationResult,
 ): Promise<void> {
     const modLog = await findModLogByCase(loaded.caseType, loaded.actionId.recordUuid);
-    if (!modLog?.threadId) return;
+    if (!modLog?.threadId || modLog.messageDeleted || modLog.threadDeleted) return;
     const thread = await client.channels.fetch(modLog.threadId).catch(() => null);
-    if (!thread?.isTextBased() || thread.isDMBased()) return;
+    if (!thread?.isTextBased() || thread.isDMBased()) {
+        await handleDeletedModLogThread(client, modLog);
+        return;
+    }
     const member = await guild.members.fetch(moderator.id).catch(() => null);
     await thread.send({
         embeds: [
@@ -711,9 +716,12 @@ async function postThreadResolutionEmbed(
     notificationResult: NotificationResult,
 ): Promise<void> {
     const modLog = await findModLogByCase(loaded.caseType, loaded.actionId.recordUuid);
-    if (!modLog?.threadId) return;
+    if (!modLog?.threadId || modLog.messageDeleted || modLog.threadDeleted) return;
     const thread = await client.channels.fetch(modLog.threadId).catch(() => null);
-    if (!thread?.isTextBased() || thread.isDMBased()) return;
+    if (!thread?.isTextBased() || thread.isDMBased()) {
+        await handleDeletedModLogThread(client, modLog);
+        return;
+    }
     const member = await guild.members.fetch(moderator.id).catch(() => null);
     const fields = [
         {
@@ -753,10 +761,17 @@ async function editResolutionDm(
 ): Promise<NotificationResult> {
     const stored = await findLatestActionNotification(loaded.actionId.actionId, 'action-dm');
     if (!stored) return { status: 'failed', detail: 'Original action DM was not stored.' };
+    if (stored.messageDeleted) {
+        return { status: 'failed', detail: stored.failureReason || 'Original DM message was deleted.' };
+    }
     const channel = await client.channels.fetch(stored.channelId).catch(() => null);
     if (!channel?.isTextBased()) return { status: 'failed', detail: 'Original DM channel is unavailable.' };
     const message = await channel.messages.fetch(stored.messageId).catch(() => null);
-    if (!message) return { status: 'failed', detail: 'Original DM message is unavailable.' };
+    if (!message) {
+        const detail = 'Original DM message was deleted or is unavailable.';
+        await markActionNotificationFailed(stored.id, detail);
+        return { status: 'failed', detail };
+    }
 
     const current = message.embeds[0];
     const embed = current
@@ -822,12 +837,19 @@ async function editOriginalActionDm(
 ): Promise<NotificationResult> {
     const stored = await findLatestActionNotification(loaded.actionId.actionId, 'action-dm');
     if (!stored) return { status: 'failed', detail: 'Original action DM was not stored.' };
+    if (stored.messageDeleted) {
+        return { status: 'failed', detail: stored.failureReason || 'Original DM message was deleted.' };
+    }
     const channel = await client.channels.fetch(stored.channelId).catch(() => null);
     if (!channel?.isTextBased()) {
         return { status: 'failed', detail: 'Original DM channel is unavailable.' };
     }
     const message = await channel.messages.fetch(stored.messageId).catch(() => null);
-    if (!message) return { status: 'failed', detail: 'Original DM message is unavailable.' };
+    if (!message) {
+        const detail = 'Original DM message was deleted or is unavailable.';
+        await markActionNotificationFailed(stored.id, detail);
+        return { status: 'failed', detail };
+    }
 
     const current = message.embeds[0];
     const embed = current
@@ -928,7 +950,9 @@ function userActionNoun(actionName: string): string {
 async function updateActionLinks(guildId: string, loaded: LoadedAction): Promise<string> {
     const modLog = await findModLogByCase(loaded.caseType, loaded.actionId.recordUuid);
     const links = [
-        modLog ? `[View mod log](${modLogMessageUrl(guildId, modLog.channelId, modLog.messageId)})` : null,
+        modLog && !modLog.messageDeleted
+            ? `[View mod log](${modLogMessageUrl(guildId, modLog.channelId, modLog.messageId)})`
+            : null,
         `[View on ATC](${modPortalUrl(loaded.actionId.actionId)})`,
     ];
     return links.filter(Boolean).join(' • ');
