@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto';
 import { and, eq } from 'drizzle-orm';
 import { getDb } from '../db/client';
 import { actionIds } from '../db/schema';
@@ -14,9 +15,8 @@ import { actionIds } from '../db/schema';
  *   .   separator
  *   YY  UTC year (2 digits, e.g. 26)
  *   K   kind letter: T timeout, W warning, K kick, B ban, S softban
- *   NN  random two-digit number 00–99
- *   -   separator before trailing letter
- *   L   random letter X, Y, or Z
+ *   -   separator
+ *   R   64 bits of cryptographically secure random hex
  *
  * Examples:
  *   A0701.26W42-X  — warning on 2026-01-07
@@ -28,7 +28,6 @@ import { actionIds } from '../db/schema';
  */
 
 const MAX_ATTEMPTS = 32;
-const XYZ = 'XYZ';
 
 export type ActionRecordType = 'warning' | 'kick' | 'ban' | 'softban' | 'timeout' | 'other';
 
@@ -59,13 +58,13 @@ export function buildActionIdCandidate(
     const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
     const yy = String(date.getUTCFullYear()).slice(-2);
     const kind = actionKindLetter(recordType);
-    const nn = String(Math.floor(Math.random() * 100)).padStart(2, '0');
-    const letter = XYZ[Math.floor(Math.random() * XYZ.length)];
-    return `A${dd}${mm}.${yy}${kind}${nn}-${letter}`;
+    const random = randomBytes(8).toString('hex').toUpperCase();
+    return `A${dd}${mm}.${yy}${kind}-${random}`;
 }
 
 /** Regex for the Action ID shape. */
-export const ACTION_ID_RE = /^A\d{2}\d{2}\.\d{2}[TWKBSX]\d{2}-[XYZ]$/i;
+export const ACTION_ID_RE = /^A\d{4}\.\d{2}[TWKBSX]-(?:[A-F0-9]{16}|\d{2}-[XYZ])$/i;
+const LEGACY_ACTION_ID_RE = /^A\d{4}\.\d{2}[TWKBSX]\d{2}-[XYZ]$/i;
 
 /**
  * Accept Action IDs with either separator omitted, with no separators, and
@@ -73,13 +72,15 @@ export const ACTION_ID_RE = /^A\d{2}\d{2}\.\d{2}[TWKBSX]\d{2}-[XYZ]$/i;
  */
 export function normalizeActionId(raw: string): string {
     const cleaned = raw.trim().replace(/[`#]/g, '').toUpperCase();
-    if (ACTION_ID_RE.test(cleaned)) return cleaned;
+    if (ACTION_ID_RE.test(cleaned) || LEGACY_ACTION_ID_RE.test(cleaned)) return cleaned;
 
-    let compact = cleaned.replace(/[^A-Z0-9]/g, '');
-    if (/^\d{6}[TWKBSX]\d{2}[XYZ]$/.test(compact)) compact = `A${compact}`;
-    if (!/^A\d{6}[TWKBSX]\d{2}[XYZ]$/.test(compact)) return cleaned;
-
-    return `${compact.slice(0, 5)}.${compact.slice(5, 10)}-${compact.slice(10)}`;
+    const compact = cleaned.replace(/[^A-Z0-9]/g, '');
+    if (/^A\d{6}[TWKBSX][A-F0-9]{16}$/.test(compact)) {
+        return `${compact.slice(0, 5)}.${compact.slice(5, 8)}-${compact.slice(8)}`;
+    }
+    if (/^\d{6}[TWKBSX]\d{2}[XYZ]$/.test(compact)) return `A${compact.slice(0, 5)}.${compact.slice(5, 10)}-${compact.slice(10)}`;
+    if (/^A\d{6}[TWKBSX]\d{2}[XYZ]$/.test(compact)) return `${compact.slice(0, 5)}.${compact.slice(5, 10)}-${compact.slice(10)}`;
+    return cleaned;
 }
 
 export async function actionIdExists(actionId: string): Promise<boolean> {

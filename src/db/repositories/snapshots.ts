@@ -1,4 +1,5 @@
 import { GuildMember, User } from 'discord.js';
+import { inArray } from 'drizzle-orm';
 import { getDb } from '../client';
 import { identitySnapshots, IdentitySnapshot } from '../schema';
 
@@ -12,6 +13,13 @@ export type SnapshotSubject = {
     /** Retained for call-site compatibility; profile enrichment is no longer supported. */
     enrichProfile?: boolean;
 };
+
+export async function loadIdentitySnapshotsByIds(ids: string[]) {
+    const unique = Array.from(new Set(ids.filter(Boolean)));
+    if (unique.length === 0) return new Map<string, IdentitySnapshot>();
+    const rows = await getDb().select().from(identitySnapshots).where(inArray(identitySnapshots.id, unique));
+    return new Map(rows.map((row) => [row.id, row]));
+}
 
 export async function captureIdentitySnapshot(input: SnapshotSubject): Promise<IdentitySnapshot> {
     const user = input.user || input.member?.user || null;

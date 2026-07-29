@@ -6,7 +6,7 @@ import { createEmbed, color as dfdBlue, EmbedColors } from './lib/embed';
 import { channels, config, prefix, roleGroups } from './config';
 import { configLoadError } from './config/load';
 import { CONFIG_DOCS, logMissingRequiredChannel } from './config/errors';
-import { describeConfigGaps, isConfigEmpty, listMissingModerationCapabilities, logUnsetChannelConstants } from './config/validate';
+import { describeConfigGaps, logUnsetChannelConstants, validateConfig } from './config/validate';
 import logs from './logging';
 import utils from './utils';
 import { startHealthServer } from './health';
@@ -280,15 +280,16 @@ async function main() {
     // Config already loaded at import; assess completeness / load errors
     if (configLoadError) {
         addSoftLockReason(`Config load failed: ${configLoadError}`);
-    } else if (isConfigEmpty(config)) {
-        // One [ERROR] line per missing channels.* constant
-        logUnsetChannelConstants(config);
-        addSoftLockReason(describeConfigGaps(config) || 'Workspace constants incomplete', { silent: true });
-    }
-    const missingModerationCapabilities = listMissingModerationCapabilities(config);
-    if (missingModerationCapabilities.length > 0) {
-        missingModerationCapabilities.forEach(logMissingRequiredChannel);
-        addSoftLockReason(`Moderation requires ${missingModerationCapabilities.join(' and ')}`, { silent: true });
+    } else {
+        const validation = validateConfig(config);
+        if (validation.isEmpty) {
+            logUnsetChannelConstants(config);
+            addSoftLockReason(describeConfigGaps(config) || 'Workspace constants incomplete', { silent: true });
+        }
+        if (validation.missingModerationCapabilities.length > 0) {
+            validation.missingModerationCapabilities.forEach(logMissingRequiredChannel);
+            addSoftLockReason(`Moderation requires ${validation.missingModerationCapabilities.join(' and ')}`, { silent: true });
+        }
     }
 
     try {

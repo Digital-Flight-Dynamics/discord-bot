@@ -8,7 +8,7 @@ import {
     SlashCommandBuilder,
     User,
 } from 'discord.js';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { getDb } from './db/client';
 import { findActionId } from './db/repositories/actionIds';
 import {
@@ -23,7 +23,7 @@ import {
 } from './db/repositories/moderationActionNotifications';
 import { findModLogByCase, markModLogMessageDeleted } from './db/repositories/modLogMessages';
 import { captureIdentitySnapshot } from './db/repositories/snapshots';
-import { bans, identitySnapshots, kicks, timeouts, warnings, type ActionIdRow, type ModCaseType } from './db/schema';
+import { bans, identitySnapshots, kicks, moderationActionAudits, timeouts, warnings, type ActionIdRow, type ModCaseType } from './db/schema';
 import { createEmbed, EmbedColors } from './lib/embed';
 import { tryDmUser } from './lib/moderationNotify';
 import { parseDurationToMs, parseDurationToSeconds } from './lib/moderation';
@@ -58,8 +58,12 @@ export const updateActionSlashCommand = new SlashCommandBuilder()
             .setName('change-reason')
             .setDescription('Update the public/staff reason on an action')
             .addStringOption((o) => o.setName('action-id').setDescription('Public action ID').setRequired(true))
-            .addStringOption((o) => o.setName('new-reason').setDescription('New reason').setRequired(true))
-            .addStringOption((o) => o.setName('rationale').setDescription('Why this edit is being made').setRequired(true))
+            .addStringOption((o) => o.setName('new-reason').setDescription('New reason').setRequired(true).setMaxLength(MAX_REASON_LENGTH))
+            .addStringOption((o) => o
+                    .setName('rationale')
+                    .setDescription('Why this edit is being made')
+                    .setRequired(true)
+                    .setMaxLength(MAX_REASON_LENGTH))
             .addStringOption((o) =>
                 o
                     .setName('notification-mode')
@@ -77,8 +81,12 @@ export const updateActionSlashCommand = new SlashCommandBuilder()
             .setName('change-note')
             .setDescription('Update the private staff note on an action')
             .addStringOption((o) => o.setName('action-id').setDescription('Public action ID').setRequired(true))
-            .addStringOption((o) => o.setName('new-note').setDescription('New private note').setRequired(true))
-            .addStringOption((o) => o.setName('rationale').setDescription('Why this edit is being made').setRequired(true))
+            .addStringOption((o) => o.setName('new-note').setDescription('New private note').setRequired(true).setMaxLength(MAX_PRIVATE_NOTE_LENGTH))
+            .addStringOption((o) => o
+                    .setName('rationale')
+                    .setDescription('Why this edit is being made')
+                    .setRequired(true)
+                    .setMaxLength(MAX_REASON_LENGTH))
             .addStringOption((o) =>
                 o
                     .setName('notification-mode')
@@ -97,7 +105,11 @@ export const updateActionSlashCommand = new SlashCommandBuilder()
             .setDescription('Update timeout/ban duration from now')
             .addStringOption((o) => o.setName('action-id').setDescription('Public action ID').setRequired(true))
             .addStringOption((o) => o.setName('new-duration').setDescription('New duration, e.g. 7d or 7 days').setRequired(true))
-            .addStringOption((o) => o.setName('rationale').setDescription('Why this edit is being made').setRequired(true))
+            .addStringOption((o) => o
+                    .setName('rationale')
+                    .setDescription('Why this edit is being made')
+                    .setRequired(true)
+                    .setMaxLength(MAX_REASON_LENGTH))
             .addStringOption((o) =>
                 o
                     .setName('notification-mode')
@@ -116,7 +128,11 @@ export const updateActionSlashCommand = new SlashCommandBuilder()
             .setDescription('Update or clear warning/timeout/ban expiration')
             .addStringOption((o) => o.setName('action-id').setDescription('Public action ID').setRequired(true))
             .addStringOption((o) => o.setName('new-expiration').setDescription('New expiration, duration, or clear').setRequired(true))
-            .addStringOption((o) => o.setName('rationale').setDescription('Why this edit is being made').setRequired(true))
+            .addStringOption((o) => o
+                    .setName('rationale')
+                    .setDescription('Why this edit is being made')
+                    .setRequired(true)
+                    .setMaxLength(MAX_REASON_LENGTH))
             .addStringOption((o) =>
                 o
                     .setName('notification-mode')
@@ -135,7 +151,11 @@ export const updateActionSlashCommand = new SlashCommandBuilder()
             .setDescription('Update recorded ban/soft-ban message purge duration')
             .addStringOption((o) => o.setName('action-id').setDescription('Public action ID').setRequired(true))
             .addStringOption((o) => o.setName('new-purge-duration').setDescription('New purge duration, e.g. 1d').setRequired(true))
-            .addStringOption((o) => o.setName('rationale').setDescription('Why this edit is being made').setRequired(true))
+            .addStringOption((o) => o
+                    .setName('rationale')
+                    .setDescription('Why this edit is being made')
+                    .setRequired(true)
+                    .setMaxLength(MAX_REASON_LENGTH))
             .addStringOption((o) =>
                 o
                     .setName('notification-mode')
@@ -164,10 +184,10 @@ export const updateActionSlashCommand = new SlashCommandBuilder()
                     ),
             )
             .addStringOption((o) =>
-                o.setName('reason').setDescription('Why this action is being resolved').setRequired(true),
+                o.setName('reason').setDescription('Why this action is being resolved').setRequired(true).setMaxLength(MAX_REASON_LENGTH),
             )
             .addStringOption((o) =>
-                o.setName('public-note').setDescription('Optional note shown to the affected user'),
+                o.setName('public-note').setDescription('Optional note shown to the affected user').setMaxLength(MAX_PRIVATE_NOTE_LENGTH),
             ),
     )
     .toJSON();
@@ -306,25 +326,16 @@ async function handleActionResolution(interaction: ChatInputCommandInteraction):
             discordUserId: interaction.user.id,
         });
 
-        const resolution = await applyActionResolution(guild, loaded, status, reason, publicNote, moderatorSnap.id, interaction.user);
-        const audit = await createModerationActionAudit({
-            guildId: guild.id,
-            actionId: loaded.actionId.actionId,
-            recordType: loaded.actionId.recordType,
-            recordUuid: loaded.actionId.recordUuid,
-            changeType: label,
+        const resolution = await applyActionResolution(guild, loaded, reason, interaction.user);
+        const audit = await commitActionResolutionAndAudit({
+            loaded,
+            status,
+            reason,
+            publicNote,
             moderatorSnapshotId: moderatorSnap.id,
             moderatorUserId: interaction.user.id,
-            oldValue: null,
-            newValue: label,
-            rationale: reason,
-            notifyUser: true,
-            metadata: {
-                resolutionStatus: status,
-                publicNote,
-                notificationMode: 'silent-edit',
-                userNotUnbanned: resolution.userNotUnbanned,
-            },
+            userNotUnbanned: resolution.userNotUnbanned,
+            label,
         });
 
         const notificationResult = await editResolutionDm(interaction.client, loaded, status, publicNote);
@@ -458,33 +469,18 @@ async function loadAction(guildId: string, actionId: string): Promise<LoadedActi
 async function applyActionResolution(
     guild: Guild,
     loaded: LoadedAction,
-    status: ResolutionStatus,
     reason: string,
-    publicNote: string | null,
-    moderatorSnapshotId: string,
     moderator: User,
 ): Promise<{ userNotUnbanned: boolean }> {
-    const db = getDb();
-    const id = loaded.actionId.recordUuid;
-    const resolvedAt = new Date();
-    const resolution = {
-        resolutionStatus: status,
-        resolvedAt,
-        resolvedByModeratorSnapshotId: moderatorSnapshotId,
-        resolutionReason: reason,
-        resolutionPublicNote: publicNote,
-    };
-
     let userNotUnbanned = false;
     if (loaded.caseType === 'ban' && loaded.subjectUserId) {
         const otherBanExists = await hasOtherActiveBan({
             guildId: guild.id,
             discordUserId: loaded.subjectUserId,
-            excludingBanId: id,
+            excludingBanId: loaded.actionId.recordUuid,
         });
-        if (otherBanExists) {
-            userNotUnbanned = true;
-        } else {
+        if (otherBanExists) userNotUnbanned = true;
+        else {
             const activeBan = await guild.bans.fetch(loaded.subjectUserId).catch((err) => {
                 if (err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownBan) return null;
                 throw err;
@@ -502,38 +498,80 @@ async function applyActionResolution(
         const member = await guild.members.fetch(loaded.subjectUserId).catch(() => null);
         if (member?.communicationDisabledUntilTimestamp && member.communicationDisabledUntilTimestamp > Date.now()) {
             if (!member.manageable) throw new Error('The timeout could not be removed because this member is not manageable.');
-            await member.timeout(
-                null,
-                discordAuditReason(loaded.actionId.actionId, moderator.username, moderator.id, reason),
-            );
+            await member.timeout(null, discordAuditReason(loaded.actionId.actionId, moderator.username, moderator.id, reason));
         }
     }
-
-    if (loaded.caseType === 'warning') {
-        await db
-            .update(warnings)
-            .set({
-                ...resolution,
-                removedAt: resolvedAt,
-                removedByModeratorSnapshotId: moderatorSnapshotId,
-            })
-            .where(eq(warnings.id, id));
-    } else if (loaded.caseType === 'kick') {
-        await db.update(kicks).set(resolution).where(eq(kicks.id, id));
-    } else if (loaded.caseType === 'ban') {
-        await db
-            .update(bans)
-            .set({
-                ...resolution,
-                liftedAt: resolvedAt,
-                liftedByModeratorSnapshotId: moderatorSnapshotId,
-                liftReason: `${resolutionLabel(status)}: ${reason}`,
-            })
-            .where(eq(bans.id, id));
-    } else if (loaded.caseType === 'timeout') {
-        await db.update(timeouts).set(resolution).where(eq(timeouts.id, id));
-    }
     return { userNotUnbanned };
+}
+
+/** Atomically commits the case resolution and its immutable audit entry. */
+async function commitActionResolutionAndAudit(input: {
+    loaded: LoadedAction;
+    status: ResolutionStatus;
+    reason: string;
+    publicNote: string | null;
+    moderatorSnapshotId: string;
+    moderatorUserId: string;
+    userNotUnbanned: boolean;
+    label: string;
+}) {
+    const db = getDb();
+    const resolvedAt = new Date();
+    const resolution = {
+        resolutionStatus: input.status,
+        resolvedAt,
+        resolvedByModeratorSnapshotId: input.moderatorSnapshotId,
+        resolutionReason: input.reason,
+        resolutionPublicNote: input.publicNote,
+    };
+
+    return db.transaction(async (tx) => {
+        const id = input.loaded.actionId.recordUuid;
+        let updated: unknown;
+        if (input.loaded.caseType === 'warning') {
+            [updated] = await tx
+                .update(warnings)
+                .set({ ...resolution, removedAt: resolvedAt, removedByModeratorSnapshotId: input.moderatorSnapshotId })
+                .where(and(eq(warnings.id, id), isNull(warnings.resolutionStatus)))
+                .returning();
+        } else if (input.loaded.caseType === 'kick') {
+            [updated] = await tx.update(kicks).set(resolution).where(and(eq(kicks.id, id), isNull(kicks.resolutionStatus))).returning();
+        } else if (input.loaded.caseType === 'ban') {
+            [updated] = await tx
+                .update(bans)
+                .set({
+                    ...resolution,
+                    liftedAt: resolvedAt,
+                    liftedByModeratorSnapshotId: input.moderatorSnapshotId,
+                    liftReason: `${resolutionLabel(input.status)}: ${input.reason}`,
+                })
+                .where(and(eq(bans.id, id), isNull(bans.resolutionStatus)))
+                .returning();
+        } else {
+            [updated] = await tx.update(timeouts).set(resolution).where(and(eq(timeouts.id, id), isNull(timeouts.resolutionStatus))).returning();
+        }
+        if (!updated) throw new Error('This action was resolved by another moderator.');
+        const [audit] = await tx.insert(moderationActionAudits).values({
+            guildId: input.loaded.actionId.guildId,
+            actionId: input.loaded.actionId.actionId,
+            recordType: input.loaded.actionId.recordType,
+            recordUuid: input.loaded.actionId.recordUuid,
+            changeType: input.label,
+            moderatorSnapshotId: input.moderatorSnapshotId,
+            moderatorUserId: input.moderatorUserId,
+            oldValue: null,
+            newValue: input.label,
+            rationale: input.reason,
+            notifyUser: true,
+            metadata: {
+                resolutionStatus: input.status,
+                publicNote: input.publicNote,
+                notificationMode: 'silent-edit',
+                userNotUnbanned: input.userNotUnbanned,
+            },
+        }).returning();
+        return audit;
+    });
 }
 
 async function applyActionUpdate(
@@ -545,7 +583,8 @@ async function applyActionUpdate(
     moderator: User,
 ): Promise<{ label: string; oldDisplay: string | null; newDisplay: string; metadata: Record<string, unknown> }> {
     if (!rawValue) throw new Error('New value cannot be empty.');
-    if (kind === 'reason' && rawValue.length > MAX_REASON_LENGTH) throw new Error(`Reasons cannot exceed ${MAX_REASON_LENGTH} characters.`);
+    if (kind === 'reason' && rawValue.length > MAX_REASON_LENGTH)
+        throw new Error(`Reasons cannot exceed ${MAX_REASON_LENGTH} characters.`);
     if (kind === 'note' && rawValue.length > MAX_PRIVATE_NOTE_LENGTH)
         throw new Error(`Private notes cannot exceed ${MAX_PRIVATE_NOTE_LENGTH} characters.`);
     const db = getDb();

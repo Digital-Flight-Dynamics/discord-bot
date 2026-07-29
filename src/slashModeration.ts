@@ -114,7 +114,7 @@ export const moderationSlashCommands = [
                 .setName('create')
                 .setDescription('Create a moderation preset')
                 .addStringOption((o) => o.setName('name').setDescription('Preset name').setRequired(true))
-                .addStringOption((o) => o.setName('reason').setDescription('Reason text').setRequired(true))
+                .addStringOption((o) => o.setName('reason').setDescription('Reason text').setRequired(true).setMaxLength(MAX_REASON_LENGTH))
                 .addStringOption((o) =>
                     o.setName('duration').setDescription(`Timeouts & bans only: duration, ${durationExample}`),
                 )
@@ -130,7 +130,7 @@ export const moderationSlashCommands = [
                     o.setName('preset').setDescription('Preset to edit').setRequired(true).setAutocomplete(true),
                 )
                 .addStringOption((o) => o.setName('name').setDescription('New preset name'))
-                .addStringOption((o) => o.setName('reason').setDescription('New reason text'))
+                .addStringOption((o) => o.setName('reason').setDescription('New reason text').setMaxLength(MAX_REASON_LENGTH))
                 .addStringOption((o) =>
                     o.setName('duration').setDescription(`Timeouts & bans only: duration, ${durationExample}`),
                 )

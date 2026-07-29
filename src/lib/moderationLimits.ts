@@ -1,7 +1,8 @@
 import { modPortalUrl } from './moderationFormat';
 
-export const MAX_REASON_LENGTH = 500;
-export const MAX_PRIVATE_NOTE_LENGTH = 500;
+export const MAX_REASON_LENGTH = 1000;
+export const MAX_PRIVATE_NOTE_LENGTH = 1000;
+export const MAX_MODERATION_DISPLAY_LENGTH = 280;
 export const MAX_EMBED_FIELD_LENGTH = 1024;
 
 export function limitModerationText(value: string, max: number): string {
@@ -9,7 +10,7 @@ export function limitModerationText(value: string, max: number): string {
 }
 
 /** Keep Discord embeds valid while preserving a link to the full case on ATC. */
-export function moderationTextForEmbed(value: string | null | undefined, actionId: string, max = MAX_EMBED_FIELD_LENGTH): string {
+export function moderationTextForEmbed(value: string | null | undefined, actionId: string, max = MAX_MODERATION_DISPLAY_LENGTH): string {
     const text = value?.trim() || 'None';
     if (text.length <= max) return text;
     const suffix = `….\n\n[More on ATC](${modPortalUrl(actionId)})`;

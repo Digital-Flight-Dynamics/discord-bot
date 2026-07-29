@@ -12,6 +12,22 @@ export function isConfigEmpty(cfg: BotWorkspaceConfig): boolean {
     return unset.length >= Math.max(1, CHANNEL_KEYS.length - 1);
 }
 
+export type ConfigValidation = {
+    missingChannels: string[];
+    missingModerationCapabilities: string[];
+    isEmpty: boolean;
+};
+
+/** One deterministic view of startup configuration health. */
+export function validateConfig(cfg: BotWorkspaceConfig): ConfigValidation {
+    const missingChannels = listUnsetChannelConstants(cfg);
+    return {
+        missingChannels,
+        missingModerationCapabilities: listMissingModerationCapabilities(cfg),
+        isEmpty: missingChannels.length >= Math.max(1, CHANNEL_KEYS.length - 1),
+    };
+}
+
 /** Moderation needs case logs and its automated honeypot channel. */
 export function listMissingModerationCapabilities(cfg: BotWorkspaceConfig): string[] {
     return ['modLogs', 'honeypot']

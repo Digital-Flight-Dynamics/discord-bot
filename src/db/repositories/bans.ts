@@ -2,6 +2,7 @@ import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, ne, or } from 'driz
 import { getDb } from '../client';
 import { actionIds, bans, Ban, BanType, identitySnapshots } from '../schema';
 import { LinkedMessage } from '../../lib/moderation';
+import { loadIdentitySnapshotsByIds } from './snapshots';
 import { allocateActionId } from '../../lib/actionId';
 
 export type BanWithSnapshots = Ban & {
@@ -9,16 +10,8 @@ export type BanWithSnapshots = Ban & {
     moderator: typeof identitySnapshots.$inferSelect | null;
 };
 
-async function loadSnapshotsByIds(ids: string[]) {
-    const unique = Array.from(new Set(ids.filter(Boolean)));
-    if (unique.length === 0) return new Map<string, typeof identitySnapshots.$inferSelect>();
-    const db = getDb();
-    const rows = await db.select().from(identitySnapshots).where(inArray(identitySnapshots.id, unique));
-    return new Map(rows.map((r) => [r.id, r]));
-}
-
 async function hydrate(rows: Ban[]): Promise<BanWithSnapshots[]> {
-    const snapMap = await loadSnapshotsByIds(
+    const snapMap = await loadIdentitySnapshotsByIds(
         rows.flatMap((r) => [r.subjectSnapshotId, r.moderatorSnapshotId, r.liftedByModeratorSnapshotId].filter(Boolean) as string[]),
     );
     return rows.map((r) => ({
