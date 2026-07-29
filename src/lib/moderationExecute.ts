@@ -82,7 +82,12 @@ function commandConfirmEmbed(opts: {
 export async function executePendingModeration(
     client: Client,
     pending: PendingModerationAction,
-    opts?: { privateNote?: string | null; timedOut?: boolean; cancelled?: boolean },
+    opts?: {
+        privateNote?: string | null;
+        timedOut?: boolean;
+        cancelled?: boolean;
+        preActionDm?: DmResult;
+    },
 ): Promise<ModerationExecutionResult> {
     if (opts?.cancelled) {
         const current = (await getPendingModerationById(pending.id).catch(() => null)) || pending;
@@ -177,6 +182,7 @@ export async function executePendingModeration(
                     timedOut,
                     linked,
                     soft: pending.banType === 'soft',
+                    dmOverride: opts?.preActionDm,
                 });
             case 'timeout':
                 return executeTimeout(client, guild, pending, {
@@ -220,6 +226,7 @@ type ExecCtx = {
     noteDisplay: string;
     timedOut: boolean;
     linked?: LinkedMessage | null;
+    dmOverride?: DmResult;
 };
 
 const fieldValue = (value: string) => value.slice(0, 1024);
@@ -590,20 +597,22 @@ async function executeBan(
 
     const counts = await getInfractionCounts(guild.id, pending.subjectUserId);
     const publicId = row.actionId || row.id;
-    const dm = await tryDmUser(ctx.subjectUser, {
-        embeds: [
-            userActionDmEmbed({
-                guild,
-                color: EmbedColors.FAILURE,
-                actionPast: ctx.soft ? 'soft-banned' : 'banned',
-                actionName: 'ban',
-                actionId: publicId,
-                reason: pending.reason,
-                expiresAt: pending.expiresAt,
-                infractionNumber: counts.bans,
-            }),
-        ],
-    });
+    const dm =
+        ctx.dmOverride ??
+        (await tryDmUser(ctx.subjectUser, {
+            embeds: [
+                userActionDmEmbed({
+                    guild,
+                    color: EmbedColors.FAILURE,
+                    actionPast: ctx.soft ? 'soft-banned' : 'banned',
+                    actionName: 'ban',
+                    actionId: publicId,
+                    reason: pending.reason,
+                    expiresAt: pending.expiresAt,
+                    infractionNumber: counts.bans,
+                }),
+            ],
+        }));
     await storeActionDm({
         guildId: guild.id,
         actionId: publicId,
