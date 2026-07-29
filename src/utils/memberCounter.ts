@@ -40,7 +40,7 @@ async function resolveMemberCountChannel(client: Client) {
 }
 
 export const memberCounter: UtilDefinition = {
-    event: 'ready',
+    event: 'clientReady',
     execute: (client: Client) => {
         let missingLogged = false;
 

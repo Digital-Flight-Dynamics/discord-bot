@@ -17,7 +17,6 @@ import {
     formatModeratorBlock,
     formatUserInformationBlock,
     getInfractionCounts,
-    modLogMessageUrl,
     modPortalUrl,
     notifiedLine,
 } from './moderationFormat';
@@ -273,10 +272,8 @@ async function postDiscordCaseLog(
         ],
         footerUrl: modPortalUrl(opts.actionId),
     });
-    if (modLog) {
-        console.log(`[mod] Tracked Discord-level ${opts.action}: ${opts.actionId} (${modLogMessageUrl(guild.id, modLog.channelId, modLog.messageId)})`);
-    }
     void client;
+    void modLog;
 }
 
 async function latestAuditForTarget(guild: Guild, event: AuditLogEvent, targetId: string) {

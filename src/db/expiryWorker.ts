@@ -37,7 +37,6 @@ export function startExpiryWorker(client: Client, intervalMs = DEFAULT_INTERVAL_
 
                 if (shouldLift) {
                     await liftBanById(ban.id, 'expired');
-                    console.log(`Expiry worker: lifted ban ${ban.id} for user ${userId}`);
                 }
             }
         } catch (err) {

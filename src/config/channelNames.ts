@@ -15,6 +15,7 @@ export const CHANNEL_DISCORD_NAMES: Record<ChannelKey, string> = {
     info: 'info',
     logs: 'audit-logs',
     modLogs: 'mod-logs',
+    honeypot: 'honeypot',
     management: 'management',
     memberArrivals: 'arrivals',
     // Created as this name; memberCounter util renames to "Member Count: N"
@@ -60,6 +61,7 @@ export const CHANNEL_CATEGORY_BY_KEY: Record<ChannelKey, ChannelCategoryName> = 
 
     logs: CHANNEL_CATEGORY_NAMES.moderation,
     modLogs: CHANNEL_CATEGORY_NAMES.moderation,
+    honeypot: CHANNEL_CATEGORY_NAMES.moderation,
     management: CHANNEL_CATEGORY_NAMES.moderation,
     botMessages: CHANNEL_CATEGORY_NAMES.moderation,
 };

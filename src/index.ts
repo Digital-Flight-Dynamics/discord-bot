@@ -22,6 +22,7 @@ import {
 import { startPresenceRotation } from './runtime/presence';
 import { resumeStalePendingModeration } from './lib/moderationExecute';
 import { registerDiscordModerationTracker } from './lib/discordModerationTracker';
+import { handleHoneypotMessage } from './lib/honeypot';
 import {
     handleModerationAutocomplete,
     handleModerationSlashCommand,
@@ -98,9 +99,7 @@ client.on('interactionCreate', async (interaction) => {
 
     try {
         const handled = await handleModerationSlashCommand(interaction);
-        if (handled) {
-            console.log(`Successfully ran slash command "/${interaction.commandName}" by ${interaction.user.tag}`);
-        }
+        void handled;
     } catch (error) {
         console.error(`Failed to run slash command "/${interaction.commandName}" by ${interaction.user.tag}.`, error);
         if (interaction.replied || interaction.deferred) {
@@ -124,12 +123,13 @@ client.on('interactionCreate', async (interaction) => {
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
+    if (await handleHoneypotMessage(client, message)) return;
+
     const isDm = message.channel.type === Discord.ChannelType.DM;
     const isCommand = message.content.startsWith(prefix);
 
     // log all DMs which are sent to the bot
     if (isDm) {
-        console.log(`DM sent by ${message.author.tag}`);
         if (isSoftLocked()) return;
 
         const guild =
@@ -173,7 +173,6 @@ client.on('messageCreate', async (message) => {
 
     // if the command is not found
     if (!cmdToExec) {
-        console.error(`Failed to run command "${message.content}" by ${message.author.tag} in #${message.channel.name}. Command was not found.`);
         return;
     }
 
@@ -253,9 +252,8 @@ client.on('messageCreate', async (message) => {
     // attempt to execute command
     try {
         await cmdToExec.execute(message, args).catch(console.error);
-        console.log(`Successfully ran command "${message.content}" by ${message.author.tag} in #${message.channel.name}`);
     } catch (error) {
-        console.log(`Failed to run command "${message.content}" by ${message.author.tag} in #${message.channel.name}. ${error}`);
+        console.error(`Failed to run command "${message.content}" by ${message.author.tag} in #${message.channel.name}.`, error);
     }
 });
 

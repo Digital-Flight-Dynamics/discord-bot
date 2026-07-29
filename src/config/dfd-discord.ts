@@ -18,6 +18,7 @@ const dfdDiscord: BotWorkspaceConfig = {
         info: '808810478574501918',
         logs: '808804241350197258', // audit-logs
         modLogs: '000000000000000000', // set to your #mod-logs channel id
+        honeypot: '000000000000000000', // set to your honeypot channel id
         management: '908006127118204939',
         memberArrivals: '808793231621750815',
         memberCounter: '818980706516336650',

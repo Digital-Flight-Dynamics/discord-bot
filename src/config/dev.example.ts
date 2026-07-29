@@ -28,6 +28,7 @@ const dev: BotWorkspaceConfig = {
         info: '000000000000000000',
         logs: '000000000000000000', // audit-logs
         modLogs: '000000000000000000', // mod-logs
+        honeypot: '000000000000000000',
         management: '000000000000000000',
         memberArrivals: '000000000000000000',
         memberCounter: '000000000000000000',

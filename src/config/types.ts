@@ -62,6 +62,8 @@ export type BotWorkspaceConfig = {
          * Bootstrap name: mod-logs
          */
         modLogs: string;
+        /** Any non-bot message here triggers an automatic two-hour soft-ban purge. */
+        honeypot: string;
         management: string;
         memberArrivals: string;
         memberCounter: string;

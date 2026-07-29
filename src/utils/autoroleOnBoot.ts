@@ -3,7 +3,7 @@ import { UtilDefinition } from './index';
 import { roles } from '../config';
 
 export const autoroleOnBoot: UtilDefinition = {
-    event: 'ready',
+    event: 'clientReady',
     execute: async (client: Client) => {
         const guild = client.guilds.cache.first();
         if (!guild) return;
