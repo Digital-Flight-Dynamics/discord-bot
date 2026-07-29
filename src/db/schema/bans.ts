@@ -23,6 +23,11 @@ export const bans = pgTable('bans', {
     liftedByModeratorSnapshotId: uuid('lifted_by_moderator_snapshot_id').references(() => identitySnapshots.id),
     liftReason: text('lift_reason'),
     source: text('source').notNull().default('bot'),
+    resolutionStatus: text('resolution_status'),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolvedByModeratorSnapshotId: uuid('resolved_by_moderator_snapshot_id').references(() => identitySnapshots.id),
+    resolutionReason: text('resolution_reason'),
+    resolutionPublicNote: text('resolution_public_note'),
 });
 
 export type Ban = typeof bans.$inferSelect;

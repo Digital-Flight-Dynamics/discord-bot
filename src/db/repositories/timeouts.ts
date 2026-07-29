@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { getDb } from '../client';
 import { identitySnapshots, timeouts, Timeout } from '../schema';
 import { allocateActionId } from '../../lib/actionId';
@@ -49,7 +49,13 @@ export async function countTimeoutsForUser(guildId: string, discordUserId: strin
         .select({ id: timeouts.id })
         .from(timeouts)
         .innerJoin(identitySnapshots, eq(timeouts.subjectSnapshotId, identitySnapshots.id))
-        .where(and(eq(timeouts.guildId, guildId), eq(identitySnapshots.discordUserId, discordUserId)));
+        .where(
+            and(
+                eq(timeouts.guildId, guildId),
+                eq(identitySnapshots.discordUserId, discordUserId),
+                isNull(timeouts.resolutionStatus),
+            ),
+        );
     return rows.length;
 }
 

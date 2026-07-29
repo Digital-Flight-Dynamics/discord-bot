@@ -3,7 +3,7 @@ import type { IdentitySnapshot } from '../db/schema';
 import { countActiveWarnings, listAllWarnings } from '../db/repositories/warnings';
 import { listKicksForUser } from '../db/repositories/kicks';
 import { listBansForUser } from '../db/repositories/bans';
-import { countTimeoutsForUser } from '../db/repositories/timeouts';
+import { listTimeoutsForUser } from '../db/repositories/timeouts';
 
 export function formatOrdinal(n: number): string {
     const mod100 = n % 100;
@@ -109,6 +109,10 @@ export type InfractionCounts = {
     mutes: number;
     kicks: number;
     bans: number;
+    warningsRevoked: number;
+    mutesRevoked: number;
+    kicksRevoked: number;
+    bansRevoked: number;
 };
 
 export async function getInfractionCounts(guildId: string, discordUserId: string): Promise<InfractionCounts> {
@@ -117,14 +121,22 @@ export async function getInfractionCounts(guildId: string, discordUserId: string
         listAllWarnings(guildId, discordUserId),
         listKicksForUser(guildId, discordUserId),
         listBansForUser(guildId, discordUserId),
-        countTimeoutsForUser(guildId, discordUserId),
+        listTimeoutsForUser(guildId, discordUserId),
     ]);
+    const activeWarnings = allWarnings.filter((warning) => !warning.resolutionStatus);
+    const activeKicks = kicks.filter((kick) => !kick.resolutionStatus);
+    const activeBans = bans.filter((ban) => !ban.resolutionStatus);
+    const activeMutes = mutes.filter((timeout) => !timeout.resolutionStatus);
     return {
-        warningsTotal: allWarnings.length,
+        warningsTotal: activeWarnings.length,
         warningsActive,
-        mutes,
-        kicks: kicks.length,
-        bans: bans.length,
+        mutes: activeMutes.length,
+        kicks: activeKicks.length,
+        bans: activeBans.length,
+        warningsRevoked: allWarnings.length - activeWarnings.length,
+        mutesRevoked: mutes.length - activeMutes.length,
+        kicksRevoked: kicks.length - activeKicks.length,
+        bansRevoked: bans.length - activeBans.length,
     };
 }
 
@@ -138,15 +150,19 @@ export function formatInfractionCountLine(
     const actionWord =
         action === 'warning' ? 'warning' : action === 'kick' ? 'kick' : action === 'ban' ? 'ban' : 'mute';
     const otherCounts = [
-        action !== 'warning' ? `**${counts.warningsTotal}** warning(s)` : null,
-        action !== 'timeout' ? `**${counts.mutes}** mute(s)` : null,
-        action !== 'kick' ? `**${counts.kicks}** kick(s)` : null,
-        action !== 'ban' ? `**${counts.bans}** ban(s)` : null,
+        action !== 'warning' ? formatRecordCount(counts.warningsTotal, counts.warningsRevoked, 'warning') : null,
+        action !== 'timeout' ? formatRecordCount(counts.mutes, counts.mutesRevoked, 'mute') : null,
+        action !== 'kick' ? formatRecordCount(counts.kicks, counts.kicksRevoked, 'kick') : null,
+        action !== 'ban' ? formatRecordCount(counts.bans, counts.bansRevoked, 'ban') : null,
     ].filter((item): item is string => Boolean(item));
     return (
         `This is their **${formatOrdinal(n)}** ${actionWord}. ` +
         `They have ${joinWithAnd(otherCounts)} on their record.`
     );
+}
+
+function formatRecordCount(active: number, revoked: number, noun: string): string {
+    return `**${active}**${revoked > 0 ? ` [${revoked}R]` : ''} ${noun}(s)`;
 }
 
 function joinWithAnd(items: string[]): string {

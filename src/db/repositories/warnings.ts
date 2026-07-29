@@ -72,7 +72,11 @@ export async function createWarning(input: {
 }
 
 function activeWarningConditions(now = new Date()): SQL {
-    return and(isNull(warnings.removedAt), or(isNull(warnings.expiresAt), gt(warnings.expiresAt, now)))!;
+    return and(
+        isNull(warnings.removedAt),
+        isNull(warnings.resolutionStatus),
+        or(isNull(warnings.expiresAt), gt(warnings.expiresAt, now)),
+    )!;
 }
 
 export async function countActiveWarnings(guildId: string, discordUserId: string): Promise<number> {

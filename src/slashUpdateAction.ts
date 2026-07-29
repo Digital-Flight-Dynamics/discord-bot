@@ -1,9 +1,11 @@
 import {
     ChatInputCommandInteraction,
     Client,
+    DiscordAPIError,
     EmbedBuilder,
     Guild,
     PermissionFlagsBits,
+    RESTJSONErrorCodes,
     SlashCommandBuilder,
     User,
 } from 'discord.js';
@@ -32,6 +34,7 @@ const MAX_PURGE_SECONDS = 7 * 24 * 60 * 60;
 
 type UpdateChangeKind = 'reason' | 'note' | 'duration' | 'expiration' | 'purge-duration';
 type NotificationMode = 'no' | 'silent-edit' | 'notify';
+type ResolutionStatus = 'revoked' | 'appeal-approved';
 type NotificationResult = { status: string; detail?: string; channelId?: string; messageId?: string };
 
 type LoadedAction = {
@@ -141,6 +144,28 @@ export const updateActionSlashCommand = new SlashCommandBuilder()
                     ),
             ),
     )
+    .addSubcommand((sub) =>
+        sub
+            .setName('revoke')
+            .setDescription('Revoke an action or record that its appeal was approved')
+            .addStringOption((o) => o.setName('action-id').setDescription('Public action ID').setRequired(true))
+            .addStringOption((o) =>
+                o
+                    .setName('outcome')
+                    .setDescription('How this action was resolved')
+                    .setRequired(true)
+                    .addChoices(
+                        { name: 'Action Revoked', value: 'revoked' },
+                        { name: 'Appeal Approved', value: 'appeal-approved' },
+                    ),
+            )
+            .addStringOption((o) =>
+                o.setName('reason').setDescription('Why this action is being resolved').setRequired(true),
+            )
+            .addStringOption((o) =>
+                o.setName('public-note').setDescription('Optional note shown to the affected user'),
+            ),
+    )
     .toJSON();
 
 export async function handleUpdateActionCommand(interaction: ChatInputCommandInteraction): Promise<boolean> {
@@ -153,6 +178,11 @@ export async function handleUpdateActionCommand(interaction: ChatInputCommandInt
     await interaction.reply({ embeds: [createEmbed({ color: 0xf97316, description: '*Working on it...*' })], ephemeral: true });
 
     const subcommand = interaction.options.getSubcommand();
+    if (subcommand === 'revoke') {
+        await handleActionResolution(interaction);
+        return true;
+    }
+
     const kind = subcommand.replace(/^change-/, '') as UpdateChangeKind;
     const actionId = normalizeActionId(interaction.options.getString('action-id', true));
     const newValue = getNewValue(interaction, kind);
@@ -235,6 +265,95 @@ export async function handleUpdateActionCommand(interaction: ChatInputCommandInt
         await interaction.editReply({ embeds: [errorEmbed(message)] }).catch(console.error);
     }
     return true;
+}
+
+async function handleActionResolution(interaction: ChatInputCommandInteraction): Promise<void> {
+    const guild = interaction.guild;
+    if (!guild) return;
+    const actionId = normalizeActionId(interaction.options.getString('action-id', true));
+    const status = interaction.options.getString('outcome', true) as ResolutionStatus;
+    const reason = interaction.options.getString('reason', true).trim();
+    const publicNote = interaction.options.getString('public-note')?.trim() || null;
+    const label = status === 'appeal-approved' ? 'Appeal Approved' : 'Action Revoked';
+
+    try {
+        const loaded = await loadAction(guild.id, actionId);
+        if (!loaded) {
+            await interaction.editReply({ embeds: [errorEmbed('Action ID not found.')] });
+            return;
+        }
+        if (loaded.record.resolutionStatus) {
+            throw new Error(`This action has already been resolved as ${titleCase(String(loaded.record.resolutionStatus))}.`);
+        }
+
+        const moderatorMember = await guild.members.fetch(interaction.user.id).catch(() => null);
+        const moderatorSnap = await captureIdentitySnapshot({
+            member: moderatorMember || undefined,
+            user: interaction.user,
+            discordUserId: interaction.user.id,
+            enrichProfile: false,
+        });
+
+        await applyActionResolution(guild, loaded, status, reason, publicNote, moderatorSnap.id);
+        const audit = await createModerationActionAudit({
+            guildId: guild.id,
+            actionId: loaded.actionId.actionId,
+            recordType: loaded.actionId.recordType,
+            recordUuid: loaded.actionId.recordUuid,
+            changeType: label,
+            moderatorSnapshotId: moderatorSnap.id,
+            moderatorUserId: interaction.user.id,
+            oldValue: null,
+            newValue: label,
+            rationale: reason,
+            notifyUser: true,
+            metadata: {
+                resolutionStatus: status,
+                publicNote,
+                notificationMode: 'silent-edit',
+            },
+        });
+
+        const notificationResult = await editResolutionDm(interaction.client, loaded, status, publicNote);
+        await updateModerationActionAuditMetadata(audit.id, {
+            resolutionStatus: status,
+            publicNote,
+            notificationMode: 'silent-edit',
+            notificationStatus: notificationResult.status,
+            notificationDetail: notificationResult.detail ?? null,
+            notificationChannelId: notificationResult.channelId ?? null,
+            notificationMessageId: notificationResult.messageId ?? null,
+        });
+
+        await Promise.all([
+            refreshModLogAudit(interaction.client, guild, loaded, status),
+            postThreadResolutionEmbed(
+                interaction.client,
+                guild,
+                loaded,
+                interaction.user,
+                status,
+                reason,
+                publicNote,
+                notificationResult,
+            ),
+        ]);
+
+        const links = await updateActionLinks(guild.id, loaded);
+        await interaction.editReply({
+            embeds: [
+                createEmbed({
+                    color: EmbedColors.SUCCESS,
+                    description: `Done, action has been ${status === 'appeal-approved' ? 'marked as appeal approved' : 'revoked'}\n\n${links}`,
+                }),
+            ],
+        });
+    } catch (err) {
+        console.error('[ERROR] Failed to revoke moderation action:', err);
+        await interaction
+            .editReply({ embeds: [errorEmbed(err instanceof Error ? err.message : 'Something went wrong.')] })
+            .catch(console.error);
+    }
 }
 
 function normalizeActionId(raw: string): string {
@@ -322,6 +441,69 @@ async function loadAction(guildId: string, actionId: string): Promise<LoadedActi
     }
 
     return null;
+}
+
+async function applyActionResolution(
+    guild: Guild,
+    loaded: LoadedAction,
+    status: ResolutionStatus,
+    reason: string,
+    publicNote: string | null,
+    moderatorSnapshotId: string,
+): Promise<void> {
+    const db = getDb();
+    const id = loaded.actionId.recordUuid;
+    const resolvedAt = new Date();
+    const resolution = {
+        resolutionStatus: status,
+        resolvedAt,
+        resolvedByModeratorSnapshotId: moderatorSnapshotId,
+        resolutionReason: reason,
+        resolutionPublicNote: publicNote,
+    };
+
+    if (loaded.caseType === 'ban' && loaded.subjectUserId) {
+        const activeBan = await guild.bans.fetch(loaded.subjectUserId).catch((err) => {
+            if (err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownBan) return null;
+            throw err;
+        });
+        if (activeBan) {
+            await guild.members.unban(loaded.subjectUserId, `${resolutionLabel(status)}: ${reason}`);
+        }
+    }
+
+    if (loaded.caseType === 'timeout' && loaded.subjectUserId) {
+        const member = await guild.members.fetch(loaded.subjectUserId).catch(() => null);
+        if (member?.communicationDisabledUntilTimestamp && member.communicationDisabledUntilTimestamp > Date.now()) {
+            if (!member.manageable) throw new Error('The timeout could not be removed because this member is not manageable.');
+            await member.timeout(null, `${resolutionLabel(status)}: ${reason}`);
+        }
+    }
+
+    if (loaded.caseType === 'warning') {
+        await db
+            .update(warnings)
+            .set({
+                ...resolution,
+                removedAt: resolvedAt,
+                removedByModeratorSnapshotId: moderatorSnapshotId,
+            })
+            .where(eq(warnings.id, id));
+    } else if (loaded.caseType === 'kick') {
+        await db.update(kicks).set(resolution).where(eq(kicks.id, id));
+    } else if (loaded.caseType === 'ban') {
+        await db
+            .update(bans)
+            .set({
+                ...resolution,
+                liftedAt: resolvedAt,
+                liftedByModeratorSnapshotId: moderatorSnapshotId,
+                liftReason: `${resolutionLabel(status)}: ${reason}`,
+            })
+            .where(eq(bans.id, id));
+    } else if (loaded.caseType === 'timeout') {
+        await db.update(timeouts).set(resolution).where(eq(timeouts.id, id));
+    }
 }
 
 async function applyActionUpdate(
@@ -430,7 +612,12 @@ async function updateTextField(loaded: LoadedAction, field: 'reason' | 'note', v
     else await db.update(timeouts).set({ privateNote: value }).where(eq(timeouts.id, id));
 }
 
-async function refreshModLogAudit(client: Client, guild: Guild, loaded: LoadedAction): Promise<void> {
+async function refreshModLogAudit(
+    client: Client,
+    guild: Guild,
+    loaded: LoadedAction,
+    resolutionStatus?: ResolutionStatus,
+): Promise<void> {
     const modLog = await findModLogByCase(loaded.caseType, loaded.actionId.recordUuid);
     if (!modLog) return;
     const channel = await client.channels.fetch(modLog.channelId).catch(() => null);
@@ -442,9 +629,19 @@ async function refreshModLogAudit(client: Client, guild: Guild, loaded: LoadedAc
     const auditValue = formatAuditLogField(audits);
     const current = message.embeds[0];
     const embed = EmbedBuilder.from(current);
+    embed.setDescription(
+        `Action ID: \`${loaded.actionId.actionId}\` • [View on ATC](${modPortalUrl(loaded.actionId.actionId)})`,
+    );
     const fields = (current.fields || []).filter((field) => field.name !== 'Audit Log');
     fields.push({ name: 'Audit Log', value: truncate(auditValue, 1024), inline: false });
     embed.setFields(fields);
+    if (resolutionStatus) {
+        const currentTitle = (current.title || `A user has received a ${loaded.actionName}`).replace(
+            /^\[(?:REVOKED|APPEAL APPROVED)\]\s*/i,
+            '',
+        );
+        embed.setTitle(`[${resolutionTitle(resolutionStatus)}] ${currentTitle}`);
+    }
     await message.edit({ embeds: [embed] }).catch(console.error);
 }
 
@@ -486,6 +683,105 @@ async function postThreadAuditEmbed(
             }),
         ],
     }).catch(console.error);
+}
+
+async function postThreadResolutionEmbed(
+    client: Client,
+    guild: Guild,
+    loaded: LoadedAction,
+    moderator: User,
+    status: ResolutionStatus,
+    reason: string,
+    publicNote: string | null,
+    notificationResult: NotificationResult,
+): Promise<void> {
+    const modLog = await findModLogByCase(loaded.caseType, loaded.actionId.recordUuid);
+    if (!modLog?.threadId) return;
+    const thread = await client.channels.fetch(modLog.threadId).catch(() => null);
+    if (!thread?.isTextBased() || thread.isDMBased()) return;
+    const member = await guild.members.fetch(moderator.id).catch(() => null);
+    const fields = [
+        {
+            name: 'Moderator Information',
+            value: `Tag: ${moderator.tag}\nName: ${member?.displayName || moderator.username}\nID: \`${moderator.id}\``,
+            inline: false,
+        },
+        { name: 'Outcome', value: resolutionLabel(status), inline: false },
+        { name: 'Reason', value: truncate(reason, 1024), inline: false },
+        ...(publicNote
+            ? [{ name: 'Public Note', value: truncate(quoteBlock(publicNote), 1024), inline: false }]
+            : []),
+        {
+            name: 'Notification',
+            value: truncate(formatNotificationResult(notificationResult), 1024),
+            inline: false,
+        },
+    ];
+    await thread
+        .send({
+            embeds: [
+                createEmbed({
+                    color: EmbedColors.WARNING,
+                    title: `${titleCase(loaded.actionName)} ${status === 'appeal-approved' ? 'appeal approved' : 'revoked'}`,
+                    fields,
+                }),
+            ],
+        })
+        .catch(console.error);
+}
+
+async function editResolutionDm(
+    client: Client,
+    loaded: LoadedAction,
+    status: ResolutionStatus,
+    publicNote: string | null,
+): Promise<NotificationResult> {
+    const stored = await findLatestActionNotification(loaded.actionId.actionId, 'action-dm');
+    if (!stored) return { status: 'failed', detail: 'Original action DM was not stored.' };
+    const channel = await client.channels.fetch(stored.channelId).catch(() => null);
+    if (!channel?.isTextBased()) return { status: 'failed', detail: 'Original DM channel is unavailable.' };
+    const message = await channel.messages.fetch(stored.messageId).catch(() => null);
+    if (!message) return { status: 'failed', detail: 'Original DM message is unavailable.' };
+
+    const current = message.embeds[0];
+    const embed = current
+        ? EmbedBuilder.from(current)
+        : createEmbed({
+              color: EmbedColors.WARNING,
+              description: `**Action ID**: \`${loaded.actionId.actionId}\``,
+          });
+    const baseTitle = (current?.title || `You received a ${loaded.actionName}`).replace(
+        /^\[(?:REVOKED|APPEAL APPROVED)\]\s*/i,
+        '',
+    );
+    embed.setTitle(`[${resolutionTitle(status)}] ${baseTitle}`);
+
+    const existingFields = current?.fields || [];
+    const reasonField = existingFields.find((field) => field.name.toLowerCase() === 'reason');
+    const fields = existingFields
+        .filter(
+            (field) =>
+                !['reason', 'notice', 'appeal', 'action revoked', 'appeal approved'].includes(field.name.toLowerCase()),
+        )
+        .map((field) => ({ name: field.name, value: field.value, inline: field.inline }));
+    fields.unshift({
+        name: 'Original Reason',
+        value: truncate(reasonField?.value || stringValue(loaded.record.reason) || 'No reason provided', 1024),
+        inline: false,
+    });
+    fields.push({
+        name: resolutionLabel(status),
+        value: truncate(resolutionUserMessage(status, publicNote), 1024),
+        inline: false,
+    });
+    embed.setFields(fields);
+
+    try {
+        const edited = await message.edit({ embeds: [embed] });
+        return { status: 'edited', channelId: edited.channelId, messageId: edited.id };
+    } catch (err) {
+        return { status: 'failed', detail: errorMessage(err) };
+    }
 }
 
 async function handleUserNotification(
@@ -712,6 +1008,22 @@ function auditNotificationLine(metadata: Record<string, unknown>): string | null
     const detail = typeof metadata.notificationDetail === 'string' ? metadata.notificationDetail : null;
     if (mode === 'no' && (!status || status === 'not-requested')) return null;
     return `**Notification**: ${formatNotificationResult({ status: status || mode, detail: detail || undefined })}`;
+}
+
+function resolutionLabel(status: ResolutionStatus): string {
+    return status === 'appeal-approved' ? 'Appeal Approved' : 'Action Revoked';
+}
+
+function resolutionTitle(status: ResolutionStatus): string {
+    return status === 'appeal-approved' ? 'APPEAL APPROVED' : 'REVOKED';
+}
+
+function resolutionUserMessage(status: ResolutionStatus, publicNote: string | null): string {
+    const message =
+        status === 'appeal-approved'
+            ? 'The moderation team has approved your appeal for this action. It may remain on your account record until its duration expires.'
+            : 'The moderation team has decided to revoke this action from your account. It has been removed from your record.';
+    return publicNote ? `${message}\n\n**Note from Moderation:**\n${quoteBlock(publicNote)}` : message;
 }
 
 function errorMessage(err: unknown): string {

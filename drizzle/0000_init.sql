@@ -27,6 +27,11 @@ CREATE TABLE IF NOT EXISTS "warnings" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"removed_at" timestamp with time zone,
 	"removed_by_moderator_snapshot_id" uuid,
+	"resolution_status" text,
+	"resolved_at" timestamp with time zone,
+	"resolved_by_moderator_snapshot_id" uuid,
+	"resolution_reason" text,
+	"resolution_public_note" text,
 	"legacy_mongo_id" text,
 	CONSTRAINT "warnings_legacy_mongo_id_unique" UNIQUE("legacy_mongo_id")
 );
@@ -45,7 +50,12 @@ CREATE TABLE IF NOT EXISTS "kicks" (
 	"linked_message_deleted" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"is_automated" boolean DEFAULT false NOT NULL,
-	"source" text DEFAULT 'bot' NOT NULL
+	"source" text DEFAULT 'bot' NOT NULL,
+	"resolution_status" text,
+	"resolved_at" timestamp with time zone,
+	"resolved_by_moderator_snapshot_id" uuid,
+	"resolution_reason" text,
+	"resolution_public_note" text
 );
 
 ALTER TABLE "kicks" ADD COLUMN IF NOT EXISTS "source" text DEFAULT 'bot' NOT NULL;
@@ -69,7 +79,12 @@ CREATE TABLE IF NOT EXISTS "bans" (
 	"lifted_at" timestamp with time zone,
 	"lifted_by_moderator_snapshot_id" uuid,
 	"lift_reason" text,
-	"source" text DEFAULT 'bot' NOT NULL
+	"source" text DEFAULT 'bot' NOT NULL,
+	"resolution_status" text,
+	"resolved_at" timestamp with time zone,
+	"resolved_by_moderator_snapshot_id" uuid,
+	"resolution_reason" text,
+	"resolution_public_note" text
 );
 
 ALTER TABLE "bans" ADD COLUMN IF NOT EXISTS "source" text DEFAULT 'bot' NOT NULL;
@@ -159,11 +174,37 @@ CREATE TABLE IF NOT EXISTS "timeouts" (
 	"duration_token" text,
 	"expires_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"source" text DEFAULT 'bot' NOT NULL
+	"source" text DEFAULT 'bot' NOT NULL,
+	"resolution_status" text,
+	"resolved_at" timestamp with time zone,
+	"resolved_by_moderator_snapshot_id" uuid,
+	"resolution_reason" text,
+	"resolution_public_note" text
 );
 
 ALTER TABLE "timeouts" ADD COLUMN IF NOT EXISTS "source" text DEFAULT 'bot' NOT NULL;
 ALTER TABLE "timeouts" ALTER COLUMN "duration_ms" TYPE bigint;
+
+ALTER TABLE "warnings" ADD COLUMN IF NOT EXISTS "resolution_status" text;
+ALTER TABLE "warnings" ADD COLUMN IF NOT EXISTS "resolved_at" timestamp with time zone;
+ALTER TABLE "warnings" ADD COLUMN IF NOT EXISTS "resolved_by_moderator_snapshot_id" uuid;
+ALTER TABLE "warnings" ADD COLUMN IF NOT EXISTS "resolution_reason" text;
+ALTER TABLE "warnings" ADD COLUMN IF NOT EXISTS "resolution_public_note" text;
+ALTER TABLE "kicks" ADD COLUMN IF NOT EXISTS "resolution_status" text;
+ALTER TABLE "kicks" ADD COLUMN IF NOT EXISTS "resolved_at" timestamp with time zone;
+ALTER TABLE "kicks" ADD COLUMN IF NOT EXISTS "resolved_by_moderator_snapshot_id" uuid;
+ALTER TABLE "kicks" ADD COLUMN IF NOT EXISTS "resolution_reason" text;
+ALTER TABLE "kicks" ADD COLUMN IF NOT EXISTS "resolution_public_note" text;
+ALTER TABLE "bans" ADD COLUMN IF NOT EXISTS "resolution_status" text;
+ALTER TABLE "bans" ADD COLUMN IF NOT EXISTS "resolved_at" timestamp with time zone;
+ALTER TABLE "bans" ADD COLUMN IF NOT EXISTS "resolved_by_moderator_snapshot_id" uuid;
+ALTER TABLE "bans" ADD COLUMN IF NOT EXISTS "resolution_reason" text;
+ALTER TABLE "bans" ADD COLUMN IF NOT EXISTS "resolution_public_note" text;
+ALTER TABLE "timeouts" ADD COLUMN IF NOT EXISTS "resolution_status" text;
+ALTER TABLE "timeouts" ADD COLUMN IF NOT EXISTS "resolved_at" timestamp with time zone;
+ALTER TABLE "timeouts" ADD COLUMN IF NOT EXISTS "resolved_by_moderator_snapshot_id" uuid;
+ALTER TABLE "timeouts" ADD COLUMN IF NOT EXISTS "resolution_reason" text;
+ALTER TABLE "timeouts" ADD COLUMN IF NOT EXISTS "resolution_public_note" text;
 
 DO $$ BEGIN
  ALTER TABLE "timeouts" ADD CONSTRAINT "timeouts_subject_snapshot_id_identity_snapshots_id_fk" FOREIGN KEY ("subject_snapshot_id") REFERENCES "public"."identity_snapshots"("id") ON DELETE no action ON UPDATE no action;
@@ -173,6 +214,30 @@ END $$;
 
 DO $$ BEGIN
  ALTER TABLE "timeouts" ADD CONSTRAINT "timeouts_moderator_snapshot_id_identity_snapshots_id_fk" FOREIGN KEY ("moderator_snapshot_id") REFERENCES "public"."identity_snapshots"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+ ALTER TABLE "warnings" ADD CONSTRAINT "warnings_resolved_by_moderator_snapshot_id_identity_snapshots_id_fk" FOREIGN KEY ("resolved_by_moderator_snapshot_id") REFERENCES "public"."identity_snapshots"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+ ALTER TABLE "kicks" ADD CONSTRAINT "kicks_resolved_by_moderator_snapshot_id_identity_snapshots_id_fk" FOREIGN KEY ("resolved_by_moderator_snapshot_id") REFERENCES "public"."identity_snapshots"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+ ALTER TABLE "bans" ADD CONSTRAINT "bans_resolved_by_moderator_snapshot_id_identity_snapshots_id_fk" FOREIGN KEY ("resolved_by_moderator_snapshot_id") REFERENCES "public"."identity_snapshots"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+ ALTER TABLE "timeouts" ADD CONSTRAINT "timeouts_resolved_by_moderator_snapshot_id_identity_snapshots_id_fk" FOREIGN KEY ("resolved_by_moderator_snapshot_id") REFERENCES "public"."identity_snapshots"("id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;

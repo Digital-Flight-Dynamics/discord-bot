@@ -20,6 +20,11 @@ export const warnings = pgTable('warnings', {
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     removedAt: timestamp('removed_at', { withTimezone: true }),
     removedByModeratorSnapshotId: uuid('removed_by_moderator_snapshot_id').references(() => identitySnapshots.id),
+    resolutionStatus: text('resolution_status'),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolvedByModeratorSnapshotId: uuid('resolved_by_moderator_snapshot_id').references(() => identitySnapshots.id),
+    resolutionReason: text('resolution_reason'),
+    resolutionPublicNote: text('resolution_public_note'),
     legacyMongoId: text('legacy_mongo_id').unique(),
 });
 

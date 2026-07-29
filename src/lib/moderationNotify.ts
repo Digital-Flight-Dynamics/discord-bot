@@ -108,7 +108,12 @@ export async function logModerationAction(
         {
             color: opts.color ?? EmbedColors.WARNING,
             title: opts.title || `A user has been ${actionPastFromDescription(opts.description)}`,
-            description: opts.footerUrl ? `[View on ATC](${opts.footerUrl})` : undefined,
+            description: [
+                opts.actionId ? `Action ID: \`${opts.actionId}\`` : null,
+                opts.footerUrl ? `[View on ATC](${opts.footerUrl})` : null,
+            ]
+                .filter(Boolean)
+                .join(' • ') || undefined,
             fields: opts.fields,
         },
         true,
