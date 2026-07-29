@@ -83,8 +83,8 @@ async function main() {
                 }
 
                 const subject = await client.query(
-                    `INSERT INTO identity_snapshots (discord_user_id, username, display_name, pronouns, bio, urls)
-                     VALUES ($1, NULL, NULL, NULL, NULL, '[]'::jsonb)
+                    `INSERT INTO identity_snapshots (discord_user_id, username, display_name)
+                     VALUES ($1, NULL, NULL)
                      RETURNING id`,
                     [userId],
                 );

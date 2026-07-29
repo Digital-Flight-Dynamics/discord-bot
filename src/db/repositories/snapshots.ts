@@ -1,7 +1,6 @@
 import { GuildMember, User } from 'discord.js';
 import { getDb } from '../client';
 import { identitySnapshots, IdentitySnapshot } from '../schema';
-import { fetchUserProfile } from '../profile';
 
 export type SnapshotSubject = {
     user?: User | null;
@@ -10,6 +9,7 @@ export type SnapshotSubject = {
     discordUserId?: string;
     username?: string | null;
     displayName?: string | null;
+    /** Retained for call-site compatibility; profile enrichment is no longer supported. */
     enrichProfile?: boolean;
 };
 
@@ -33,17 +33,6 @@ export async function captureIdentitySnapshot(input: SnapshotSubject): Promise<I
         username ??
         null;
 
-    let pronouns: string | null = null;
-    let bio: string | null = null;
-    let urls: string[] = [];
-
-    if (input.enrichProfile !== false) {
-        const profile = await fetchUserProfile(discordUserId);
-        pronouns = profile.pronouns;
-        bio = profile.bio;
-        urls = profile.urls;
-    }
-
     const db = getDb();
     const [row] = await db
         .insert(identitySnapshots)
@@ -51,9 +40,6 @@ export async function captureIdentitySnapshot(input: SnapshotSubject): Promise<I
             discordUserId,
             username,
             displayName,
-            pronouns,
-            bio,
-            urls,
         })
         .returning();
 

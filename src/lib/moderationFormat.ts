@@ -42,7 +42,7 @@ export function spoiler(text: string | null | undefined, empty = 'None'): string
 export function formatUserInformationBlock(opts: {
     member?: GuildMember | null;
     user?: User | null;
-    snap?: Pick<IdentitySnapshot, 'username' | 'displayName' | 'discordUserId' | 'pronouns' | 'bio'> | null;
+    snap?: Pick<IdentitySnapshot, 'username' | 'displayName' | 'discordUserId'> | null;
 }): string {
     const user = opts.user || opts.member?.user || null;
     const member = opts.member || null;
@@ -59,15 +59,11 @@ export function formatUserInformationBlock(opts: {
         globalName ||
         snapDisplay ||
         username;
-    const pronouns = snap?.pronouns ?? null;
-    const bio = snap?.bio ?? null;
     const lines = [
         id !== 'Unknown' ? `<@${id}>` : null,
         `Server Name: ${serverName || 'Unknown'}`,
         `Username: ${username}`,
         `ID: \`${id}\``,
-        pronouns ? `Current pronouns: ${spoiler(pronouns)}` : null,
-        bio ? `Current bio: ${spoiler(bio)}` : null,
     ];
     return lines.filter(Boolean).join('\n');
 }

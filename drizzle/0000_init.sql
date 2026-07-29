@@ -5,9 +5,6 @@ CREATE TABLE IF NOT EXISTS "identity_snapshots" (
 	"discord_user_id" text NOT NULL,
 	"username" text,
 	"display_name" text,
-	"pronouns" text,
-	"bio" text,
-	"urls" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"captured_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 
