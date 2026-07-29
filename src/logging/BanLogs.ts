@@ -14,7 +14,7 @@ export const guildBanAdd: LogDefinition = {
                 title: 'User Banned',
                 description: `**Reason:** ${ban.reason}`,
                 footer: { text: `User ID: ${ban.user.id}` },
-                author: { name: ban.user.tag, iconURL: ban.user.avatarURL() },
+                author: { name: ban.user.tag, iconURL: ban.user.avatarURL() || undefined },
             },
             true,
         );
@@ -35,7 +35,7 @@ export const guildBanRemove: LogDefinition = {
                 title: 'User Unbanned',
                 description: `**Reason:** ${ban.reason}`,
                 footer: { text: `User ID: ${ban.user.id}` },
-                author: { name: ban.user.tag, iconURL: ban.user.avatarURL() },
+                author: { name: ban.user.tag, iconURL: ban.user.avatarURL() || undefined },
             },
             true,
         );

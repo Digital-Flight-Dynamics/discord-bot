@@ -9,7 +9,6 @@ import {
     GuildMember,
     Message,
     ModalBuilder,
-    PermissionFlagsBits,
     SlashCommandBuilder,
     TextInputBuilder,
     TextInputStyle,
@@ -23,7 +22,9 @@ import {
     listAllModerationPresets,
     updateModerationPreset,
 } from './db/repositories/moderationPresets';
-import { parseDurationToMs, parseDurationToSeconds } from './lib/moderation';
+import { isPermanentDuration, parseDurationToMs, parseDurationToSeconds } from './lib/moderation';
+import { hasRoleAccess } from './lib/moderationAccess';
+import { MAX_PRIVATE_NOTE_LENGTH, MAX_REASON_LENGTH, limitModerationText } from './lib/moderationLimits';
 import { executePendingModeration } from './lib/moderationExecute';
 import { modPortalUrl } from './lib/moderationFormat';
 import type { ModerationPreset, PendingActionType } from './db/schema';
@@ -53,42 +54,38 @@ export const moderationSlashCommands = [
     new SlashCommandBuilder()
         .setName('warn')
         .setDescription('Warn a server member')
-        .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
         .addUserOption((o) => o.setName('user').setDescription('User to warn').setRequired(true))
-        .addStringOption((o) => o.setName('reason').setDescription('Reason for the warning'))
+        .addStringOption((o) => o.setName('reason').setDescription('Reason for the warning').setMaxLength(MAX_REASON_LENGTH))
         .addStringOption((o) =>
             o.setName('preset').setDescription('Preset punishment to apply').setAutocomplete(true),
         )
         .addStringOption((o) => o.setName('expiration').setDescription(`Optional expiration, ${durationExample}`))
-        .addStringOption((o) => o.setName('private-note').setDescription('Optional staff-only note')),
+        .addStringOption((o) => o.setName('private-note').setDescription('Optional staff-only note').setMaxLength(MAX_PRIVATE_NOTE_LENGTH)),
     new SlashCommandBuilder()
         .setName('kick')
         .setDescription('Kick a server member')
-        .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers)
         .addUserOption((o) => o.setName('user').setDescription('User to kick').setRequired(true))
         .addStringOption((o) =>
             o.setName('preset').setDescription('Preset punishment to apply').setAutocomplete(true),
         )
-        .addStringOption((o) => o.setName('reason').setDescription('Reason for the kick'))
-        .addStringOption((o) => o.setName('private-note').setDescription('Optional staff-only note')),
+        .addStringOption((o) => o.setName('reason').setDescription('Reason for the kick').setMaxLength(MAX_REASON_LENGTH))
+        .addStringOption((o) => o.setName('private-note').setDescription('Optional staff-only note').setMaxLength(MAX_PRIVATE_NOTE_LENGTH)),
     new SlashCommandBuilder()
         .setName('ban')
         .setDescription('Hard ban: standard ban, lifted manually or when duration expires')
-        .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
         .addUserOption((o) => o.setName('user').setDescription('User to hard-ban').setRequired(true))
         .addStringOption((o) =>
             o.setName('preset').setDescription('Preset punishment to apply').setAutocomplete(true),
         )
         .addStringOption((o) => o.setName('duration').setDescription(`Ban duration, ${durationExample}`))
-        .addStringOption((o) => o.setName('reason').setDescription('Reason for the hard ban'))
+        .addStringOption((o) => o.setName('reason').setDescription('Reason for the hard ban').setMaxLength(MAX_REASON_LENGTH))
         .addStringOption((o) =>
             o.setName('purge-duration').setDescription('Message purge duration, e.g. 10s, 1h, 1 day'),
         )
-        .addStringOption((o) => o.setName('private-note').setDescription('Optional staff-only note')),
+        .addStringOption((o) => o.setName('private-note').setDescription('Optional staff-only note').setMaxLength(MAX_PRIVATE_NOTE_LENGTH)),
     new SlashCommandBuilder()
         .setName('soft-ban')
         .setDescription('Ban then immediately unban to remove a user and their messages')
-        .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
         .addUserOption((o) => o.setName('user').setDescription('User to soft-ban').setRequired(true))
         .addStringOption((o) =>
             o.setName('purge-duration').setDescription('Message purge duration, defaults to 1 day'),
@@ -96,23 +93,21 @@ export const moderationSlashCommands = [
         .addStringOption((o) =>
             o.setName('preset').setDescription('Preset punishment to apply').setAutocomplete(true),
         )
-        .addStringOption((o) => o.setName('reason').setDescription('Reason for the soft ban'))
-        .addStringOption((o) => o.setName('private-note').setDescription('Optional staff-only note')),
+        .addStringOption((o) => o.setName('reason').setDescription('Reason for the soft ban').setMaxLength(MAX_REASON_LENGTH))
+        .addStringOption((o) => o.setName('private-note').setDescription('Optional staff-only note').setMaxLength(MAX_PRIVATE_NOTE_LENGTH)),
     new SlashCommandBuilder()
         .setName('timeout')
         .setDescription('Timeout / mute a server member')
-        .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
         .addUserOption((o) => o.setName('user').setDescription('User to timeout').setRequired(true))
         .addStringOption((o) =>
             o.setName('preset').setDescription('Preset punishment to apply').setAutocomplete(true),
         )
         .addStringOption((o) => o.setName('duration').setDescription(`Timeout duration, ${durationExample}`))
-        .addStringOption((o) => o.setName('reason').setDescription('Reason for the timeout'))
-        .addStringOption((o) => o.setName('private-note').setDescription('Optional staff-only note')),
+        .addStringOption((o) => o.setName('reason').setDescription('Reason for the timeout').setMaxLength(MAX_REASON_LENGTH))
+        .addStringOption((o) => o.setName('private-note').setDescription('Optional staff-only note').setMaxLength(MAX_PRIVATE_NOTE_LENGTH)),
     new SlashCommandBuilder()
         .setName('moderation-presets')
         .setDescription('Manage moderation punishment presets')
-        .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
         .addSubcommand((sub) => sub.setName('list').setDescription('List all moderation presets'))
         .addSubcommand((sub) =>
             sub
@@ -215,6 +210,11 @@ export async function handleModerationSlashCommand(interaction: ChatInputCommand
         await interaction.reply({ embeds: [errorEmbed('Moderation commands can only be used in a server.')], ephemeral: true });
         return true;
     }
+    const actingMember = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+    if (!hasRoleAccess(actingMember, 'moderation')) {
+        await interaction.reply({ embeds: [errorEmbed('You do not have a configured moderation role.')], ephemeral: true });
+        return true;
+    }
 
     const target = interaction.options.getUser('user', true);
     const selectedPreset = await getSelectedPreset(interaction);
@@ -250,7 +250,7 @@ export async function handleModerationSlashCommand(interaction: ChatInputCommand
         return true;
     }
 
-    const durationError = validateDuration(action, details.durationMs);
+    const durationError = validateDuration(action, details.durationMs, details.durationToken);
     if (durationError) {
         await editOrReply(interaction, errorEmbed(durationError));
         return true;
@@ -272,6 +272,11 @@ export async function handleModerationSlashCommand(interaction: ChatInputCommand
 async function handleModerationPresetsCommand(interaction: ChatInputCommandInteraction): Promise<void> {
     if (!interaction.guild) {
         await interaction.reply({ embeds: [errorEmbed('This command can only be used in a server.')], ephemeral: true });
+        return;
+    }
+    const actingMember = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+    if (!hasRoleAccess(actingMember, 'moderation')) {
+        await interaction.reply({ embeds: [errorEmbed('You do not have a configured moderation role.')], ephemeral: true });
         return;
     }
 
@@ -459,10 +464,12 @@ function detailsFromOptions(interaction: ChatInputCommandInteraction, action: Sl
     const deleteToken = interaction.options.getString('purge-duration');
     const resolvedDurationToken = action === 'timeout' ? durationToken || DEFAULT_TIMEOUT_TOKEN : durationToken;
     return {
-        reason: interaction.options.getString('reason') || 'None',
-        privateNote: interaction.options.getString('private-note'),
+        reason: limitModerationText(interaction.options.getString('reason') || 'None', MAX_REASON_LENGTH),
+        privateNote: interaction.options.getString('private-note')
+            ? limitModerationText(interaction.options.getString('private-note')!, MAX_PRIVATE_NOTE_LENGTH)
+            : null,
         durationToken: resolvedDurationToken,
-        durationMs: resolvedDurationToken ? parseDurationToMs(resolvedDurationToken) : 0,
+        durationMs: resolvedDurationToken && !isPermanentDuration(resolvedDurationToken) ? parseDurationToMs(resolvedDurationToken) : 0,
         deleteMessageSeconds: action === 'soft-ban'
             ? deleteToken ? parseDurationToSeconds(deleteToken) : 86400
             : action === 'ban' && deleteToken ? parseDurationToSeconds(deleteToken) : null,
@@ -491,11 +498,12 @@ function detailsFromPreset(preset: ModerationPreset, privateNote: string | null,
 
 function needsMoreDetails(action: SlashAction, details: ActionDetails): boolean {
     if (action === 'warn' && details.reason === 'None') return true;
-    return action === 'ban' && details.durationMs === 0;
+    return action === 'ban' && !details.durationToken;
 }
 
-function validateDuration(action: SlashAction, durationMs: number): string | null {
-    if (action === 'ban' && durationMs === 0) return 'Please enter a valid duration.';
+function validateDuration(action: SlashAction, durationMs: number, durationToken: string | null): string | null {
+    if (action === 'ban' && durationToken && durationMs === 0 && !isPermanentDuration(durationToken))
+        return 'Please enter a valid duration or a permanent duration such as `perm`.';
     if (action === 'timeout' && durationMs === 0) return 'Please enter a valid duration.';
     return null;
 }
@@ -515,7 +523,7 @@ function formatDeleteMessageWindow(seconds: number): string {
 
 function presetEmbedFields(preset: ModerationPreset) {
     return [
-        { name: 'Reason', value: preset.reason, inline: false },
+        { name: 'Reason', value: preset.reason.slice(0, 1024), inline: false },
         { name: 'Duration', value: preset.durationToken || 'None', inline: true },
         {
             name: 'Purge duration',
@@ -605,7 +613,7 @@ function buildDetailsModal(modalId: string, action: SlashAction, initial?: Actio
         .setCustomId('reason')
         .setLabel('Reason')
         .setRequired(action === 'warn')
-        .setMaxLength(1000)
+        .setMaxLength(MAX_REASON_LENGTH)
         .setStyle(TextInputStyle.Paragraph);
     if (initial?.reason && initial.reason !== 'None') reason.setValue(initial.reason);
     modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(reason));
@@ -657,7 +665,8 @@ async function runSlashAction(
 ): Promise<void> {
     const guild = interaction.guild;
     if (!guild) return;
-    const expiresAt = details.durationMs > 0 ? new Date(Date.now() + details.durationMs) : null;
+    const effectiveDurationMs = action === 'timeout' ? Math.min(details.durationMs, 28 * 24 * 60 * 60 * 1000) : details.durationMs;
+    const expiresAt = effectiveDurationMs > 0 ? new Date(Date.now() + effectiveDurationMs) : null;
     await interaction.editReply({
         embeds: [workingEmbed()],
         components: [],
@@ -669,7 +678,7 @@ async function runSlashAction(
         subjectUserId: target.id,
         moderatorUserId: interaction.user.id,
         reason: details.reason,
-        durationMs: details.durationMs || null,
+        durationMs: effectiveDurationMs || null,
         durationToken: details.durationToken,
         expiresAt,
         deleteMessageSeconds: details.deleteMessageSeconds || null,
@@ -681,26 +690,24 @@ async function runSlashAction(
     const result = await executePendingModeration(interaction.client, fresh, {
         privateNote: details.privateNote,
     });
-    const links = result
-        ? [
-              result.modLogUrl ? `[View mod log](${result.modLogUrl})` : null,
-              `[View on ATC](${modPortalUrl(result.actionId)})`,
-          ]
-              .filter(Boolean)
-              .join(' • ')
-        : null;
+    if (result.status === 'not-executed') {
+        await interaction.editReply({ embeds: [errorEmbed(result.reason)], components: [] }).catch(console.error);
+        return;
+    }
+    const links = [
+        result.modLogUrl ? `[View mod log](${result.modLogUrl})` : null,
+        `[View on ATC](${modPortalUrl(result.actionId)})`,
+    ].filter(Boolean).join(' • ');
     await interaction.editReply({
-        embeds: [
-            createEmbed({
-                color: EmbedColors.SUCCESS,
-                description: [
-                    `Done — ${target} has been ${pastTense(action)}.${links ? `\n${links}` : ''}`,
-                    result?.notice ?? null,
-                ]
-                    .filter(Boolean)
-                    .join('\n\n'),
-            }),
-        ],
+        embeds: [createEmbed({
+            color: result.status === 'partial' ? EmbedColors.WARNING : EmbedColors.SUCCESS,
+            description: [
+                result.status === 'partial'
+                    ? `Action partially applied — ${target} requires manual reconciliation.${links ? `\n${links}` : ''}`
+                    : `Done — ${target} has been ${pastTense(action)}.${links ? `\n${links}` : ''}`,
+                result.notice ?? null,
+            ].filter(Boolean).join('\n\n'),
+        })],
         components: [],
     }).catch(console.error);
 }

@@ -4,7 +4,6 @@ import {
     DiscordAPIError,
     EmbedBuilder,
     Guild,
-    PermissionFlagsBits,
     RESTJSONErrorCodes,
     SlashCommandBuilder,
     User,
@@ -28,6 +27,9 @@ import { bans, identitySnapshots, kicks, timeouts, warnings, type ActionIdRow, t
 import { createEmbed, EmbedColors } from './lib/embed';
 import { tryDmUser } from './lib/moderationNotify';
 import { parseDurationToMs, parseDurationToSeconds } from './lib/moderation';
+import { hasOtherActiveBan } from './db/repositories/bans';
+import { hasRoleAccess } from './lib/moderationAccess';
+import { moderationTextForEmbed, MAX_PRIVATE_NOTE_LENGTH, MAX_REASON_LENGTH } from './lib/moderationLimits';
 import { appealUrl, discordAuditReason, modLogMessageUrl, modPortalUrl } from './lib/moderationFormat';
 import { handleDeletedModLogThread } from './lib/moderationMessageTracker';
 import { normalizeActionId } from './lib/actionId';
@@ -51,7 +53,6 @@ type LoadedAction = {
 export const updateActionSlashCommand = new SlashCommandBuilder()
     .setName('update-action')
     .setDescription('Update an existing moderation action and write an audit trail')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
     .addSubcommand((sub) =>
         sub
             .setName('change-reason')
@@ -177,6 +178,11 @@ export async function handleUpdateActionCommand(interaction: ChatInputCommandInt
         await interaction.reply({ embeds: [errorEmbed('This command can only be used in a server.')], ephemeral: true });
         return true;
     }
+    const actingMember = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+    if (!hasRoleAccess(actingMember, 'moderation')) {
+        await interaction.reply({ embeds: [errorEmbed('You do not have a configured moderation role.')], ephemeral: true });
+        return true;
+    }
 
     await interaction.reply({ embeds: [createEmbed({ color: 0xf97316, description: '*Working on it...*' })], ephemeral: true });
 
@@ -212,7 +218,6 @@ export async function handleUpdateActionCommand(interaction: ChatInputCommandInt
             member: moderatorMember || undefined,
             user: interaction.user,
             discordUserId: interaction.user.id,
-            enrichProfile: false,
         });
         const audit = await createModerationActionAudit({
             guildId: interaction.guild.id,
@@ -299,10 +304,9 @@ async function handleActionResolution(interaction: ChatInputCommandInteraction):
             member: moderatorMember || undefined,
             user: interaction.user,
             discordUserId: interaction.user.id,
-            enrichProfile: false,
         });
 
-        await applyActionResolution(guild, loaded, status, reason, publicNote, moderatorSnap.id, interaction.user);
+        const resolution = await applyActionResolution(guild, loaded, status, reason, publicNote, moderatorSnap.id, interaction.user);
         const audit = await createModerationActionAudit({
             guildId: guild.id,
             actionId: loaded.actionId.actionId,
@@ -319,6 +323,7 @@ async function handleActionResolution(interaction: ChatInputCommandInteraction):
                 resolutionStatus: status,
                 publicNote,
                 notificationMode: 'silent-edit',
+                userNotUnbanned: resolution.userNotUnbanned,
             },
         });
 
@@ -331,6 +336,7 @@ async function handleActionResolution(interaction: ChatInputCommandInteraction):
             notificationDetail: notificationResult.detail ?? null,
             notificationChannelId: notificationResult.channelId ?? null,
             notificationMessageId: notificationResult.messageId ?? null,
+            userNotUnbanned: resolution.userNotUnbanned,
         });
 
         await refreshModLogAudit(interaction.client, guild, loaded, status);
@@ -343,6 +349,7 @@ async function handleActionResolution(interaction: ChatInputCommandInteraction):
             reason,
             publicNote,
             notificationResult,
+            resolution.userNotUnbanned,
         );
 
         const links = await updateActionLinks(guild.id, loaded);
@@ -350,7 +357,10 @@ async function handleActionResolution(interaction: ChatInputCommandInteraction):
             embeds: [
                 createEmbed({
                     color: EmbedColors.SUCCESS,
-                    description: `Done, action has been ${status === 'appeal-approved' ? 'marked as appeal approved' : 'revoked'}\n\n${links}`,
+                    description:
+                        `Done, action has been ${status === 'appeal-approved' ? 'marked as appeal approved' : 'revoked'}` +
+                        (resolution.userNotUnbanned ? '\n\nUser was not unbanned as they have another active ban on their account.' : '') +
+                        `\n\n${links}`,
                 }),
             ],
         });
@@ -453,7 +463,7 @@ async function applyActionResolution(
     publicNote: string | null,
     moderatorSnapshotId: string,
     moderator: User,
-): Promise<void> {
+): Promise<{ userNotUnbanned: boolean }> {
     const db = getDb();
     const id = loaded.actionId.recordUuid;
     const resolvedAt = new Date();
@@ -465,16 +475,26 @@ async function applyActionResolution(
         resolutionPublicNote: publicNote,
     };
 
+    let userNotUnbanned = false;
     if (loaded.caseType === 'ban' && loaded.subjectUserId) {
-        const activeBan = await guild.bans.fetch(loaded.subjectUserId).catch((err) => {
-            if (err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownBan) return null;
-            throw err;
+        const otherBanExists = await hasOtherActiveBan({
+            guildId: guild.id,
+            discordUserId: loaded.subjectUserId,
+            excludingBanId: id,
         });
-        if (activeBan) {
-            await guild.members.unban(
-                loaded.subjectUserId,
-                discordAuditReason(loaded.actionId.actionId, moderator.username, moderator.id, reason),
-            );
+        if (otherBanExists) {
+            userNotUnbanned = true;
+        } else {
+            const activeBan = await guild.bans.fetch(loaded.subjectUserId).catch((err) => {
+                if (err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownBan) return null;
+                throw err;
+            });
+            if (activeBan) {
+                await guild.members.unban(
+                    loaded.subjectUserId,
+                    discordAuditReason(loaded.actionId.actionId, moderator.username, moderator.id, reason),
+                );
+            }
         }
     }
 
@@ -513,6 +533,7 @@ async function applyActionResolution(
     } else if (loaded.caseType === 'timeout') {
         await db.update(timeouts).set(resolution).where(eq(timeouts.id, id));
     }
+    return { userNotUnbanned };
 }
 
 async function applyActionUpdate(
@@ -524,6 +545,9 @@ async function applyActionUpdate(
     moderator: User,
 ): Promise<{ label: string; oldDisplay: string | null; newDisplay: string; metadata: Record<string, unknown> }> {
     if (!rawValue) throw new Error('New value cannot be empty.');
+    if (kind === 'reason' && rawValue.length > MAX_REASON_LENGTH) throw new Error(`Reasons cannot exceed ${MAX_REASON_LENGTH} characters.`);
+    if (kind === 'note' && rawValue.length > MAX_PRIVATE_NOTE_LENGTH)
+        throw new Error(`Private notes cannot exceed ${MAX_PRIVATE_NOTE_LENGTH} characters.`);
     const db = getDb();
     const id = loaded.actionId.recordUuid;
 
@@ -547,19 +571,20 @@ async function applyActionUpdate(
         if (loaded.caseType !== 'ban' && loaded.caseType !== 'timeout') throw new Error('Only bans and timeouts have durations.');
         const durationMs = parseDurationToMs(rawValue);
         if (durationMs <= 0) throw new Error('Please enter a valid duration.');
-        const expiresAt = new Date(Date.now() + durationMs);
+        const effectiveDurationMs = loaded.caseType === 'timeout' ? Math.min(durationMs, MAX_TIMEOUT_MS) : durationMs;
+        const expiresAt = new Date(Date.now() + effectiveDurationMs);
         const clamped = loaded.caseType === 'timeout' && durationMs > MAX_TIMEOUT_MS;
         if (loaded.caseType === 'ban') {
             await db.update(bans).set({ expiresAt }).where(eq(bans.id, id));
         } else {
-            await updateDiscordTimeout(guild, loaded, durationMs, rationale, moderator);
-            await db.update(timeouts).set({ durationMs, durationToken: rawValue, expiresAt }).where(eq(timeouts.id, id));
+            await updateDiscordTimeout(guild, loaded, effectiveDurationMs, rationale, moderator);
+            await db.update(timeouts).set({ durationMs: effectiveDurationMs, durationToken: rawValue, expiresAt }).where(eq(timeouts.id, id));
         }
         return {
             label: 'Duration Updated',
             oldDisplay: displayExpiresAt(loaded.record.expiresAt),
             newDisplay: `${rawValue} (${displayExpiresAt(expiresAt)})${clamped ? ' — Discord timeout capped at 28 days' : ''}`,
-            metadata: { durationMs, expiresAt: expiresAt.toISOString() },
+            metadata: { durationMs: effectiveDurationMs, expiresAt: expiresAt.toISOString() },
         };
     }
 
@@ -572,10 +597,13 @@ async function applyActionUpdate(
             await db.update(bans).set({ expiresAt }).where(eq(bans.id, id));
         } else {
             if (!expiresAt) throw new Error('Timeout expiration cannot be cleared.');
-            const durationMs = expiresAt.getTime() - Date.now();
-            if (durationMs <= 0) throw new Error('Expiration must be in the future.');
+            const requestedDurationMs = expiresAt.getTime() - Date.now();
+            if (requestedDurationMs <= 0) throw new Error('Expiration must be in the future.');
+            const durationMs = Math.min(requestedDurationMs, MAX_TIMEOUT_MS);
+            const effectiveExpiresAt = new Date(Date.now() + durationMs);
             await updateDiscordTimeout(guild, loaded, durationMs, rationale, moderator);
-            await db.update(timeouts).set({ durationMs, durationToken: rawValue, expiresAt }).where(eq(timeouts.id, id));
+            await db.update(timeouts).set({ durationMs, durationToken: rawValue, expiresAt: effectiveExpiresAt }).where(eq(timeouts.id, id));
+            expiresAt.setTime(effectiveExpiresAt.getTime());
         }
         return {
             label: 'Expiration Updated',
@@ -714,6 +742,7 @@ async function postThreadResolutionEmbed(
     reason: string,
     publicNote: string | null,
     notificationResult: NotificationResult,
+    userNotUnbanned = false,
 ): Promise<void> {
     const modLog = await findModLogByCase(loaded.caseType, loaded.actionId.recordUuid);
     if (!modLog?.threadId || modLog.messageDeleted || modLog.threadDeleted) return;
@@ -730,6 +759,9 @@ async function postThreadResolutionEmbed(
             inline: false,
         },
         { name: 'Outcome', value: resolutionLabel(status), inline: false },
+        ...(userNotUnbanned
+            ? [{ name: 'Ban enforcement', value: 'User was not unbanned as they have another active ban on their account.', inline: false }]
+            : []),
         { name: 'Reason', value: truncate(reason, 1024), inline: false },
         ...(publicNote
             ? [{ name: 'Public Note', value: truncate(quoteBlock(publicNote), 1024), inline: false }]
@@ -796,7 +828,7 @@ async function editResolutionDm(
         .map((field) => ({ name: field.name, value: field.value, inline: field.inline }));
     fields.unshift({
         name: 'Original Reason',
-        value: truncate(reasonField?.value || stringValue(loaded.record.reason) || 'No reason provided', 1024),
+        value: moderationTextForEmbed(reasonField?.value || stringValue(loaded.record.reason), loaded.actionId.actionId),
         inline: false,
     });
     fields.push({

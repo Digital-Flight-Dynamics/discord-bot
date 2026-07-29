@@ -1,21 +1,17 @@
-FROM node:22
-
-# Set the working directory in the container
-WORKDIR /bot
-
-# Copy package.json and package-lock.json to the container
-COPY package*.json ./
-
-# Install dependencies
-RUN npm install
-
-# Copy the rest of the application code to the container
+FROM oven/bun:1.3.12 AS build
+WORKDIR /app
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
 COPY . .
+RUN bun run build
 
-# Build the application
-RUN npm run build
-
-# EXPOSE XXXX
-
-# Start the application
-CMD ["npm", "start"]
+FROM oven/bun:1.3.12-slim
+WORKDIR /app
+ENV NODE_ENV=production
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile --production
+COPY --from=build /app/out ./out
+COPY --from=build /app/drizzle ./drizzle
+COPY --from=build /app/scripts ./scripts
+USER bun
+CMD ["bun", "out/index.js"]

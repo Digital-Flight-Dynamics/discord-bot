@@ -27,6 +27,7 @@ import { installer } from './a350x/installer';
 import { devchannels } from './dev/devchannels';
 
 import { createEmbed, EmbedColors } from '../lib/embed';
+import type { ModerationRoleGroup } from '../lib/moderationAccess';
 
 export const enum CommandCategories {
     A350X = 'A350X',
@@ -39,7 +40,9 @@ export type CommandDefinition = {
     names: string[];
     description: string;
     category: CommandCategories;
+    /** Legacy Discord permissions. Prefer requiredRoleGroup for staff authority. */
     permissions?: Discord.PermissionsString[];
+    requiredRoleGroup?: ModerationRoleGroup;
     execute: (message: Discord.Message<true>, args: Array<string>) => Promise<any>;
 };
 export const createErrorEmbed = (description: string) =>

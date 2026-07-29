@@ -60,7 +60,7 @@ function applyEntry(client: Client, entry: PresenceStatusEntry): void {
  * Start rotating presence from workspace config.
  * Soft-lock forces DND + "-" and pauses rotation until unlocked (restart).
  */
-export function startPresenceRotation(client: Client, presence: PresenceConfig | undefined): void {
+export function startPresenceRotation(client: Client, presence: PresenceConfig | undefined): () => void {
     const applyOnce = () => {
         if (!client.user) return;
 
@@ -86,15 +86,15 @@ export function startPresenceRotation(client: Client, presence: PresenceConfig |
 
     // Immediate + delayed re-apply (Discord often drops first presence on ready)
     applyOnce();
-    setTimeout(applyOnce, 1500);
+    const delayed = setTimeout(applyOnce, 1500);
 
     const statuses = presence?.statuses?.filter((s) => s?.name?.trim()) ?? [];
-    if (statuses.length <= 1) return;
+    if (statuses.length <= 1) return () => clearTimeout(delayed);
 
     const intervalMs = Math.max(10_000, presence?.intervalMs ?? DEFAULT_INTERVAL_MS);
     let index = 0;
 
-    setInterval(() => {
+    const interval = setInterval(() => {
         if (!client.user) return;
         if (isSoftLocked()) {
             applySoftLockPresence(client);
@@ -103,4 +103,8 @@ export function startPresenceRotation(client: Client, presence: PresenceConfig |
         index = (index + 1) % statuses.length;
         applyEntry(client, statuses[index]);
     }, intervalMs);
+    return () => {
+        clearTimeout(delayed);
+        clearInterval(interval);
+    };
 }

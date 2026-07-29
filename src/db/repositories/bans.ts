@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNotNull, isNull, lte } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, ne, or } from 'drizzle-orm';
 import { getDb } from '../client';
 import { actionIds, bans, Ban, BanType, identitySnapshots } from '../schema';
 import { LinkedMessage } from '../../lib/moderation';
@@ -120,6 +120,32 @@ export async function liftBansForUser(input: {
         })
         .where(inArray(bans.id, ids))
         .returning();
+}
+
+/** Whether another still-effective case owns this user's live Discord ban. */
+export async function hasOtherActiveBan(input: {
+    guildId: string;
+    discordUserId: string;
+    excludingBanId: string;
+    now?: Date;
+}): Promise<boolean> {
+    const db = getDb();
+    const now = input.now ?? new Date();
+    const rows = await db
+        .select({ id: bans.id })
+        .from(bans)
+        .innerJoin(identitySnapshots, eq(bans.subjectSnapshotId, identitySnapshots.id))
+        .where(
+            and(
+                eq(bans.guildId, input.guildId),
+                eq(identitySnapshots.discordUserId, input.discordUserId),
+                ne(bans.id, input.excludingBanId),
+                isNull(bans.liftedAt),
+                or(isNull(bans.expiresAt), gt(bans.expiresAt, now)),
+            ),
+        )
+        .limit(1);
+    return rows.length > 0;
 }
 
 export async function listExpiredOpenBans(now = new Date()): Promise<BanWithSnapshots[]> {

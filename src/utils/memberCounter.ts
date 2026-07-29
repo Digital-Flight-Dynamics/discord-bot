@@ -39,12 +39,23 @@ async function resolveMemberCountChannel(client: Client) {
     return { guild, channel: null };
 }
 
+let memberCounterTimer: NodeJS.Timeout | null = null;
+
+export function stopMemberCounter(): void {
+    if (memberCounterTimer) clearInterval(memberCounterTimer);
+    memberCounterTimer = null;
+}
+
 export const memberCounter: UtilDefinition = {
     event: 'clientReady',
     execute: (client: Client) => {
+        stopMemberCounter();
         let missingLogged = false;
+        let running = false;
 
-        setInterval(async () => {
+        memberCounterTimer = setInterval(async () => {
+            if (running) return;
+            running = true;
             try {
                 // Soft-lock / empty constants: boot already logs missing channels — stay quiet
                 if (isSoftLocked() || isUnsetSnowflake(channels.memberCounter)) {
@@ -70,6 +81,8 @@ export const memberCounter: UtilDefinition = {
                 }
             } catch (err) {
                 console.error('[ERROR] memberCounter tick failed:', err);
+            } finally {
+                running = false;
             }
         }, 5000);
     },

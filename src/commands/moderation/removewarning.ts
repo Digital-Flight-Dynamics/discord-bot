@@ -7,7 +7,7 @@ export const removewarning: CommandDefinition = {
     names: ['removewarning', 'rmwarn', 'deletewarning', 'delwarn'],
     description: 'Soft-removes a warning by Action ID (A26…), UUID, or legacy Mongo id. `Arguments: <id>`',
     category: CommandCategories.MODERATION,
-    permissions: ['ModerateMembers'],
+    requiredRoleGroup: 'moderation',
     execute: async (message, args) => {
         const id = args[0];
         if (!id) {
@@ -25,7 +25,6 @@ export const removewarning: CommandDefinition = {
             const moderatorSnap = await captureIdentitySnapshot({
                 member: message.member,
                 user: message.author,
-                enrichProfile: false,
             });
 
             const removed = await softRemoveWarning(existing.id, message.guild.id, moderatorSnap.id);

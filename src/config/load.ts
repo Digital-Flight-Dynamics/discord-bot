@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
 import type { BotWorkspaceConfig } from './types';
+import { CHANNEL_KEYS } from './channelNames';
 
 // Ensure .env is available even when this module is imported before index.ts runs dotenv.
 dotenv.config();
@@ -46,29 +47,8 @@ export let configLoadError: string | null = null;
 
 function emptyFallbackConfig(name: string): BotWorkspaceConfig {
     const zero = '000000000000000000';
-    const channelKeys = [
-        'announcements',
-        'botMessages',
-        'commands',
-        'events',
-        'faq',
-        'info',
-        'logs',
-        'modLogs',
-        'management',
-        'memberArrivals',
-        'memberCounter',
-        'memberDepartures',
-        'memberMedia',
-        'memberResources',
-        'progress',
-        'qAndA',
-        'roles',
-        'suggestions',
-    ] as const;
-
     const channels = {} as BotWorkspaceConfig['channels'];
-    for (const k of channelKeys) channels[k] = zero;
+    for (const k of CHANNEL_KEYS) channels[k] = zero;
 
     return {
         name: `${name}-fallback`,

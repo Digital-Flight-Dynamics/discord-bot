@@ -1,15 +1,16 @@
 import Discord, { Client, Partials, GatewayIntentBits, TextChannel } from 'discord.js';
+import type { Server } from 'http';
 import dotenv from 'dotenv';
 import { commands } from './commands';
 import { createEmbed, color as dfdBlue, EmbedColors } from './lib/embed';
 import { channels, config, prefix, roleGroups } from './config';
 import { configLoadError } from './config/load';
-import { CONFIG_DOCS } from './config/errors';
-import { describeConfigGaps, isConfigEmpty, logUnsetChannelConstants } from './config/validate';
+import { CONFIG_DOCS, logMissingRequiredChannel } from './config/errors';
+import { describeConfigGaps, isConfigEmpty, listMissingModerationCapabilities, logUnsetChannelConstants } from './config/validate';
 import logs from './logging';
 import utils from './utils';
 import { startHealthServer } from './health';
-import { connectDatabase, runMigrations } from './db/client';
+import { closeDatabase, connectDatabase, runMigrations } from './db/client';
 import { startExpiryWorker } from './db/expiryWorker';
 import {
     addSoftLockReason,
@@ -24,6 +25,9 @@ import { resumeStalePendingModeration } from './lib/moderationExecute';
 import { registerDiscordModerationTracker } from './lib/discordModerationTracker';
 import { registerModerationMessageTracker } from './lib/moderationMessageTracker';
 import { handleHoneypotMessage } from './lib/honeypot';
+import { stopMemberCounter } from './utils/memberCounter';
+import { hasRoleAccess } from './lib/moderationAccess';
+import { MAX_EMBED_FIELD_LENGTH } from './lib/moderationLimits';
 import {
     handleModerationAutocomplete,
     handleModerationSlashCommand,
@@ -52,14 +56,20 @@ export const color = dfdBlue;
 export { EmbedColors };
 
 let dbReady = false;
+let stopExpiryWorker: (() => void) | null = null;
+let stopPresenceRotation: (() => void) | null = null;
+let healthServer: Server | null = null;
 
 client.on('clientReady', (readyClient) => {
     console.log(`Bot is logged in as "${readyClient.user.tag}"!`);
     void registerModerationSlashCommands(readyClient, config.guildId);
-    startPresenceRotation(readyClient, config.presence);
-    startHealthServer(readyClient);
+    stopPresenceRotation?.();
+    stopPresenceRotation = startPresenceRotation(readyClient, config.presence);
+    healthServer?.close();
+    healthServer = startHealthServer(readyClient);
     if (dbReady) {
-        startExpiryWorker(readyClient);
+        stopExpiryWorker?.();
+        stopExpiryWorker = startExpiryWorker(readyClient);
         // Finish any moderation actions interrupted by a restart (no private note)
         void resumeStalePendingModeration(readyClient);
     } else if (isSoftLocked()) {
@@ -145,7 +155,12 @@ client.on('messageCreate', async (message) => {
             title: 'Message Received',
             fields: [
                 { name: 'User', value: `${message.author.tag}` },
-                { name: 'Content', value: `${message.content}` },
+                {
+                    name: 'Content',
+                    value: message.content.length > MAX_EMBED_FIELD_LENGTH
+                        ? `${message.content.slice(0, MAX_EMBED_FIELD_LENGTH - 1)}…`
+                        : message.content || 'No text content',
+                },
             ],
         });
 
@@ -156,8 +171,9 @@ client.on('messageCreate', async (message) => {
     if (!isCommand) return;
     if (!message.inGuild()) return;
 
-    const commandUsed = message.content.substring(1).toLowerCase().split(' ')[0];
-    const args = message.content.split(' ').slice(1);
+    const commandText = message.content.slice(prefix.length).trim();
+    const commandUsed = commandText.toLowerCase().split(/\s+/)[0];
+    const args = commandText.split(/\s+/).slice(1);
 
     let cmdToExec = undefined;
     let hasPerms = true;
@@ -167,8 +183,9 @@ client.on('messageCreate', async (message) => {
         for (const name of command.names) {
             if (commandUsed === name) {
                 cmdToExec = command;
-                if (!command.permissions) hasPerms = true;
-                else hasPerms = message.member.permissions.has(command.permissions);
+                if (command.requiredRoleGroup) hasPerms = hasRoleAccess(message.member, command.requiredRoleGroup);
+                else if (!command.permissions) hasPerms = true;
+                else hasPerms = Boolean(message.member?.permissions.has(command.permissions));
             }
         }
     }
@@ -227,7 +244,7 @@ client.on('messageCreate', async (message) => {
 
     // if the channel is Q&A and user isn't project team (contributor+)
     if (!isSoftLocked() && message.channel.id === channels.qAndA) {
-        if (!message.member.roles.cache.some((role) => roleGroups.projectTeam.includes(role.id))) {
+        if (!message.member?.roles.cache.some((role) => roleGroups.projectTeam.includes(role.id))) {
             await message.delete().catch(console.error);
 
             try {
@@ -266,9 +283,12 @@ async function main() {
     } else if (isConfigEmpty(config)) {
         // One [ERROR] line per missing channels.* constant
         logUnsetChannelConstants(config);
-        addSoftLockReason(describeConfigGaps(config) || 'Workspace constants incomplete', {
-            silent: true,
-        });
+        addSoftLockReason(describeConfigGaps(config) || 'Workspace constants incomplete', { silent: true });
+    }
+    const missingModerationCapabilities = listMissingModerationCapabilities(config);
+    if (missingModerationCapabilities.length > 0) {
+        missingModerationCapabilities.forEach(logMissingRequiredChannel);
+        addSoftLockReason(`Moderation requires ${missingModerationCapabilities.join(' and ')}`, { silent: true });
     }
 
     try {
@@ -288,4 +308,16 @@ async function main() {
     });
 }
 
+async function shutdown(signal: string): Promise<void> {
+    console.log(`Received ${signal}; shutting down.`);
+    stopExpiryWorker?.();
+    stopPresenceRotation?.();
+    stopMemberCounter();
+    await new Promise<void>((resolve) => healthServer?.close(() => resolve()) || resolve());
+    client.destroy();
+    await closeDatabase();
+}
+
+process.once('SIGINT', () => void shutdown('SIGINT'));
+process.once('SIGTERM', () => void shutdown('SIGTERM'));
 main().catch(console.error);

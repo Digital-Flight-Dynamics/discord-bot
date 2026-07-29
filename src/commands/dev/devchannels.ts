@@ -94,7 +94,7 @@ export const devchannels: CommandDefinition = {
     names: ['devchannels', 'devsetup', 'setup'],
     description: '[dev only] Bootstrap or cleanup guild channels/roles. `Arguments: create | cleanup`',
     category: CommandCategories.MODERATION,
-    permissions: ['ManageChannels'],
+    requiredRoleGroup: 'developer',
     execute: async (message, args) => {
         if (!isDevelopmentMode() || isProductionConstantsFile()) {
             await message

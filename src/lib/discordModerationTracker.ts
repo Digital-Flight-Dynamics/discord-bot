@@ -48,7 +48,7 @@ async function trackDiscordBan(client: Client, ban: GuildBan): Promise<void> {
     const audit = await latestAuditForTarget(ban.guild, AuditLogEvent.MemberBanAdd, ban.user.id);
     if (!audit || audit.executor?.id === client.user?.id) return;
 
-    const moderatorUser = audit.executor || null;
+    const moderatorUser = audit.executor ? await client.users.fetch(audit.executor.id).catch(() => null) : null;
     const moderatorMember = moderatorUser ? await ban.guild.members.fetch(moderatorUser.id).catch(() => null) : null;
     const subjectSnap = await captureIdentitySnapshot({
         user: ban.user,
@@ -60,7 +60,6 @@ async function trackDiscordBan(client: Client, ban: GuildBan): Promise<void> {
               member: moderatorMember || undefined,
               user: moderatorUser,
               discordUserId: moderatorUser.id,
-              enrichProfile: false,
           })
         : null;
     const reason = audit.reason || ban.reason || 'No reason provided';
@@ -98,7 +97,7 @@ async function trackDiscordKick(client: Client, member: GuildMember | PartialGui
 
     const user = member.user || (await client.users.fetch(member.id).catch(() => null));
     if (!user) return;
-    const moderatorUser = audit.executor || null;
+    const moderatorUser = audit.executor ? await client.users.fetch(audit.executor.id).catch(() => null) : null;
     const moderatorMember = moderatorUser ? await member.guild.members.fetch(moderatorUser.id).catch(() => null) : null;
     const subjectSnap = await captureIdentitySnapshot({
         member: member.partial ? undefined : (member as GuildMember),
@@ -111,7 +110,6 @@ async function trackDiscordKick(client: Client, member: GuildMember | PartialGui
               member: moderatorMember || undefined,
               user: moderatorUser,
               discordUserId: moderatorUser.id,
-              enrichProfile: false,
           })
         : null;
     const reason = audit.reason || 'No reason provided';
@@ -155,7 +153,7 @@ async function trackDiscordTimeout(
     if (!audit || audit.executor?.id === client.user?.id) return;
     if (!auditLooksLikeTimeout(audit)) return;
 
-    const moderatorUser = audit.executor || null;
+    const moderatorUser = audit.executor ? await client.users.fetch(audit.executor.id).catch(() => null) : null;
     const moderatorMember = moderatorUser ? await newMember.guild.members.fetch(moderatorUser.id).catch(() => null) : null;
     const subjectSnap = await captureIdentitySnapshot({ member: newMember, user: newMember.user });
     const moderatorSnap = moderatorUser
@@ -163,7 +161,6 @@ async function trackDiscordTimeout(
               member: moderatorMember || undefined,
               user: moderatorUser,
               discordUserId: moderatorUser.id,
-              enrichProfile: false,
           })
         : null;
     const reason = audit.reason || 'No reason provided';

@@ -1,11 +1,13 @@
-import { MessageReaction, User } from 'discord.js';
+import { MessageReaction, PartialMessageReaction, User, PartialUser } from 'discord.js';
 import { UtilDefinition } from '.';
 import { channels, emojis, roles } from '../config';
 
 export const addRole: UtilDefinition = {
     event: 'messageReactionAdd',
     execute: async (reaction: MessageReaction, user: User) => {
-        const roleChannel = await reaction.message.guild.channels.fetch(channels.roles).catch(console.error);
+        const guild = reaction.message.guild;
+        if (!guild) return;
+        const roleChannel = await guild.channels.fetch(channels.roles).catch(console.error);
 
         if (!roleChannel) {
             console.error('Error: Could not find channel #roles');
@@ -15,7 +17,7 @@ export const addRole: UtilDefinition = {
         if (reaction.message.channel.id !== roleChannel.id) return;
         if (user.bot) return;
 
-        const { roles: guildRoles } = reaction.message.guild;
+        const { roles: guildRoles } = guild;
 
         const announcementsRole = await guildRoles.fetch(roles.announcements).catch(console.error);
         const progressRole = await guildRoles.fetch(roles.progress).catch(console.error);
@@ -35,7 +37,7 @@ export const addRole: UtilDefinition = {
         }
 
         const emoji = reaction.emoji.name;
-        const member = await reaction.message.guild.members.fetch(user.id).catch(console.error);
+        const member = await guild.members.fetch(user.id).catch(console.error);
         if (!member) return;
 
         if (emoji === emojis.announcement) {
@@ -47,10 +49,12 @@ export const addRole: UtilDefinition = {
         }
     },
 };
-export const removeRole = {
+export const removeRole: UtilDefinition = {
     event: 'messageReactionRemove',
-    execute: async (reaction, user) => {
-        const roleChannel = await reaction.message.guild.channels.fetch(channels.roles).catch(console.error);
+    execute: async (reaction: MessageReaction | PartialMessageReaction, user: User | PartialUser) => {
+        const guild = reaction.message.guild;
+        if (!guild) return;
+        const roleChannel = await guild.channels.fetch(channels.roles).catch(console.error);
 
         if (!roleChannel) {
             console.error('Error: Could not find channel #roles');
@@ -60,7 +64,7 @@ export const removeRole = {
         if (reaction.message.channel.id !== roleChannel.id) return;
         if (user.bot) return;
 
-        const { roles: guildRoles } = reaction.message.guild;
+        const { roles: guildRoles } = guild;
 
         const announcementsRole = await guildRoles.fetch(roles.announcements).catch(console.error);
         const progressRole = await guildRoles.fetch(roles.progress).catch(console.error);
@@ -80,7 +84,7 @@ export const removeRole = {
         }
 
         const emoji = reaction.emoji.name;
-        const member = await reaction.message.guild.members.fetch(user.id).catch(console.error);
+        const member = await guild.members.fetch(user.id).catch(console.error);
         if (!member) return;
 
         if (emoji === emojis.announcement) {

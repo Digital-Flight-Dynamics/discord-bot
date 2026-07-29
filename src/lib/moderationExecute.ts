@@ -21,6 +21,7 @@ import { createTimeout, deleteTimeoutById } from '../db/repositories/timeouts';
 import {
     claimPendingModeration,
     getPendingModerationById,
+    markPendingActionApplied,
     markPendingCancelled,
     markPendingCompleted,
     markPendingFailed,
@@ -29,8 +30,11 @@ import { createModerationActionNotification } from '../db/repositories/moderatio
 import type { PendingModerationAction } from '../db/schema';
 import type { LinkedMessage } from './moderation';
 import { channels } from '../config';
+import { moderationTextForEmbed } from './moderationLimits';
 
-export type ModerationExecutionResult = { actionId: string; modLogUrl: string | null; notice?: string } | null;
+export type ModerationExecutionResult =
+    | { status: 'completed' | 'partial'; actionId: string; modLogUrl: string | null; notice?: string }
+    | { status: 'not-executed'; reason: string };
 const MAX_DISCORD_TIMEOUT_MS = 28 * 24 * 60 * 60 * 1000;
 
 function linkedFromPending(p: PendingModerationAction): LinkedMessage | null {
@@ -92,7 +96,7 @@ export async function executePendingModeration(
 ): Promise<ModerationExecutionResult> {
     if (opts?.cancelled) {
         const current = (await getPendingModerationById(pending.id).catch(() => null)) || pending;
-        if (current.status !== 'pending') return null;
+        if (current.status !== 'pending') return { status: 'not-executed', reason: 'Action is no longer pending.' };
         pending = current;
         await markPendingCancelled(pending.id);
         await editConfirm(
@@ -104,14 +108,14 @@ export async function executePendingModeration(
                 description: 'No action was taken.',
             }),
         );
-        return null;
+        return { status: 'not-executed', reason: 'Action cancelled.' };
     }
 
     // Atomically claim the row so concurrent workers / a crash-then-restart replay
     // cannot both execute the same pending action.
     const claimed = await claimPendingModeration(pending.id);
     if (!claimed) {
-        return null;
+        return { status: 'not-executed', reason: 'Action was already claimed or completed.' };
     }
     pending = claimed;
 
@@ -134,7 +138,7 @@ export async function executePendingModeration(
     if (!guild) {
         console.error(`[ERROR] Pending mod ${pending.id}: guild ${pending.guildId} not available`);
         await markPendingFailed(pending.id);
-        return null;
+        return { status: 'not-executed', reason: 'Guild unavailable.' };
     }
 
     let member: GuildMember | null = await guild.members.fetch(pending.subjectUserId).catch(() => null);
@@ -145,7 +149,7 @@ export async function executePendingModeration(
     if (!subjectUser) {
         console.error(`[ERROR] Pending mod ${pending.id}: subject user not found`);
         await markPendingCancelled(pending.id);
-        return null;
+        return { status: 'not-executed', reason: 'Subject user unavailable.' };
     }
 
     const moderatorMember = await guild.members.fetch(pending.moderatorUserId).catch(() => null);
@@ -208,24 +212,28 @@ export async function executePendingModeration(
             default:
                 console.error(`[ERROR] Unknown pending action type: ${pending.actionType}`);
                 await markPendingCancelled(pending.id);
-                return null;
+                return { status: 'not-executed', reason: 'Unknown action type.' };
         }
     } catch (err) {
         console.error(`[ERROR] Failed to execute pending ${pending.id}:`, err);
+        const current = await getPendingModerationById(pending.id).catch(() => null);
+        if (current?.resultCaseId) {
+            await markPendingCompleted(pending.id, current.resultCaseId);
+            await editConfirm(client, pending, createEmbed({
+                color: EmbedColors.WARNING,
+                title: 'Action applied with follow-up failures',
+                description: 'The moderation action was applied, but a notification or log update failed. The case was retained for reconciliation.',
+            }));
+            return { status: 'partial', actionId: current.resultCaseId, modLogUrl: null, notice: 'The action was applied, but a follow-up update failed.' };
+        }
         await markPendingFailed(pending.id);
-        await editConfirm(
-            client,
-            pending,
-            createEmbed({
-                color: EmbedColors.FAILURE,
-                title: 'Action failed',
-                description:
-                    `Discord rejected this action, so no punishment was applied and no case was recorded. ` +
-                    `Please retry the command.`,
-            }),
-        );
+        await editConfirm(client, pending, createEmbed({
+            color: EmbedColors.FAILURE,
+            title: 'Action failed',
+            description: 'Discord rejected this action, so no punishment was applied and no case was recorded. Please retry the command.',
+        }));
+        return { status: 'not-executed', reason: 'Discord rejected the action.' };
     }
-    return null;
 }
 
 type ExecCtx = {
@@ -241,7 +249,7 @@ type ExecCtx = {
     automation?: string | null;
 };
 
-const fieldValue = (value: string) => value.slice(0, 1024);
+const fieldValue = (value: string, actionId = 'unknown') => moderationTextForEmbed(value, actionId);
 
 function discordTimestamp(date: Date): string {
     return `<t:${Math.floor(date.getTime() / 1000)}:F>`;
@@ -287,7 +295,7 @@ function userActionDmEmbed(opts: {
     infractionNumber: number;
 }) {
     const fields: APIEmbedField[] = [
-        { name: 'Reason', value: fieldValue(opts.reason), inline: false },
+        { name: 'Reason', value: fieldValue(opts.reason, opts.actionId), inline: false },
     ];
 
     if (opts.expiresAt) {
@@ -341,7 +349,7 @@ function timeoutUserDmEmbed(opts: {
                 `You will be able to join the discussion again in ${discordTimestampRelative(opts.expiresAt)}. ` +
                 'In the meantime, maybe have a glass of water.',
             fields: [
-                { name: 'Reason', value: fieldValue(opts.reason), inline: false },
+                { name: 'Reason', value: fieldValue(opts.reason, opts.actionId), inline: false },
                 {
                     name: 'Appeal',
                     value: `You may be able to appeal this action. You can do so on our [appeals form here](${appealUrl(opts.actionId)}).`,
@@ -371,7 +379,6 @@ async function executeWarn(
         member: ctx.moderatorMember || undefined,
         user: ctx.moderatorUser || undefined,
         discordUserId: pending.moderatorUserId,
-        enrichProfile: false,
     });
 
     const warning = await createWarning({
@@ -386,6 +393,7 @@ async function executeWarn(
 
     const counts = await getInfractionCounts(guild.id, pending.subjectUserId);
     const publicId = warning.actionId || warning.id;
+    await markPendingActionApplied(pending.id, warning.id);
     const dm = await tryDmUser(ctx.subjectUser, {
         embeds: [
             userActionDmEmbed({
@@ -452,6 +460,7 @@ async function executeWarn(
         }),
     );
     return {
+        status: 'completed',
         actionId: publicId,
         modLogUrl: modLog ? modLogMessageUrl(guild.id, modLog.channelId, modLog.messageId) : null,
     };
@@ -471,7 +480,6 @@ async function executeKick(
         member: ctx.moderatorMember || undefined,
         user: ctx.moderatorUser || undefined,
         discordUserId: pending.moderatorUserId,
-        enrichProfile: false,
     });
 
     if (!ctx.member?.kickable) {
@@ -501,6 +509,7 @@ async function executeKick(
         await deleteKickById(row.id).catch(console.error);
         throw err;
     }
+    await markPendingActionApplied(pending.id, row.id);
 
     const counts = await getInfractionCounts(guild.id, pending.subjectUserId);
     const dm = await tryDmUser(ctx.subjectUser, {
@@ -567,6 +576,7 @@ async function executeKick(
         }),
     );
     return {
+        status: 'completed',
         actionId: publicId,
         modLogUrl: modLog ? modLogMessageUrl(guild.id, modLog.channelId, modLog.messageId) : null,
     };
@@ -588,7 +598,6 @@ async function executeBan(
         member: ctx.moderatorMember || undefined,
         user: ctx.moderatorUser || undefined,
         discordUserId: pending.moderatorUserId,
-        enrichProfile: false,
     });
 
     const row = await createBan({
@@ -629,9 +638,33 @@ async function executeBan(
             console.error(`[ERROR] Soft-ban follow-up unban failed for ${pending.subjectUserId} in guild ${guild.id}:`, err);
         }
     }
-    if (softUnbanned) {
-        await liftBanById(row.id, 'soft-ban completed').catch(console.error);
+    if (ctx.soft && !softUnbanned) {
+        await markPendingActionApplied(pending.id, row.id);
+        const modLog = await logModerationAction(guild, {
+            color: EmbedColors.FAILURE,
+            title: 'Soft-ban follow-up failed',
+            caseType: 'ban',
+            caseId: row.id,
+            actionId: publicId,
+            subjectUserId: pending.subjectUserId,
+            subjectTag: ctx.subjectUser.tag,
+            moderatorId: pending.moderatorUserId,
+            fields: [
+                { name: 'Status', value: 'The ban succeeded, but Discord rejected the follow-up unban. The user remains banned.', inline: false },
+                { name: 'Reason', value: moderationTextForEmbed(pending.reason, publicId), inline: false },
+            ],
+            footerUrl: modPortalUrl(publicId),
+        });
+        await markPendingCompleted(pending.id, row.id);
+        return {
+            status: 'partial',
+            actionId: publicId,
+            modLogUrl: modLog ? modLogMessageUrl(guild.id, modLog.channelId, modLog.messageId) : null,
+            notice: 'Soft-ban follow-up unban failed; the user remains banned and requires manual reconciliation.',
+        };
     }
+    if (softUnbanned) await liftBanById(row.id, 'soft-ban completed');
+    await markPendingActionApplied(pending.id, row.id);
 
     const counts = await getInfractionCounts(guild.id, pending.subjectUserId);
     const dm =
@@ -703,6 +736,7 @@ async function executeBan(
         }),
     );
     return {
+        status: 'completed',
         actionId: publicId,
         modLogUrl: modLog ? modLogMessageUrl(guild.id, modLog.channelId, modLog.messageId) : null,
     };
@@ -714,8 +748,9 @@ async function executeTimeout(
     pending: PendingModerationAction,
     ctx: Omit<ExecCtx, 'linked'>,
 ): Promise<ModerationExecutionResult> {
-    const durationMs = pending.durationMs || 0;
-    const expiresAt = pending.expiresAt || (durationMs ? new Date(Date.now() + durationMs) : null);
+    const requestedDurationMs = pending.durationMs || 0;
+    const durationMs = Math.min(requestedDurationMs, MAX_DISCORD_TIMEOUT_MS);
+    const expiresAt = durationMs ? new Date(Date.now() + durationMs) : null;
 
     const subjectSnap = await captureIdentitySnapshot({
         member: ctx.member || undefined,
@@ -725,11 +760,11 @@ async function executeTimeout(
         member: ctx.moderatorMember || undefined,
         user: ctx.moderatorUser || undefined,
         discordUserId: pending.moderatorUserId,
-        enrichProfile: false,
     });
 
-    const discordTimeoutMs = Math.min(durationMs, MAX_DISCORD_TIMEOUT_MS);
-    const timeoutClamped = durationMs > MAX_DISCORD_TIMEOUT_MS;
+    const discordTimeoutMs = durationMs;
+    const timeoutClamped = requestedDurationMs > MAX_DISCORD_TIMEOUT_MS;
+    const durationToken = timeoutClamped ? formatDurationMs(MAX_DISCORD_TIMEOUT_MS) : pending.durationToken;
     if (!ctx.member?.manageable) {
         throw new Error(`Cannot time out ${pending.subjectUserId} in guild ${guild.id}: member not manageable`);
     }
@@ -740,7 +775,7 @@ async function executeTimeout(
         reason: pending.reason,
         privateNote: ctx.privateNote,
         durationMs,
-        durationToken: pending.durationToken,
+        durationToken,
         expiresAt,
         source: ctx.automation ? ctx.automation.toLowerCase() : 'bot',
     });
@@ -762,8 +797,11 @@ async function executeTimeout(
         }
     }
 
+    await markPendingActionApplied(pending.id, row.id);
+
     const counts = await getInfractionCounts(guild.id, pending.subjectUserId);
 
+    if (!expiresAt) throw new Error('Timeout requires an expiration.');
     const dm = await tryDmUser(ctx.subjectUser, {
         embeds: [
             timeoutUserDmEmbed({
@@ -804,7 +842,7 @@ async function executeTimeout(
             thisNth: counts.mutes,
             dm,
             expiresAt,
-            durationToken: pending.durationToken,
+            durationToken,
             reason: pending.reason,
             privateNote: ctx.noteDisplay,
             actionId: publicId,
@@ -827,6 +865,7 @@ async function executeTimeout(
         }),
     );
     return {
+        status: 'completed',
         actionId: publicId,
         modLogUrl: modLog ? modLogMessageUrl(guild.id, modLog.channelId, modLog.messageId) : null,
         notice: timeoutClamped
@@ -909,12 +948,12 @@ function buildModLogFields(opts: {
     fields.push(
         {
             name: 'Reason',
-            value: opts.reason || 'None',
+            value: moderationTextForEmbed(opts.reason, opts.actionId),
             inline: false,
         },
         {
             name: 'Private Note',
-            value: opts.privateNote || 'None',
+            value: moderationTextForEmbed(opts.privateNote, opts.actionId),
             inline: false,
         },
     );
@@ -924,11 +963,12 @@ function buildModLogFields(opts: {
 
 /** Resume stale pending actions after restart (no private note). */
 export async function resumeStalePendingModeration(client: Client): Promise<void> {
-    const { listStalePendingModerationActions } = await import('../db/repositories/pendingModeration');
+    const { listStalePendingModerationActions, requeueProcessingPendingModeration } = await import('../db/repositories/pendingModeration');
     const stale = await listStalePendingModerationActions(3_000);
     if (stale.length === 0) return;
     console.log(`[mod] Resuming ${stale.length} pending moderation action(s) without private notes`);
     for (const p of stale) {
-        await executePendingModeration(client, p, { privateNote: null, timedOut: true });
+        const pending = p.status === 'processing' ? await requeueProcessingPendingModeration(p.id) : p;
+        if (pending) await executePendingModeration(client, pending, { privateNote: null, timedOut: true });
     }
 }

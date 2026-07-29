@@ -1,8 +1,10 @@
 import { APIEmbedField } from 'discord.js';
 import { CommandCategories, CommandDefinition, commands } from '../index';
 import { createEmbed } from '../../lib/embed';
+import { hasRoleAccess } from '../../lib/moderationAccess';
 
 function canSeeCommand(messageMember: Parameters<CommandDefinition['execute']>[0]['member'], command: CommandDefinition): boolean {
+    if (command.requiredRoleGroup) return hasRoleAccess(messageMember || null, command.requiredRoleGroup);
     if (!command.permissions) return true;
     return Boolean(messageMember?.permissions.has(command.permissions));
 }
@@ -40,7 +42,7 @@ export const help: CommandDefinition = {
 
         category = category.toUpperCase();
 
-        let embedTitle: string;
+        let embedTitle = category;
 
         const cmds: CommandDefinition[] = [];
         for (const command of commands) {
@@ -54,10 +56,10 @@ export const help: CommandDefinition = {
 
         const fields: APIEmbedField[] = [];
         for (const cmd of cmds) {
-            if (!cmd.permissions) fields.push({ name: `.${cmd.names.join(' | .')}`, value: `${cmd.description}` });
+            if (!cmd.permissions && !cmd.requiredRoleGroup) fields.push({ name: `.${cmd.names.join(' | .')}`, value: `${cmd.description}` });
             else
                 fields.push({
-                    name: `.${cmd.names.join(' | .')}\n\`Required Permissions: ${cmd.permissions.join(', ')}\``,
+                    name: `.${cmd.names.join(' | .')}\n\`Required role: ${cmd.requiredRoleGroup || cmd.permissions?.join(', ')}\``,
                     value: `${cmd.description}`,
                 });
         }

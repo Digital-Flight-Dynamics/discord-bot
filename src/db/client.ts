@@ -79,10 +79,20 @@ export async function runMigrations(): Promise<void> {
 
     const client = await getPool().connect();
     try {
+        await client.query(`CREATE TABLE IF NOT EXISTS bot_schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`);
         for (const file of files) {
-            const sql = fs.readFileSync(path.join(dir, file), 'utf8');
-            await client.query(sql);
-            console.log(`Schema ensured (${file})`);
+            const applied = await client.query('SELECT 1 FROM bot_schema_migrations WHERE name = $1', [file]);
+            if (applied.rowCount) continue;
+            await client.query('BEGIN');
+            try {
+                await client.query(fs.readFileSync(path.join(dir, file), 'utf8'));
+                await client.query('INSERT INTO bot_schema_migrations (name) VALUES ($1)', [file]);
+                await client.query('COMMIT');
+                console.log(`Applied migration (${file})`);
+            } catch (err) {
+                await client.query('ROLLBACK');
+                throw err;
+            }
         }
     } finally {
         client.release();

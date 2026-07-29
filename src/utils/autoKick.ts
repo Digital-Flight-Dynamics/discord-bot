@@ -4,6 +4,7 @@ import { UtilDefinition } from '.';
 import { captureIdentitySnapshot } from '../db/repositories/snapshots';
 import { createKick, deleteKickById } from '../db/repositories/kicks';
 import { discordAuditReason } from '../lib/moderationFormat';
+import { hasRoleAccess } from '../lib/moderationAccess';
 
 const BLACKLIST = [
     'csgo',
@@ -26,10 +27,11 @@ const BLACKLIST = [
 export const autoKick: UtilDefinition = {
     event: 'messageCreate',
     execute: async (message: Discord.Message) => {
-        if (message.channel.type === Discord.ChannelType.DM) return;
-        if (!(message.content.includes('@everyone') && !message.member.permissions.has(Discord.PermissionFlagsBits.MentionEveryone))) return;
+        if (message.channel.type === Discord.ChannelType.DM || !message.guild || !message.member) return;
+        if (!(message.content.includes('@everyone') && !hasRoleAccess(message.member, 'moderation'))) return;
 
         const member = message.guild.members.cache.get(message.author.id);
+        if (!member) return;
 
         const linked = message.guildId
             ? {

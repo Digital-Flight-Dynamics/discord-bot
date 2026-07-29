@@ -1,7 +1,8 @@
-import { and, eq, lt } from 'drizzle-orm';
+import { and, eq, inArray, lt } from 'drizzle-orm';
 import { getDb } from '../client';
 import {
     pendingModerationActions,
+    type PendingActionStatus,
     type PendingActionType,
     type PendingModerationAction,
 } from '../schema';
@@ -56,7 +57,7 @@ export async function updatePendingModeration(
         privateNote: string | null;
         confirmChannelId: string | null;
         confirmMessageId: string | null;
-        status: string;
+        status: PendingActionStatus;
         resultCaseId: string | null;
         completedAt: Date | null;
     }>,
@@ -91,6 +92,17 @@ export async function claimPendingModeration(id: string): Promise<PendingModerat
     return row ?? null;
 }
 
+/** Requeue a stale processing row after a process crash so it can be claimed again. */
+export async function requeueProcessingPendingModeration(id: string): Promise<PendingModerationAction | null> {
+    const db = getDb();
+    const [row] = await db
+        .update(pendingModerationActions)
+        .set({ status: 'pending', updatedAt: new Date() })
+        .where(and(eq(pendingModerationActions.id, id), eq(pendingModerationActions.status, 'processing')))
+        .returning();
+    return row ?? null;
+}
+
 export async function listPendingModerationActions(): Promise<PendingModerationAction[]> {
     const db = getDb();
     return db.select().from(pendingModerationActions).where(eq(pendingModerationActions.status, 'pending'));
@@ -103,7 +115,13 @@ export async function listStalePendingModerationActions(olderThanMs = 5_000): Pr
     return db
         .select()
         .from(pendingModerationActions)
-        .where(and(eq(pendingModerationActions.status, 'pending'), lt(pendingModerationActions.createdAt, cutoff)));
+        .where(and(inArray(pendingModerationActions.status, ['pending', 'processing']), lt(pendingModerationActions.updatedAt, cutoff)));
+}
+
+/** Records the created case immediately after its Discord side effect succeeds.
+ * If a later DM/log update fails, recovery knows the punishment already happened. */
+export async function markPendingActionApplied(id: string, resultCaseId: string): Promise<void> {
+    await updatePendingModeration(id, { resultCaseId });
 }
 
 export async function markPendingCompleted(id: string, resultCaseId: string | null): Promise<void> {

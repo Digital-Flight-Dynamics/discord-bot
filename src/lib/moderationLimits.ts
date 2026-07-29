@@ -1,0 +1,17 @@
+import { modPortalUrl } from './moderationFormat';
+
+export const MAX_REASON_LENGTH = 500;
+export const MAX_PRIVATE_NOTE_LENGTH = 500;
+export const MAX_EMBED_FIELD_LENGTH = 1024;
+
+export function limitModerationText(value: string, max: number): string {
+    return value.trim().slice(0, max);
+}
+
+/** Keep Discord embeds valid while preserving a link to the full case on ATC. */
+export function moderationTextForEmbed(value: string | null | undefined, actionId: string, max = MAX_EMBED_FIELD_LENGTH): string {
+    const text = value?.trim() || 'None';
+    if (text.length <= max) return text;
+    const suffix = `….\n\n[More on ATC](${modPortalUrl(actionId)})`;
+    return `${text.slice(0, Math.max(0, max - suffix.length))}${suffix}`;
+}

@@ -3,6 +3,8 @@ import { getDb } from '../client';
 import { actionIds, identitySnapshots, timeouts, Timeout } from '../schema';
 import { allocateActionId } from '../../lib/actionId';
 
+const MAX_TIMEOUT_MS = 28 * 24 * 60 * 60 * 1000;
+
 export async function createTimeout(input: {
     guildId: string;
     subjectSnapshotId: string;
@@ -15,6 +17,8 @@ export async function createTimeout(input: {
     source?: string;
 }): Promise<Timeout> {
     const db = getDb();
+    const durationMs = Math.min(input.durationMs, MAX_TIMEOUT_MS);
+    const expiresAt = durationMs ? new Date(Date.now() + durationMs) : null;
     const [row] = await db
         .insert(timeouts)
         .values({
@@ -23,9 +27,9 @@ export async function createTimeout(input: {
             moderatorSnapshotId: input.moderatorSnapshotId,
             reason: input.reason,
             privateNote: input.privateNote ?? null,
-            durationMs: input.durationMs,
+            durationMs,
             durationToken: input.durationToken ?? null,
-            expiresAt: input.expiresAt ?? null,
+            expiresAt,
             source: input.source ?? 'bot',
         })
         .returning();

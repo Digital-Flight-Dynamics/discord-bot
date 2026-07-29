@@ -53,6 +53,11 @@ export function parseDurationToMs(arg: string | undefined): number {
     return diff > 0 ? diff : 0;
 }
 
+/** Accepted spellings for a permanent ban; timeouts still require a finite duration. */
+export function isPermanentDuration(value: string | null | undefined): boolean {
+    return /^(?:inf(?:inite)?|perm(?:anent|enent)?|forever|-1)$/i.test(value?.trim() || '');
+}
+
 export function splitLeadingDuration(args: string[]): {
     durationMs: number;
     durationToken: string | null;

@@ -1,5 +1,6 @@
 import {
     APIEmbedField,
+    Client,
     Guild,
     Message,
     MessageCreateOptions,
@@ -8,7 +9,7 @@ import {
 } from 'discord.js';
 import { createEmbed, EmbedColors } from './embed';
 import { getModLogChannel } from '../logging';
-import { createModLogMessage } from '../db/repositories/modLogMessages';
+import { createModLogMessage, findModLogByCase } from '../db/repositories/modLogMessages';
 import type { ModCaseType } from '../db/schema';
 
 export type DmResult = {
@@ -67,6 +68,23 @@ export function dmStatusLine(dm: DmResult): string {
     return dm.sent
         ? `${dmStatusEmoji(dm)} User was DMed`
         : `${dmStatusEmoji(dm)} User was **not** DMed${dm.reason ? ` (${dm.reason})` : ''}`;
+}
+
+/** Add a durable follow-up note to the case's existing moderation thread. */
+export async function postModerationThreadNote(opts: {
+    client: Client;
+    caseType: ModCaseType;
+    caseId: string;
+    title: string;
+    description: string;
+}): Promise<void> {
+    const modLog = await findModLogByCase(opts.caseType, opts.caseId);
+    if (!modLog?.threadId || modLog.threadDeleted) return;
+    const thread = await opts.client.channels.fetch(modLog.threadId).catch(() => null);
+    if (!thread?.isTextBased() || thread.isDMBased()) return;
+    await thread
+        .send({ embeds: [createEmbed({ color: EmbedColors.WARNING, title: opts.title, description: opts.description })] })
+        .catch((err) => console.error('[ERROR] Failed to post moderation thread note:', err));
 }
 
 function threadNameFor(opts: { actionId?: string | null; caseType: string; subjectTag?: string }): string {

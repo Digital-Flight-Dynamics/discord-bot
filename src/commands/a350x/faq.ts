@@ -6,7 +6,7 @@ export const faq: CommandDefinition = {
     names: ['faq'],
     description: 'Displays an embed with FAQ for the A350X project',
     category: CommandCategories.A350X,
-    permissions: ['ManageGuild'],
+    requiredRoleGroup: 'developer',
     execute: async (message) => {
         const embed = createEmbed({
             title: 'Frequently Asked Questions',

@@ -16,7 +16,7 @@ export const warnings: CommandDefinition = {
     names: ['warnings', 'warns'],
     description: 'Displays active warnings for a user. `Arguments: <id>`',
     category: CommandCategories.MODERATION,
-    permissions: ['ModerateMembers'],
+    requiredRoleGroup: 'moderation',
     execute: async (message, args) => {
         const invalidEmbed = createErrorEmbed('Please provide a valid user/id');
 

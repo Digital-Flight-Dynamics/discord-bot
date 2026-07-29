@@ -7,7 +7,7 @@ export const rules: CommandDefinition = {
     names: ['rules'],
     description: 'Displays an embed with the rules for the Discord server',
     category: CommandCategories.MODERATION,
-    permissions: ['ManageGuild'],
+    requiredRoleGroup: 'moderation',
     execute: async (message) => {
         const embed = createEmbed({
             title: 'Server Rules',

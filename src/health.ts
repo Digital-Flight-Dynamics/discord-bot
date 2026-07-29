@@ -1,4 +1,4 @@
-import { createServer, IncomingMessage, ServerResponse } from 'http';
+import { createServer, IncomingMessage, Server, ServerResponse } from 'http';
 import { Client } from 'discord.js';
 import { isDatabaseHealthy } from './db/client';
 
@@ -6,7 +6,7 @@ import { isDatabaseHealthy } from './db/client';
  * Starts a simple HTTP health check server
  * @param client - Discord client instance to check connection status
  */
-export function startHealthServer(client: Client): void {
+export function startHealthServer(client: Client): Server {
     const port = process.env.HEALTH_PORT ? parseInt(process.env.HEALTH_PORT) : 3000;
 
     const server = createServer((req: IncomingMessage, res: ServerResponse) => {
@@ -29,6 +29,7 @@ export function startHealthServer(client: Client): void {
     server.on('error', (error) => {
         console.error('Health check server error:', error);
     });
+    return server;
 }
 
 /**

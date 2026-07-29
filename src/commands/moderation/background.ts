@@ -17,7 +17,7 @@ export const background: CommandDefinition = {
     names: ['background', 'bgcheck', 'infractions'],
     description: 'Full moderation background check (includes removed/expired). `Arguments: <id>`',
     category: CommandCategories.MODERATION,
-    permissions: ['ModerateMembers'],
+    requiredRoleGroup: 'moderation',
     execute: async (message, args) => {
         const invalidEmbed = createErrorEmbed('Please provide a valid user/id');
 

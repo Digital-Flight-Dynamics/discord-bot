@@ -12,6 +12,13 @@ export function isConfigEmpty(cfg: BotWorkspaceConfig): boolean {
     return unset.length >= Math.max(1, CHANNEL_KEYS.length - 1);
 }
 
+/** Moderation needs case logs and its automated honeypot channel. */
+export function listMissingModerationCapabilities(cfg: BotWorkspaceConfig): string[] {
+    return ['modLogs', 'honeypot']
+        .filter((key) => isUnsetSnowflake(cfg.channels[key as keyof BotWorkspaceConfig['channels']]))
+        .map((key) => `channels.${key}`);
+}
+
 /** Unset channel constant paths, e.g. `channels.logs`. */
 export function listUnsetChannelConstants(cfg: BotWorkspaceConfig): string[] {
     return CHANNEL_KEYS.filter((k) => isUnsetSnowflake(cfg.channels[k])).map((k) => `channels.${k}`);

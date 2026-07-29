@@ -1,20 +1,34 @@
 import { Client, DiscordAPIError, RESTJSONErrorCodes } from 'discord.js';
-import { listExpiredOpenBans, liftBanById } from './repositories/bans';
+import { hasOtherActiveBan, listExpiredOpenBans, liftBanById } from './repositories/bans';
 import { discordAuditReason } from '../lib/moderationFormat';
+import { postModerationThreadNote } from '../lib/moderationNotify';
 
 const DEFAULT_INTERVAL_MS = 60_000;
+const NOT_UNBANNED_NOTE = 'User was not unbanned as they have another active ban on their account.';
 
-/**
- * Periodically unbans users whose ban rows have expired.
- * Warning expiry is query-time only (active filters on expires_at).
- */
-export function startExpiryWorker(client: Client, intervalMs = DEFAULT_INTERVAL_MS): NodeJS.Timeout {
+/** Starts a single-flight expiry worker and returns a cleanup function. */
+export function startExpiryWorker(client: Client, intervalMs = DEFAULT_INTERVAL_MS): () => void {
+    let running = false;
     const tick = async () => {
+        if (running) return;
+        running = true;
         try {
             const expired = await listExpiredOpenBans();
             for (const ban of expired) {
                 const userId = ban.subject?.discordUserId;
                 if (!userId) continue;
+
+                if (await hasOtherActiveBan({ guildId: ban.guildId, discordUserId: userId, excludingBanId: ban.id })) {
+                    await liftBanById(ban.id, 'expired; another active ban remains');
+                    await postModerationThreadNote({
+                        client,
+                        caseType: 'ban',
+                        caseId: ban.id,
+                        title: 'Ban expired',
+                        description: NOT_UNBANNED_NOTE,
+                    });
+                    continue;
+                }
 
                 const guild =
                     client.guilds.cache.get(ban.guildId) || (await client.guilds.fetch(ban.guildId).catch(() => null));
@@ -36,29 +50,22 @@ export function startExpiryWorker(client: Client, intervalMs = DEFAULT_INTERVAL_
                     );
                     shouldLift = true;
                 } catch (err) {
-                    if (err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownBan) {
-                        // Already unbanned — safe to lift the row.
-                        shouldLift = true;
-                    } else {
-                        console.error(`Expiry worker: Discord unban failed for ${userId}, will retry:`, err);
-                    }
+                    if (err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownBan) shouldLift = true;
+                    else console.error(`Expiry worker: Discord unban failed for ${userId}, will retry:`, err);
                 }
-
-                if (shouldLift) {
-                    await liftBanById(ban.id, 'expired');
-                }
+                if (shouldLift) await liftBanById(ban.id, 'expired');
             }
         } catch (err) {
             console.error('Expiry worker tick failed:', err);
+        } finally {
+            running = false;
         }
     };
 
-    // slight delay so guild cache is warm
-    setTimeout(() => {
-        tick().catch(console.error);
-    }, 5_000);
-
-    return setInterval(() => {
-        tick().catch(console.error);
-    }, intervalMs);
+    const initial = setTimeout(() => void tick(), 5_000);
+    const interval = setInterval(() => void tick(), intervalMs);
+    return () => {
+        clearTimeout(initial);
+        clearInterval(interval);
+    };
 }

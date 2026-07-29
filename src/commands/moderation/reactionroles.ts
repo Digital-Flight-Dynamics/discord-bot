@@ -6,7 +6,7 @@ export const reactionroles: CommandDefinition = {
     names: ['reactionroles', 'rr'],
     description: 'Sends the reaction roles embed',
     category: CommandCategories.MODERATION,
-    permissions: ['ManageGuild'],
+    requiredRoleGroup: 'moderation',
     execute: async (message) => {
         const embed = createEmbed({
             title: 'Announcement Roles',

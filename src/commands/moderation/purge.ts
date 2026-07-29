@@ -6,7 +6,7 @@ export const purge: CommandDefinition = {
     names: ['purge', 'clear'],
     description: 'Clears the desired amount of messages. `Arguments: <amount>`',
     category: CommandCategories.MODERATION,
-    permissions: ['ManageMessages'],
+    requiredRoleGroup: 'moderation',
     execute: async (message, args) => {
         const amount = parseInt(args[0]);
 

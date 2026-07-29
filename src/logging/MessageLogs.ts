@@ -21,7 +21,7 @@ export const messageDelete: LogDefinition = {
                 title: `Message deleted in #${message.channel.name}`,
                 description: `**Content:** ${message.content}`,
                 footer: { text: `User ID: ${message.author.id}` },
-                author: { name: message.author.tag, iconURL: message.author.avatarURL() },
+                author: { name: message.author.tag, iconURL: message.author.avatarURL() || undefined },
             },
             true,
         );
@@ -33,11 +33,13 @@ export const messageDelete: LogDefinition = {
 export const messageDeleteBulk: LogDefinition = {
     event: 'messageDeleteBulk',
     execute: async (messages: Collection<Snowflake, Message>) => {
-        const channel = messages.at(0).channel as GuildChannel;
+        const first = messages.at(0);
+        if (!first) return;
+        const channel = first.channel as GuildChannel;
         const logChannel = getLogChannel(channel);
         if (!logChannel) return;
 
-        const desc = [];
+        const desc: string[] = [];
 
         messages.forEach((message) => {
             desc.push(`[${message.author ? message.author.tag : 'unknown_user'}]: ${message.content}`);
@@ -74,7 +76,7 @@ export const messageUpdate: LogDefinition = {
                 title: `Message edited in #${oldMsg.channel.name}`,
                 description: `**Before:** ${oldMsg.content}\n**+After:** ${newMsg.content}`,
                 footer: { text: `User ID: ${oldMsg.author.id}` },
-                author: { name: oldMsg.author.tag, iconURL: oldMsg.author.avatarURL() },
+                author: { name: oldMsg.author.tag, iconURL: oldMsg.author.avatarURL() || undefined },
             },
             true,
         );

@@ -56,7 +56,7 @@ export const taf: CommandDefinition = {
                 shouldReturn = true;
             });
 
-        if (shouldReturn) return;
+        if (shouldReturn || !embed) return;
 
         await message.channel.send({ embeds: [embed] }).catch(console.error);
     },
