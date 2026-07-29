@@ -1046,7 +1046,7 @@ function resolutionUserMessage(status: ResolutionStatus, publicNote: string | nu
     const message =
         status === 'appeal-approved'
             ? 'The moderation team has approved your appeal for this action. It may remain on your account record until its duration expires.'
-            : 'The moderation team has decided to revoke this action from your account. It has been removed from your record.';
+            : 'The moderation team has decided to revoke this action from your account.\n\nIt has been removed from your record.';
     return publicNote ? `${message}\n\n**Note from Moderation:**\n${quoteBlock(publicNote)}` : message;
 }
 
