@@ -1,0 +1,12 @@
+**
+!webui/
+!webui/**
+!src/
+!src/config/
+!src/config/**
+
+webui/node_modules
+webui/dist
+webui/.astro
+webui/.env
+src/config/dev.ts

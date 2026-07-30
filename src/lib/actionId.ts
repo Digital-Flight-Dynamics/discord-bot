@@ -1,13 +1,13 @@
 import { randomBytes } from 'crypto';
 import { and, eq } from 'drizzle-orm';
 import { getDb } from '../db/client';
-import { actionIds } from '../db/schema';
+import { actionIds, type NewActionIdRow } from '../db/schema';
 
 /**
  * Public moderation Action IDs (human-facing).
  *
  * Format:
- *   A + DD + MM + . + YY + K + NN + - + L
+ *   A + DD + MM + . + YY + K + - + R
  *
  *   A   fixed "Action" prefix
  *   DD  UTC day (zero-padded)
@@ -19,9 +19,7 @@ import { actionIds } from '../db/schema';
  *   R   64 bits of cryptographically secure random hex
  *
  * Examples:
- *   A0701.26W42-X  — warning on 2026-01-07
- *   A2607.26T03-Y  — timeout on 2026-07-26
- *   A1512.26S88-Z  — softban on 2026-12-15
+ *   A0701.26W-9E6B9F5A81D2C407 — warning on 2026-01-07
  *
  * UUIDs remain internal primary keys; Action IDs are unique public references.
  * Collisions regenerate until the registry insert succeeds.
@@ -78,7 +76,14 @@ export function normalizeActionId(raw: string): string {
     if (/^A\d{6}[TWKBSX][A-F0-9]{16}$/.test(compact)) {
         return `${compact.slice(0, 5)}.${compact.slice(5, 8)}-${compact.slice(8)}`;
     }
-    if (/^\d{6}[TWKBSX]\d{2}[XYZ]$/.test(compact)) return `A${compact.slice(0, 5)}.${compact.slice(5, 10)}-${compact.slice(10)}`;
+    if (/^\d{6}[TWKBSX][A-F0-9]{16}$/.test(compact)) {
+        const prefixed = `A${compact}`;
+        return `${prefixed.slice(0, 5)}.${prefixed.slice(5, 8)}-${prefixed.slice(8)}`;
+    }
+    if (/^\d{6}[TWKBSX]\d{2}[XYZ]$/.test(compact)) {
+        const prefixed = `A${compact}`;
+        return `${prefixed.slice(0, 5)}.${prefixed.slice(5, 10)}-${prefixed.slice(10)}`;
+    }
     if (/^A\d{6}[TWKBSX]\d{2}[XYZ]$/.test(compact)) return `${compact.slice(0, 5)}.${compact.slice(5, 10)}-${compact.slice(10)}`;
     return cleaned;
 }
@@ -111,17 +116,16 @@ export async function resolveActionId(
  * Generate a unique Action ID and reserve it in the registry.
  * Retries on collision until clear (or throws after MAX_ATTEMPTS).
  */
-export async function allocateActionId(input: {
-    recordType: ActionRecordType;
-    recordUuid: string;
-    guildId: string;
-}): Promise<string> {
-    const db = getDb();
-
+export async function allocateActionId(
+    input: { recordType: ActionRecordType; recordUuid: string; guildId: string },
+    reserve: (row: NewActionIdRow) => Promise<unknown> = async (row) => {
+        await getDb().insert(actionIds).values(row);
+    },
+): Promise<string> {
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
         const candidate = buildActionIdCandidate(input.recordType);
         try {
-            await db.insert(actionIds).values({
+            await reserve({
                 actionId: candidate,
                 recordType: input.recordType,
                 recordUuid: input.recordUuid,

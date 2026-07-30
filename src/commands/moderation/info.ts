@@ -1,4 +1,4 @@
-import { CommandCategories, CommandDefinition } from '../index';
+import { CommandCategories, CommandDefinition } from '../definitions';
 import { createEmbed } from '../../lib/embed';
 import { channels } from '../../config';
 

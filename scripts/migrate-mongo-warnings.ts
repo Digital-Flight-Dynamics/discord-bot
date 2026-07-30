@@ -2,14 +2,14 @@
  * OPTIONAL one-shot: legacy Mongo warnings → PostgreSQL.
  * Not used by the bot at runtime (Postgres only). Kept for a possible later data import.
  *
- * Requires the `mongodb` package installed ad-hoc if you run this:
- *   npm i -D mongodb
- *   MONGO_URI=... DATABASE_URL=... GUILD_ID=... npx ts-node scripts/migrate-mongo-warnings.ts
+ * The `mongodb` package is a development dependency:
+ *   MONGO_URI=... DATABASE_URL=... GUILD_ID=... bun scripts/migrate-mongo-warnings.ts
  *   ... --dry-run
  */
 import dotenv from 'dotenv';
 import { MongoClient, ObjectId } from 'mongodb';
 import { Pool } from 'pg';
+import { buildActionIdCandidate } from '../src/lib/actionId';
 
 dotenv.config();
 
@@ -52,12 +52,11 @@ async function main() {
         const total = await col.countDocuments();
         console.log(`Found ${total} Mongo warnings`);
 
-        const docs = await col.find({}).toArray();
         let inserted = 0;
         let skipped = 0;
         let failed = 0;
 
-        for (const doc of docs) {
+        for await (const doc of col.find({}).batchSize(500)) {
             const legacyId = String(doc._id);
             const userId = doc.userId || 'unknown';
             const moderatorId = doc.moderatorId || null;
@@ -93,21 +92,36 @@ async function main() {
                 let moderatorSnapId: string | null = null;
                 if (moderatorId) {
                     const mod = await client.query(
-                        `INSERT INTO identity_snapshots (discord_user_id, username, display_name, pronouns, bio, urls)
-                         VALUES ($1, NULL, NULL, NULL, NULL, '[]'::jsonb)
+                        `INSERT INTO identity_snapshots (discord_user_id, username, display_name)
+                         VALUES ($1, NULL, NULL)
                          RETURNING id`,
                         [moderatorId],
                     );
                     moderatorSnapId = mod.rows[0].id;
                 }
 
-                await client.query(
+                const warning = await client.query(
                     `INSERT INTO warnings (
                         guild_id, subject_snapshot_id, moderator_snapshot_id, reason, private_note,
                         created_at, legacy_mongo_id
-                     ) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+                     ) VALUES ($1,$2,$3,$4,$5,$6,$7)
+                     RETURNING id`,
                     [guildId, subjectId, moderatorSnapId, reason, privateNote, createdAt, legacyId],
                 );
+                const warningId = warning.rows[0].id as string;
+                let actionId: string | null = null;
+                for (let attempt = 0; attempt < 32 && !actionId; attempt++) {
+                    const candidate = buildActionIdCandidate('warning', createdAt);
+                    const reserved = await client.query(
+                        `INSERT INTO action_ids (action_id, record_type, record_uuid, guild_id)
+                         VALUES ($1, 'warning', $2, $3)
+                         ON CONFLICT DO NOTHING RETURNING action_id`,
+                        [candidate, warningId, guildId],
+                    );
+                    if (reserved.rowCount) actionId = candidate;
+                }
+                if (!actionId) throw new Error(`Failed to allocate an action ID for ${legacyId}`);
+                await client.query('UPDATE warnings SET action_id = $1 WHERE id = $2', [actionId, warningId]);
 
                 await client.query('COMMIT');
                 inserted++;

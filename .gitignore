@@ -1,4 +1,5 @@
 node_modules
+.codegraph/
 .env
 out
 .eslintcache

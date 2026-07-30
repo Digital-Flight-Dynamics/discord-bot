@@ -14,5 +14,6 @@ export function moderationTextForEmbed(value: string | null | undefined, actionI
     const text = value?.trim() || 'None';
     if (text.length <= max) return text;
     const suffix = `….\n\n[More on ATC](${modPortalUrl(actionId)})`;
+    if (suffix.length >= max) return suffix.slice(0, max);
     return `${text.slice(0, Math.max(0, max - suffix.length))}${suffix}`;
 }

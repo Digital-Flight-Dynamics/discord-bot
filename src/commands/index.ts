@@ -1,4 +1,3 @@
-import Discord from 'discord.js';
 import { when } from './a350x/when';
 import { marketplace } from './a350x/marketplace';
 import { faq } from './a350x/faq';
@@ -26,27 +25,10 @@ import { tools } from './a350x/tools';
 import { installer } from './a350x/installer';
 import { devchannels } from './dev/devchannels';
 
-import { createEmbed, EmbedColors } from '../lib/embed';
-import type { ModerationRoleGroup } from '../lib/moderationAccess';
+import type { CommandDefinition } from './definitions';
 
-export const enum CommandCategories {
-    A350X = 'A350X',
-    GENERAL = 'General',
-    FUN = 'Fun',
-    MODERATION = 'Moderation',
-    SUPPORT = 'Support',
-}
-export type CommandDefinition = {
-    names: string[];
-    description: string;
-    category: CommandCategories;
-    /** Legacy Discord permissions. Prefer requiredRoleGroup for staff authority. */
-    permissions?: Discord.PermissionsString[];
-    requiredRoleGroup?: ModerationRoleGroup;
-    execute: (message: Discord.Message<true>, args: Array<string>) => Promise<any>;
-};
-export const createErrorEmbed = (description: string) =>
-    createEmbed({ color: EmbedColors.FAILURE, title: 'Error', description });
+export { CommandCategories, createErrorEmbed } from './definitions';
+export type { CommandDefinition } from './definitions';
 
 export const commands: CommandDefinition[] = [
     when,

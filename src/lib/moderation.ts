@@ -1,5 +1,6 @@
 import { Message } from 'discord.js';
 import * as chrono from 'chrono-node';
+import { MAX_TEMPORARY_MODERATION_MS } from './moderationDuration';
 
 /** Strip mention wrappers from a user id argument. */
 export function parseUserId(raw: string | undefined): string | null {
@@ -37,20 +38,28 @@ export function parseDurationToMs(arg: string | undefined): number {
         const months = unit.startsWith('month') || unit === 'mo' || unit === 'mos';
         const years = unit.startsWith('year') || unit === 'y' || unit === 'yr' || unit === 'yrs';
 
-        if (seconds) return amount * 1000;
-        if (minutes) return amount * 60 * 1000;
-        if (hours) return amount * 60 * 60 * 1000;
-        if (days) return amount * 24 * 60 * 60 * 1000;
-        if (weeks) return amount * 7 * 24 * 60 * 60 * 1000;
-        if (months) return amount * 30 * 24 * 60 * 60 * 1000;
-        if (years) return amount * 365 * 24 * 60 * 60 * 1000;
+        let multiplier = 0;
+        if (seconds) multiplier = 1000;
+        else if (minutes) multiplier = 60 * 1000;
+        else if (hours) multiplier = 60 * 60 * 1000;
+        else if (days) multiplier = 24 * 60 * 60 * 1000;
+        else if (weeks) multiplier = 7 * 24 * 60 * 60 * 1000;
+        else if (months) multiplier = 30 * 24 * 60 * 60 * 1000;
+        else if (years) multiplier = 365 * 24 * 60 * 60 * 1000;
+        const duration = amount * multiplier;
+        return multiplier > 0 && Number.isSafeInteger(duration) && duration <= MAX_TEMPORARY_MODERATION_MS
+            ? duration
+            : 0;
     }
 
     const now = new Date();
     const result = chrono.parse(input, now, { forwardDate: true })[0];
     if (!result || result.text.trim().toLowerCase() !== input.toLowerCase()) return 0;
-    const diff = result.date().getTime() - now.getTime();
-    return diff > 0 ? diff : 0;
+    const resultTime = result.date().getTime();
+    const diff = resultTime - now.getTime();
+    return Number.isFinite(resultTime) && Number.isSafeInteger(diff) && diff > 0 && diff <= MAX_TEMPORARY_MODERATION_MS
+        ? diff
+        : 0;
 }
 
 /** Accepted spellings for a permanent ban; timeouts still require a finite duration. */

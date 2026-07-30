@@ -14,4 +14,5 @@ COPY --from=build /app/out ./out
 COPY --from=build /app/drizzle ./drizzle
 COPY --from=build /app/scripts ./scripts
 USER bun
-CMD ["bun", "out/index.js"]
+EXPOSE 3000
+CMD ["bun", "out/src/index.js"]

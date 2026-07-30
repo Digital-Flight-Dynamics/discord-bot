@@ -8,7 +8,7 @@ export const modLogMessages = pgTable('mod_log_messages', {
     caseType: text('case_type').notNull(),
     /** Related DB row id when applicable (warning/kick/ban uuid) */
     caseId: text('case_id'),
-    /** Public Action ID (e.g. A26A07K7X3) */
+    /** Public Action ID */
     actionId: text('action_id'),
     channelId: text('channel_id').notNull(),
     /** Parent message in #mod-logs that holds the embed */

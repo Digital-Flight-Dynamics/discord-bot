@@ -18,8 +18,6 @@ export async function createPendingModeration(input: {
     expiresAt?: Date | null;
     deleteMessageSeconds?: number | null;
     banType?: string | null;
-    commandChannelId?: string | null;
-    commandMessageId?: string | null;
     linkedMessageId?: string | null;
     linkedChannelId?: string | null;
     linkedMessageUrl?: string | null;
@@ -40,8 +38,6 @@ export async function createPendingModeration(input: {
             expiresAt: input.expiresAt ?? null,
             deleteMessageSeconds: input.deleteMessageSeconds ?? null,
             banType: input.banType ?? null,
-            commandChannelId: input.commandChannelId ?? null,
-            commandMessageId: input.commandMessageId ?? null,
             linkedMessageId: input.linkedMessageId ?? null,
             linkedChannelId: input.linkedChannelId ?? null,
             linkedMessageUrl: input.linkedMessageUrl ?? null,
@@ -55,10 +51,9 @@ export async function updatePendingModeration(
     id: string,
     patch: Partial<{
         privateNote: string | null;
-        confirmChannelId: string | null;
-        confirmMessageId: string | null;
         status: PendingActionStatus;
         resultCaseId: string | null;
+        discordAppliedAt: Date | null;
         completedAt: Date | null;
     }>,
 ): Promise<PendingModerationAction | null> {
@@ -118,18 +113,16 @@ export async function listStalePendingModerationActions(olderThanMs = 5_000): Pr
         .where(and(inArray(pendingModerationActions.status, ['pending', 'processing']), lt(pendingModerationActions.updatedAt, cutoff)));
 }
 
-/** Records the created case immediately after its Discord side effect succeeds.
- * If a later DM/log update fails, recovery knows the punishment already happened. */
-export async function markPendingActionApplied(id: string, resultCaseId: string): Promise<void> {
-    await updatePendingModeration(id, { resultCaseId });
-}
-
 export async function markPendingCompleted(id: string, resultCaseId: string | null): Promise<void> {
     await updatePendingModeration(id, {
         status: 'completed',
         resultCaseId,
         completedAt: new Date(),
     });
+}
+
+export async function markPendingDiscordApplied(id: string): Promise<void> {
+    await updatePendingModeration(id, { discordAppliedAt: new Date() });
 }
 
 export async function markPendingCancelled(id: string): Promise<void> {

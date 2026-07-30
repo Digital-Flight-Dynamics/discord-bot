@@ -1,12 +1,15 @@
-import { APIEmbedField } from 'discord.js';
-import { CommandCategories, CommandDefinition, commands } from '../index';
+import { APIEmbedField, Message } from 'discord.js';
+import { CommandCategories, type CommandDefinition } from '../definitions';
+import { commands } from '../index';
 import { createEmbed } from '../../lib/embed';
 import { hasRoleAccess } from '../../lib/moderationAccess';
 
-function canSeeCommand(messageMember: Parameters<CommandDefinition['execute']>[0]['member'], command: CommandDefinition): boolean {
-    if (command.requiredRoleGroup) return hasRoleAccess(messageMember || null, command.requiredRoleGroup);
+function canSeeCommand(message: Message<true>, command: CommandDefinition): boolean {
+    if (command.silentGuard?.(message)) return false;
+    if (command.allowOwnerDuringBootstrap && message.author.id === message.guild.ownerId) return true;
+    if (command.requiredRoleGroup) return hasRoleAccess(message.member || null, command.requiredRoleGroup);
     if (!command.permissions) return true;
-    return Boolean(messageMember?.permissions.has(command.permissions));
+    return Boolean(message.member?.permissions.has(command.permissions));
 }
 
 export const help: CommandDefinition = {
@@ -27,7 +30,7 @@ export const help: CommandDefinition = {
                 commands.some(
                     (command) =>
                         command.category.toUpperCase() === field.name.toUpperCase() &&
-                        canSeeCommand(message.member, command),
+                        canSeeCommand(message, command),
                 ),
             );
 
@@ -46,7 +49,7 @@ export const help: CommandDefinition = {
 
         const cmds: CommandDefinition[] = [];
         for (const command of commands) {
-            if (command.category.toUpperCase() === category && canSeeCommand(message.member, command)) {
+            if (command.category.toUpperCase() === category && canSeeCommand(message, command)) {
                 cmds.push(command);
                 embedTitle = `${command.category}`;
             }

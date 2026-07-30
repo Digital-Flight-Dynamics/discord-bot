@@ -2,11 +2,12 @@ import type { BotWorkspaceConfig } from './types';
 
 /**
  * Production Digital Flight Dynamics Discord server.
- * Selected with CONSTANTS_FILE=dfd-discord (default for `npm start` / production).
+ * Selected with CONSTANTS_FILE=dfd-discord (the production default).
  */
 const dfdDiscord: BotWorkspaceConfig = {
     name: 'dfd-discord',
     guildId: '808790838163406848',
+    communityInviteUrl: 'https://discord.com/invite/JtcFmhcAME',
     prefix: '.',
 
     channels: {
@@ -18,7 +19,7 @@ const dfdDiscord: BotWorkspaceConfig = {
         info: '808810478574501918',
         logs: '808804241350197258', // audit-logs
         modLogs: '000000000000000000', // set to your #mod-logs channel id
-        honeypot: '000000000000000000', // set to your honeypot channel id
+        honeypot: '1526646404557049897',
         management: '908006127118204939',
         memberArrivals: '808793231621750815',
         memberCounter: '818980706516336650',

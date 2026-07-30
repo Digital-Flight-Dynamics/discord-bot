@@ -1,11 +1,12 @@
-import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
+import { CommandCategories, CommandDefinition, createErrorEmbed } from '../definitions';
 import { createEmbed, EmbedColors } from '../../lib/embed';
 import { captureIdentitySnapshot, formatSnapshotLabel } from '../../db/repositories/snapshots';
 import { findWarningByIdOrLegacy, softRemoveWarning } from '../../db/repositories/warnings';
+import { moderationTextForEmbed } from '../../lib/moderationLimits';
 
 export const removewarning: CommandDefinition = {
     names: ['removewarning', 'rmwarn', 'deletewarning', 'delwarn'],
-    description: 'Soft-removes a warning by Action ID (A26…), UUID, or legacy Mongo id. `Arguments: <id>`',
+    description: 'Soft-removes a warning by Action ID, UUID, or legacy Mongo id. `Arguments: <id>`',
     category: CommandCategories.MODERATION,
     requiredRoleGroup: 'moderation',
     execute: async (message, args) => {
@@ -38,9 +39,9 @@ export const removewarning: CommandDefinition = {
                 title: 'Cleared Warning',
                 description: `User ID: \`${existing.subject.discordUserId}\`\nUsername: \`${existing.subject.username ?? 'Not Found'}\``,
                 fields: [
-                    { name: 'Unique ID', value: `\`${removed.id}\``, inline: false },
-                    { name: 'Reason', value: `${removed.reason}`, inline: true },
-                    { name: 'Private Note', value: `${removed.privateNote ?? 'None'}`, inline: true },
+                    { name: 'Action ID', value: `\`${removed.actionId || removed.id}\``, inline: false },
+                    { name: 'Reason', value: moderationTextForEmbed(removed.reason, removed.actionId || removed.id), inline: true },
+                    { name: 'Private Note', value: moderationTextForEmbed(removed.privateNote, removed.actionId || removed.id), inline: true },
                     {
                         name: 'Moderator (original)',
                         value: existing.moderator

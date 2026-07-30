@@ -21,6 +21,8 @@ import {
     notifiedLine,
 } from './moderationFormat';
 import { logModerationAction } from './moderationNotify';
+import { formatDurationMs } from './moderationDuration';
+import { moderationTextForEmbed } from './moderationLimits';
 
 const AUDIT_LOG_DELAY_MS = 1500;
 const AUDIT_LOG_WINDOW_MS = 15_000;
@@ -29,18 +31,22 @@ const DISCORD_NOTE = 'Created automatically from a Discord-level moderation acti
 
 export function registerDiscordModerationTracker(client: Client): void {
     client.on('guildBanAdd', (ban) => {
-        void trackDiscordBan(client, ban).catch((err) => console.error('[ERROR] Failed to track Discord ban:', err));
+        void trackDiscordBan(client, ban).catch((err) => logTrackerError('ban', err));
     });
 
     client.on('guildMemberRemove', (member) => {
-        void trackDiscordKick(client, member).catch((err) => console.error('[ERROR] Failed to track Discord kick:', err));
+        void trackDiscordKick(client, member).catch((err) => logTrackerError('kick', err));
     });
 
     client.on('guildMemberUpdate', (oldMember, newMember) => {
-        void trackDiscordTimeout(client, oldMember, newMember).catch((err) =>
-            console.error('[ERROR] Failed to track Discord timeout:', err),
-        );
+        void trackDiscordTimeout(client, oldMember, newMember).catch((err) => logTrackerError('timeout', err));
     });
+}
+
+function logTrackerError(action: string, err: unknown): void {
+    const code = typeof err === 'object' && err && 'code' in err ? String((err as { code: unknown }).code) : '';
+    if (code === '23505') return;
+    console.error(`[ERROR] Failed to track Discord ${action}:`, err);
 }
 
 async function trackDiscordBan(client: Client, ban: GuildBan): Promise<void> {
@@ -71,6 +77,7 @@ async function trackDiscordBan(client: Client, ban: GuildBan): Promise<void> {
         banType: 'hard',
         privateNotes: DISCORD_NOTE,
         source: DISCORD_SOURCE,
+        discordAuditLogId: audit.id,
     });
     const counts = await getInfractionCounts(ban.guild.id, ban.user.id);
     await postDiscordCaseLog(client, ban.guild, {
@@ -120,6 +127,7 @@ async function trackDiscordKick(client: Client, member: GuildMember | PartialGui
         reason,
         privateNote: DISCORD_NOTE,
         source: DISCORD_SOURCE,
+        discordAuditLogId: audit.id,
     });
     const counts = await getInfractionCounts(member.guild.id, user.id);
     await postDiscordCaseLog(client, member.guild, {
@@ -177,6 +185,7 @@ async function trackDiscordTimeout(
         durationToken,
         expiresAt,
         source: DISCORD_SOURCE,
+        discordAuditLogId: audit.id,
     });
     const counts = await getInfractionCounts(newMember.guild.id, newMember.id);
     await postDiscordCaseLog(client, newMember.guild, {
@@ -219,6 +228,9 @@ async function postDiscordCaseLog(
         reason: string;
     },
 ): Promise<void> {
+    const durationFields = opts.action === 'timeout' || opts.action === 'ban'
+        ? [{ name: 'Duration', value: opts.durationToken || (opts.expiresAt ? 'Temporary' : 'Permanent'), inline: true }]
+        : [];
     const modLog = await logModerationAction(guild, {
         color: opts.action === 'ban' ? EmbedColors.FAILURE : EmbedColors.WARNING,
         caseType: opts.action,
@@ -261,10 +273,8 @@ async function postDiscordCaseLog(
                 inline: false,
             },
             { name: 'Source', value: 'Discord-level moderation action (not a bot command)', inline: false },
-            ...(opts.action === 'timeout' || opts.action === 'ban'
-                ? [{ name: 'Duration', value: opts.durationToken || (opts.expiresAt ? 'Temporary' : 'Permanent'), inline: true }]
-                : []),
-            { name: 'Reason', value: opts.reason || 'No reason provided', inline: false },
+            ...durationFields,
+            { name: 'Reason', value: moderationTextForEmbed(opts.reason, opts.actionId), inline: false },
             { name: 'Private Note', value: DISCORD_NOTE, inline: false },
         ],
         footerUrl: modPortalUrl(opts.actionId),
@@ -292,17 +302,4 @@ function auditLooksLikeTimeout(audit: Awaited<ReturnType<typeof latestAuditForTa
 
 function delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function formatDurationMs(ms: number): string {
-    const units = [
-        { label: 'day', ms: 86_400_000 },
-        { label: 'hour', ms: 3_600_000 },
-        { label: 'minute', ms: 60_000 },
-    ];
-    for (const unit of units) {
-        const value = Math.round(ms / unit.ms);
-        if (value >= 1) return `${value} ${unit.label}${value === 1 ? '' : 's'}`;
-    }
-    return 'Less than 1 minute';
 }

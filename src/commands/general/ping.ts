@@ -1,4 +1,4 @@
-import { CommandCategories, CommandDefinition } from '../index';
+import { CommandCategories, CommandDefinition } from '../definitions';
 import { createEmbed, EmbedColors } from '../../lib/embed';
 import { CONFIG_DOCS } from '../../config/errors';
 import {
@@ -13,11 +13,7 @@ export const ping: CommandDefinition = {
     category: CommandCategories.GENERAL,
     execute: async (message) => {
         const showLockDetail = isSoftLocked() && canSeeSoftLockDiagnostics(message.member);
-        const lockHint = showLockDetail
-            ? `\nSoft-locked — ${softLockSummary()}. See ${CONFIG_DOCS}.`
-            : isSoftLocked()
-              ? ''
-              : '';
+        const lockHint = showLockDetail ? `\nSoft-locked — ${softLockSummary()}. See ${CONFIG_DOCS}.` : '';
 
         const sent = await message
             .reply({

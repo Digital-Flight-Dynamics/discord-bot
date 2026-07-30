@@ -1,13 +1,12 @@
-import { Collection, GuildChannel, Message, Snowflake } from 'discord.js';
 import { createEmbed } from '../lib/embed';
 import { Colors, LogDefinition, getLogChannel } from '.';
 import { channels } from '../config';
 
 const CHANNEL_BLACKLIST = [channels.management];
 
-export const messageDelete: LogDefinition = {
+export const messageDelete: LogDefinition<'messageDelete'> = {
     event: 'messageDelete',
-    execute: async (message: Message) => {
+    execute: async (message) => {
         if (!message.author || message.channel.isDMBased()) return;
 
         if (CHANNEL_BLACKLIST.includes(message.channel.id)) return;
@@ -30,12 +29,11 @@ export const messageDelete: LogDefinition = {
     },
 };
 
-export const messageDeleteBulk: LogDefinition = {
+export const messageDeleteBulk: LogDefinition<'messageDeleteBulk'> = {
     event: 'messageDeleteBulk',
-    execute: async (messages: Collection<Snowflake, Message>) => {
+    execute: async (messages, channel) => {
         const first = messages.at(0);
         if (!first) return;
-        const channel = first.channel as GuildChannel;
         const logChannel = getLogChannel(channel);
         if (!logChannel) return;
 
@@ -59,16 +57,17 @@ export const messageDeleteBulk: LogDefinition = {
     },
 };
 
-export const messageUpdate: LogDefinition = {
+export const messageUpdate: LogDefinition<'messageUpdate'> = {
     event: 'messageUpdate',
-    execute: async (oldMsg: Message, newMsg: Message) => {
+    execute: async (oldMsg, newMsg) => {
         if (!oldMsg.author || oldMsg.author.bot || oldMsg.channel.isDMBased()) return;
         if (CHANNEL_BLACKLIST.includes(oldMsg.channel.id)) return;
 
         const logChannel = getLogChannel(oldMsg);
         if (!logChannel) return;
 
-        if (oldMsg.content === newMsg.content) return; // We do not want to log down messages just cuz the embed updated (we don't log the embed so it doesn't matter)
+        // Embed-only updates do not need a text-content audit entry.
+        if (oldMsg.content === newMsg.content) return;
 
         const embed = createEmbed(
             {

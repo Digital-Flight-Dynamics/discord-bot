@@ -1,11 +1,11 @@
-import { CommandCategories, CommandDefinition } from '../index';
+import { CommandCategories, CommandDefinition } from '../definitions';
 import { createEmbed } from '../../lib/embed';
 
 export const simbrief: CommandDefinition = {
     names: ['simbrief'],
     description: 'Provides details about the simbrief integration',
     category: CommandCategories.A350X,
-    execute: async (message, args) => {
+    execute: async (message) => {
         const embed = createEmbed({
             title: 'Will there be a simbrief integration?',
             description: 'Yes! Simbrief will be available to use via the OIS (Onboard Information System).',

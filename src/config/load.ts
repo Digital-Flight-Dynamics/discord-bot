@@ -14,7 +14,7 @@ const CONFIG_DIR = __dirname;
  *
  * Priority:
  *  1. CONSTANTS_FILE env (e.g. "dfd-discord", "dev", "dfd-discord.ts")
- *  2. `npm run dev` / `bun run dev` lifecycle → "dev"
+ *  2. `bun run dev` lifecycle → "dev"
  *  3. default → "dfd-discord"
  */
 export function resolveConfigName(): string {
@@ -23,7 +23,7 @@ export function resolveConfigName(): string {
         return raw.replace(/\.(ts|js|mjs|cjs)$/i, '');
     }
 
-    // npm and bun both set npm_lifecycle_event for script runs
+    // Bun exposes this npm-compatible lifecycle variable to scripts.
     if (process.env.npm_lifecycle_event === 'dev') {
         return 'dev';
     }
@@ -32,8 +32,8 @@ export function resolveConfigName(): string {
 }
 
 function loadModule(name: string): BotWorkspaceConfig {
-    // ts-node / compiled node both resolve relative requires from this file
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    // TypeScript source / compiled Bun both resolve relative requires from this file
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = require(`./${name}`) as { default?: BotWorkspaceConfig } & BotWorkspaceConfig;
     const config = (mod.default ?? mod) as BotWorkspaceConfig;
     if (!config || typeof config !== 'object' || !config.channels || !config.roles) {
@@ -99,7 +99,7 @@ export function loadConfig(): BotWorkspaceConfig {
             message = [
                 'Missing src/config/dev.ts for local development.',
                 exampleExists ? 'Copy the template: cp src/config/dev.example.ts src/config/dev.ts' : '',
-                'Or run: CONSTANTS_FILE=dfd-discord npm run dev',
+                'Or run: CONSTANTS_FILE=dfd-discord bun run dev',
             ]
                 .filter(Boolean)
                 .join(' ');

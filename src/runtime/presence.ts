@@ -42,7 +42,6 @@ function applySoftLockPresence(client: Client): void {
         activities: [{ name: '-', type: ActivityType.Playing }],
         afk: false,
     });
-    client.user.setStatus('dnd');
 }
 
 function applyEntry(client: Client, entry: PresenceStatusEntry): void {
@@ -53,7 +52,6 @@ function applyEntry(client: Client, entry: PresenceStatusEntry): void {
         activities: [entryToActivity(entry)],
         afk: false,
     });
-    client.user.setStatus(status);
 }
 
 /**
@@ -76,7 +74,6 @@ export function startPresenceRotation(client: Client, presence: PresenceConfig |
                 activities: [{ name: '-', type: ActivityType.Playing }],
                 afk: false,
             });
-            client.user.setStatus('online');
             return;
         }
 

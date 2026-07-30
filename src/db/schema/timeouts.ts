@@ -17,6 +17,7 @@ export const timeouts = pgTable('timeouts', {
     expiresAt: timestamp('expires_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     source: text('source').notNull().default('bot'),
+    discordAuditLogId: text('discord_audit_log_id').unique(),
     resolutionStatus: text('resolution_status'),
     resolvedAt: timestamp('resolved_at', { withTimezone: true }),
     resolvedByModeratorSnapshotId: uuid('resolved_by_moderator_snapshot_id').references(() => identitySnapshots.id),

@@ -1,16 +1,12 @@
 import { APIEmbedField } from 'discord.js';
-import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
+import { CommandCategories, CommandDefinition, createErrorEmbed } from '../definitions';
 import { createEmbed } from '../../lib/embed';
 import { formatSnapshotLabel } from '../../db/repositories/snapshots';
 import { listActiveWarnings } from '../../db/repositories/warnings';
 import { parseUserId } from '../../lib/moderation';
+import { moderationTextForEmbed } from '../../lib/moderationLimits';
 
 const MAX_EMBED_FIELDS = 25;
-const MAX_FIELD_VALUE = 1024;
-
-function fieldValue(value: string): string {
-    return value.length > MAX_FIELD_VALUE ? `${value.slice(0, MAX_FIELD_VALUE - 1)}…` : value;
-}
 
 export const warnings: CommandDefinition = {
     names: ['warnings', 'warns'],
@@ -60,7 +56,7 @@ export const warnings: CommandDefinition = {
             }
             fields.push({
                 name: `Warn #${i + 1}`,
-                value: fieldValue(lines.join('\n')),
+                value: moderationTextForEmbed(lines.join('\n'), warning.actionId || warning.id, 1024),
             });
         });
 

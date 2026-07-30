@@ -15,6 +15,7 @@ export function isConfigEmpty(cfg: BotWorkspaceConfig): boolean {
 export type ConfigValidation = {
     missingChannels: string[];
     missingModerationCapabilities: string[];
+    invalidValues: string[];
     isEmpty: boolean;
 };
 
@@ -24,13 +25,54 @@ export function validateConfig(cfg: BotWorkspaceConfig): ConfigValidation {
     return {
         missingChannels,
         missingModerationCapabilities: listMissingModerationCapabilities(cfg),
+        invalidValues: listInvalidConfigValues(cfg),
         isEmpty: missingChannels.length >= Math.max(1, CHANNEL_KEYS.length - 1),
     };
 }
 
-/** Moderation needs case logs and its automated honeypot channel. */
+function listInvalidConfigValues(cfg: BotWorkspaceConfig): string[] {
+    const invalid: string[] = [];
+    if (!isDiscordSnowflake(cfg.guildId)) invalid.push('guildId');
+    if (!cfg.prefix?.trim()) invalid.push('prefix');
+    for (const role of ['management', 'moderator', 'developer', 'member'] as const) {
+        if (!isDiscordSnowflake(cfg.roles[role])) invalid.push(`roles.${role}`);
+    }
+    if (cfg.roleGroups.moderation.length === 0 || cfg.roleGroups.moderation.some((id) => !isDiscordSnowflake(id))) {
+        invalid.push('roleGroups.moderation');
+    }
+    for (const key of CHANNEL_KEYS) {
+        const id = cfg.channels[key];
+        if (!isUnsetSnowflake(id) && !isDiscordSnowflake(id)) invalid.push(`channels.${key}`);
+    }
+    if (cfg.presence?.intervalMs !== undefined && (!Number.isFinite(cfg.presence.intervalMs) || cfg.presence.intervalMs < 10_000)) {
+        invalid.push('presence.intervalMs');
+    }
+    const healthPort = Number(process.env.HEALTH_PORT || 3000);
+    if (!Number.isInteger(healthPort) || healthPort < 1 || healthPort > 65_535) invalid.push('HEALTH_PORT');
+    return invalid;
+}
+
+function isDiscordSnowflake(value: string | undefined): boolean {
+    return Boolean(value && /^\d{17,20}$/.test(value) && !/^0+$/.test(value));
+}
+
+export function validateAtcUrl(value = process.env.ATC_URL): string | null {
+    if (!value) return 'ATC_URL is missing';
+    if (value.length > 500) return 'ATC_URL is too long';
+    try {
+        const url = new URL(value);
+        if (!['http:', 'https:'].includes(url.protocol) || url.hostname === 'atc.example.com') {
+            return 'ATC_URL is invalid or still a placeholder';
+        }
+        return null;
+    } catch {
+        return 'ATC_URL is invalid';
+    }
+}
+
+/** The honeypot must exist for its destructive automated moderation workflow. */
 export function listMissingModerationCapabilities(cfg: BotWorkspaceConfig): string[] {
-    return ['modLogs', 'honeypot']
+    return ['honeypot']
         .filter((key) => isUnsetSnowflake(cfg.channels[key as keyof BotWorkspaceConfig['channels']]))
         .map((key) => `channels.${key}`);
 }

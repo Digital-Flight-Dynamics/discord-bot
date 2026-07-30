@@ -5,17 +5,14 @@ import {
     EmbedBuilder,
     Guild,
     RESTJSONErrorCodes,
-    SlashCommandBuilder,
     User,
 } from 'discord.js';
-import { and, eq, isNull } from 'drizzle-orm';
-import { getDb } from './db/client';
-import { findActionId } from './db/repositories/actionIds';
 import {
     createModerationActionAudit,
     listModerationActionAudits,
     updateModerationActionAuditMetadata,
 } from './db/repositories/moderationActionAudits';
+import { denyAppeal, startAppealReview } from './db/repositories/atcAppeals';
 import {
     createModerationActionNotification,
     findLatestActionNotification,
@@ -23,174 +20,39 @@ import {
 } from './db/repositories/moderationActionNotifications';
 import { findModLogByCase, markModLogMessageDeleted } from './db/repositories/modLogMessages';
 import { captureIdentitySnapshot } from './db/repositories/snapshots';
-import { bans, identitySnapshots, kicks, moderationActionAudits, timeouts, warnings, type ActionIdRow, type ModCaseType } from './db/schema';
 import { createEmbed, EmbedColors } from './lib/embed';
 import { tryDmUser } from './lib/moderationNotify';
 import { parseDurationToMs, parseDurationToSeconds } from './lib/moderation';
 import { hasOtherActiveBan } from './db/repositories/bans';
 import { hasRoleAccess } from './lib/moderationAccess';
 import { moderationTextForEmbed, MAX_PRIVATE_NOTE_LENGTH, MAX_REASON_LENGTH } from './lib/moderationLimits';
-import { appealUrl, discordAuditReason, modLogMessageUrl, modPortalUrl } from './lib/moderationFormat';
+import { appealProgressUrl, appealUrl, discordAuditReason, modLogMessageUrl, modPortalUrl } from './lib/moderationFormat';
+import { handleAtcDiscordEvent } from './lib/moderationAppeals';
 import { handleDeletedModLogThread } from './lib/moderationMessageTracker';
 import { normalizeActionId } from './lib/actionId';
+import {
+    commitActionEdit,
+    commitActionResolution,
+    loadAction,
+    updateActionText,
+    updateBanExpiration,
+    updateBanPurgeDuration,
+    updateTimeoutDuration,
+    updateWarningExpiration,
+    type ActionUpdateExecutor,
+    type AppliedActionEdit,
+    type LoadedAction,
+} from './db/repositories/moderationActions';
+import { MAX_DISCORD_TIMEOUT_MS, MAX_PURGE_SECONDS } from './lib/moderationDuration';
 
-const MAX_TIMEOUT_MS = 28 * 24 * 60 * 60 * 1000;
-const MAX_PURGE_SECONDS = 7 * 24 * 60 * 60;
+const MAX_TIMEOUT_MS = MAX_DISCORD_TIMEOUT_MS;
 
 type UpdateChangeKind = 'reason' | 'note' | 'duration' | 'expiration' | 'purge-duration';
 type NotificationMode = 'no' | 'silent-edit' | 'notify';
 type ResolutionStatus = 'revoked' | 'appeal-approved';
 type NotificationResult = { status: string; detail?: string; channelId?: string; messageId?: string };
 
-type LoadedAction = {
-    actionId: ActionIdRow;
-    caseType: ModCaseType;
-    actionName: string;
-    subjectUserId: string | null;
-    record: Record<string, unknown>;
-};
 
-export const updateActionSlashCommand = new SlashCommandBuilder()
-    .setName('update-action')
-    .setDescription('Update an existing moderation action and write an audit trail')
-    .addSubcommand((sub) =>
-        sub
-            .setName('change-reason')
-            .setDescription('Update the public/staff reason on an action')
-            .addStringOption((o) => o.setName('action-id').setDescription('Public action ID').setRequired(true))
-            .addStringOption((o) => o.setName('new-reason').setDescription('New reason').setRequired(true).setMaxLength(MAX_REASON_LENGTH))
-            .addStringOption((o) => o
-                    .setName('rationale')
-                    .setDescription('Why this edit is being made')
-                    .setRequired(true)
-                    .setMaxLength(MAX_REASON_LENGTH))
-            .addStringOption((o) =>
-                o
-                    .setName('notification-mode')
-                    .setDescription('No DM, silently edit original DM, or send an update DM')
-                    .setRequired(true)
-                    .addChoices(
-                        { name: 'No', value: 'no' },
-                        { name: 'Silent Edit (Warning: edited tag visible; not online)', value: 'silent-edit' },
-                        { name: 'Notify', value: 'notify' },
-                    ),
-            ),
-    )
-    .addSubcommand((sub) =>
-        sub
-            .setName('change-note')
-            .setDescription('Update the private staff note on an action')
-            .addStringOption((o) => o.setName('action-id').setDescription('Public action ID').setRequired(true))
-            .addStringOption((o) => o.setName('new-note').setDescription('New private note').setRequired(true).setMaxLength(MAX_PRIVATE_NOTE_LENGTH))
-            .addStringOption((o) => o
-                    .setName('rationale')
-                    .setDescription('Why this edit is being made')
-                    .setRequired(true)
-                    .setMaxLength(MAX_REASON_LENGTH))
-            .addStringOption((o) =>
-                o
-                    .setName('notification-mode')
-                    .setDescription('No DM, silently edit original DM, or send an update DM')
-                    .setRequired(true)
-                    .addChoices(
-                        { name: 'No', value: 'no' },
-                        { name: 'Silent Edit (Warning: edited tag visible; not online)', value: 'silent-edit' },
-                        { name: 'Notify', value: 'notify' },
-                    ),
-            ),
-    )
-    .addSubcommand((sub) =>
-        sub
-            .setName('change-duration')
-            .setDescription('Update timeout/ban duration from now')
-            .addStringOption((o) => o.setName('action-id').setDescription('Public action ID').setRequired(true))
-            .addStringOption((o) => o.setName('new-duration').setDescription('New duration, e.g. 7d or 7 days').setRequired(true))
-            .addStringOption((o) => o
-                    .setName('rationale')
-                    .setDescription('Why this edit is being made')
-                    .setRequired(true)
-                    .setMaxLength(MAX_REASON_LENGTH))
-            .addStringOption((o) =>
-                o
-                    .setName('notification-mode')
-                    .setDescription('No DM, silently edit original DM, or send an update DM')
-                    .setRequired(true)
-                    .addChoices(
-                        { name: 'No', value: 'no' },
-                        { name: 'Silent Edit (Warning: edited tag visible; not online)', value: 'silent-edit' },
-                        { name: 'Notify', value: 'notify' },
-                    ),
-            ),
-    )
-    .addSubcommand((sub) =>
-        sub
-            .setName('change-expiration')
-            .setDescription('Update or clear warning/timeout/ban expiration')
-            .addStringOption((o) => o.setName('action-id').setDescription('Public action ID').setRequired(true))
-            .addStringOption((o) => o.setName('new-expiration').setDescription('New expiration, duration, or clear').setRequired(true))
-            .addStringOption((o) => o
-                    .setName('rationale')
-                    .setDescription('Why this edit is being made')
-                    .setRequired(true)
-                    .setMaxLength(MAX_REASON_LENGTH))
-            .addStringOption((o) =>
-                o
-                    .setName('notification-mode')
-                    .setDescription('No DM, silently edit original DM, or send an update DM')
-                    .setRequired(true)
-                    .addChoices(
-                        { name: 'No', value: 'no' },
-                        { name: 'Silent Edit (Warning: edited tag visible; not online)', value: 'silent-edit' },
-                        { name: 'Notify', value: 'notify' },
-                    ),
-            ),
-    )
-    .addSubcommand((sub) =>
-        sub
-            .setName('change-purge-duration')
-            .setDescription('Update recorded ban/soft-ban message purge duration')
-            .addStringOption((o) => o.setName('action-id').setDescription('Public action ID').setRequired(true))
-            .addStringOption((o) => o.setName('new-purge-duration').setDescription('New purge duration, e.g. 1d').setRequired(true))
-            .addStringOption((o) => o
-                    .setName('rationale')
-                    .setDescription('Why this edit is being made')
-                    .setRequired(true)
-                    .setMaxLength(MAX_REASON_LENGTH))
-            .addStringOption((o) =>
-                o
-                    .setName('notification-mode')
-                    .setDescription('No DM, silently edit original DM, or send an update DM')
-                    .setRequired(true)
-                    .addChoices(
-                        { name: 'No', value: 'no' },
-                        { name: 'Silent Edit (Warning: edited tag visible; not online)', value: 'silent-edit' },
-                        { name: 'Notify', value: 'notify' },
-                    ),
-            ),
-    )
-    .addSubcommand((sub) =>
-        sub
-            .setName('revoke')
-            .setDescription('Revoke an action or record that its appeal was approved')
-            .addStringOption((o) => o.setName('action-id').setDescription('Public action ID').setRequired(true))
-            .addStringOption((o) =>
-                o
-                    .setName('outcome')
-                    .setDescription('How this action was resolved')
-                    .setRequired(true)
-                    .addChoices(
-                        { name: 'Action Revoked', value: 'revoked' },
-                        { name: 'Appeal Approved', value: 'appeal-approved' },
-                    ),
-            )
-            .addStringOption((o) =>
-                o.setName('reason').setDescription('Why this action is being resolved').setRequired(true).setMaxLength(MAX_REASON_LENGTH),
-            )
-            .addStringOption((o) =>
-                o.setName('public-note').setDescription('Optional note shown to the affected user').setMaxLength(MAX_PRIVATE_NOTE_LENGTH),
-            ),
-    )
-    .toJSON();
 
 export async function handleUpdateActionCommand(interaction: ChatInputCommandInteraction): Promise<boolean> {
     if (interaction.commandName !== 'update-action') return false;
@@ -207,6 +69,10 @@ export async function handleUpdateActionCommand(interaction: ChatInputCommandInt
     await interaction.reply({ embeds: [createEmbed({ color: 0xf97316, description: '*Working on it...*' })], ephemeral: true });
 
     const subcommand = interaction.options.getSubcommand();
+    if (subcommand === 'review-appeal' || subcommand === 'deny-appeal') {
+        await handleAppealLifecycle(interaction, subcommand);
+        return true;
+    }
     if (subcommand === 'revoke') {
         await handleActionResolution(interaction);
         return true;
@@ -219,40 +85,55 @@ export async function handleUpdateActionCommand(interaction: ChatInputCommandInt
     const notificationMode = (interaction.options.getString('notification-mode') || 'no') as NotificationMode;
 
     try {
-        const loaded = await loadAction(interaction.guild.id, actionId);
-        if (!loaded) {
+        const initialLoaded = await loadAction(interaction.guild.id, actionId);
+        if (!initialLoaded) {
             await interaction.editReply({ embeds: [errorEmbed('Action ID not found.')] });
             return true;
         }
+        let loaded = initialLoaded;
 
-        const applied = await applyActionUpdate(
-            interaction.guild,
-            loaded,
-            kind,
-            newValue,
-            rationale,
-            interaction.user,
-        );
         const moderatorMember = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
         const moderatorSnap = await captureIdentitySnapshot({
             member: moderatorMember || undefined,
             user: interaction.user,
             discordUserId: interaction.user.id,
         });
-        const audit = await createModerationActionAudit({
-            guildId: interaction.guild.id,
-            actionId: loaded.actionId.actionId,
-            recordType: loaded.actionId.recordType,
-            recordUuid: loaded.actionId.recordUuid,
-            changeType: applied.label,
-            moderatorSnapshotId: moderatorSnap.id,
-            moderatorUserId: interaction.user.id,
-            oldValue: applied.oldDisplay,
-            newValue: applied.newDisplay,
-            rationale,
-            notifyUser: notificationMode === 'notify',
-            metadata: { ...applied.metadata, notificationMode },
-        });
+        let previousTimeoutMs: number | null | undefined;
+        let committed;
+        try {
+            committed = await commitActionEdit({
+                loaded,
+                moderatorSnapshotId: moderatorSnap.id,
+                moderatorUserId: interaction.user.id,
+                rationale,
+                notifyUser: notificationMode === 'notify',
+                notificationMode,
+                apply: (db, freshLoaded) => applyActionUpdate(
+                    db,
+                    interaction.guild!,
+                    freshLoaded,
+                    kind,
+                    newValue,
+                    rationale,
+                    interaction.user,
+                    () => {
+                        const oldExpiry = freshLoaded.record.expiresAt;
+                        previousTimeoutMs = oldExpiry instanceof Date
+                            ? Math.max(0, oldExpiry.getTime() - Date.now())
+                            : null;
+                    },
+                ),
+            });
+        } catch (error) {
+            if (previousTimeoutMs !== undefined) {
+                await restoreUpdatedTimeout(interaction.guild, loaded, previousTimeoutMs, interaction.user).catch(
+                    (restoreError) => console.error('[ERROR] Failed to compensate timeout after update rollback:', restoreError),
+                );
+            }
+            throw error;
+        }
+        const { applied, audit } = committed;
+        loaded = committed.loaded;
 
         const notificationResult = await handleUserNotification(
             interaction.client,
@@ -307,9 +188,13 @@ async function handleActionResolution(interaction: ChatInputCommandInteraction):
     const status = interaction.options.getString('outcome', true) as ResolutionStatus;
     const reason = interaction.options.getString('reason', true).trim();
     const publicNote = interaction.options.getString('public-note')?.trim() || null;
+    const appealId = interaction.options.getString('appeal-id')?.trim() || null;
     const label = status === 'appeal-approved' ? 'Appeal Approved' : 'Action Revoked';
 
     try {
+        if (status === 'appeal-approved' && !appealId) {
+            throw new Error('Appeal ID is required when approving an appeal.');
+        }
         const loaded = await loadAction(guild.id, actionId);
         if (!loaded) {
             await interaction.editReply({ embeds: [errorEmbed('Action ID not found.')] });
@@ -326,16 +211,17 @@ async function handleActionResolution(interaction: ChatInputCommandInteraction):
             discordUserId: interaction.user.id,
         });
 
-        const resolution = await applyActionResolution(guild, loaded, reason, interaction.user);
-        const audit = await commitActionResolutionAndAudit({
+        const { audit, userNotUnbanned } = await commitActionResolutionAndAudit({
+            guild,
+            moderator: interaction.user,
             loaded,
             status,
             reason,
             publicNote,
             moderatorSnapshotId: moderatorSnap.id,
             moderatorUserId: interaction.user.id,
-            userNotUnbanned: resolution.userNotUnbanned,
             label,
+            appealId,
         });
 
         const notificationResult = await editResolutionDm(interaction.client, loaded, status, publicNote);
@@ -347,7 +233,7 @@ async function handleActionResolution(interaction: ChatInputCommandInteraction):
             notificationDetail: notificationResult.detail ?? null,
             notificationChannelId: notificationResult.channelId ?? null,
             notificationMessageId: notificationResult.messageId ?? null,
-            userNotUnbanned: resolution.userNotUnbanned,
+            userNotUnbanned,
         });
 
         await refreshModLogAudit(interaction.client, guild, loaded, status);
@@ -360,7 +246,8 @@ async function handleActionResolution(interaction: ChatInputCommandInteraction):
             reason,
             publicNote,
             notificationResult,
-            resolution.userNotUnbanned,
+            userNotUnbanned,
+            appealId,
         );
 
         const links = await updateActionLinks(guild.id, loaded);
@@ -370,7 +257,7 @@ async function handleActionResolution(interaction: ChatInputCommandInteraction):
                     color: EmbedColors.SUCCESS,
                     description:
                         `Done, action has been ${status === 'appeal-approved' ? 'marked as appeal approved' : 'revoked'}` +
-                        (resolution.userNotUnbanned ? '\n\nUser was not unbanned as they have another active ban on their account.' : '') +
+                        (userNotUnbanned ? '\n\nUser was not unbanned as they have another active ban on their account.' : '') +
                         `\n\n${links}`,
                 }),
             ],
@@ -383,87 +270,102 @@ async function handleActionResolution(interaction: ChatInputCommandInteraction):
     }
 }
 
-function getNewValue(interaction: ChatInputCommandInteraction, kind: UpdateChangeKind): string {
-    const optionName =
-        kind === 'reason'
-            ? 'new-reason'
-            : kind === 'note'
-              ? 'new-note'
-              : kind === 'duration'
-                ? 'new-duration'
-                : kind === 'expiration'
-                  ? 'new-expiration'
-                  : 'new-purge-duration';
-    return interaction.options.getString(optionName, true).trim();
+async function handleAppealLifecycle(
+    interaction: ChatInputCommandInteraction,
+    operation: 'review-appeal' | 'deny-appeal',
+): Promise<void> {
+    const guild = interaction.guild;
+    if (!guild) return;
+    const actionId = normalizeActionId(interaction.options.getString('action-id', true));
+    const appealId = interaction.options.getString('appeal-id', true).trim();
+    const loaded = await loadAction(guild.id, actionId);
+    if (!loaded) {
+        await interaction.editReply({ embeds: [errorEmbed('Action ID not found.')] });
+        return;
+    }
+
+    try {
+        const moderatorMember = await guild.members.fetch(interaction.user.id).catch(() => null);
+        const moderatorSnap = await captureIdentitySnapshot({
+            member: moderatorMember || undefined,
+            user: interaction.user,
+            discordUserId: interaction.user.id,
+        });
+        const denied = operation === 'deny-appeal';
+        const reason = denied ? interaction.options.getString('reason', true).trim() : 'Moderation review started.';
+        const publicNote = denied ? interaction.options.getString('public-note')?.trim() || null : null;
+        const appeal = denied
+            ? await denyAppeal({
+                  guildId: guild.id,
+                  actionId,
+                  appealId,
+                  moderatorUserId: interaction.user.id,
+                  decisionNote: publicNote,
+              })
+            : await startAppealReview({
+                  guildId: guild.id,
+                  actionId,
+                  appealId,
+                  moderatorUserId: interaction.user.id,
+              });
+        if (!appeal) throw new Error('Appeal not found, already decided, or not attached to this action.');
+
+        await createModerationActionAudit({
+            guildId: guild.id,
+            actionId,
+            recordType: loaded.actionId.recordType,
+            recordUuid: loaded.actionId.recordUuid,
+            changeType: denied ? 'Appeal Denied' : 'Appeal Review Started',
+            moderatorSnapshotId: moderatorSnap.id,
+            moderatorUserId: interaction.user.id,
+            oldValue: null,
+            newValue: denied ? 'Denied' : 'Under Review',
+            rationale: reason,
+            notifyUser: false,
+            metadata: { appealId, publicNote },
+        });
+
+        let discordLogged = true;
+        await handleAtcDiscordEvent(interaction.client, {
+            id: crypto.randomUUID(),
+            type: denied ? 'appeal.denied' : 'appeal.review_started',
+            occurredAt: (denied ? appeal.decidedAt : appeal.reviewStartedAt)?.toISOString() || new Date().toISOString(),
+            guildId: guild.id,
+            actionId,
+            appealId,
+            actorUserId: interaction.user.id,
+        }).catch((error) => {
+            discordLogged = false;
+            console.error(`[ATC] Appeal ${appealId} was updated, but its Discord log failed.`, error);
+        });
+
+        await interaction.editReply({
+            embeds: [
+                createEmbed({
+                    color: denied ? EmbedColors.FAILURE : EmbedColors.WARNING,
+                    description:
+                        `Done, appeal has been marked as ${denied ? 'denied' : 'under review'}.\n\n` +
+                        `[View on ATC](${appealProgressUrl(actionId, appealId)})` +
+                        (discordLogged ? '' : '\n\n:warning: The action thread could not be updated.'),
+                }),
+            ],
+        });
+    } catch (err) {
+        console.error('[ERROR] Failed to update appeal:', err);
+        await interaction.editReply({ embeds: [errorEmbed(err instanceof Error ? err.message : 'Something went wrong.')] });
+    }
 }
 
-async function loadAction(guildId: string, actionId: string): Promise<LoadedAction | null> {
-    const action = await findActionId(actionId);
-    if (!action || action.guildId !== guildId) return null;
-    const db = getDb();
-
-    if (action.recordType === 'warning') {
-        const rows = await db
-            .select({ record: warnings, subject: identitySnapshots })
-            .from(warnings)
-            .innerJoin(identitySnapshots, eq(warnings.subjectSnapshotId, identitySnapshots.id))
-            .where(and(eq(warnings.id, action.recordUuid), eq(warnings.guildId, guildId)))
-            .limit(1);
-        const row = rows[0];
-        return row
-            ? {
-                  actionId: action,
-                  caseType: 'warning',
-                  actionName: 'warning',
-                  subjectUserId: row.subject.discordUserId,
-                  record: row.record,
-              }
-            : null;
-    }
-
-    if (action.recordType === 'kick') {
-        const rows = await db
-            .select({ record: kicks, subject: identitySnapshots })
-            .from(kicks)
-            .innerJoin(identitySnapshots, eq(kicks.subjectSnapshotId, identitySnapshots.id))
-            .where(and(eq(kicks.id, action.recordUuid), eq(kicks.guildId, guildId)))
-            .limit(1);
-        const row = rows[0];
-        return row ? { actionId: action, caseType: 'kick', actionName: 'kick', subjectUserId: row.subject.discordUserId, record: row.record } : null;
-    }
-
-    if (action.recordType === 'ban' || action.recordType === 'softban') {
-        const rows = await db
-            .select({ record: bans, subject: identitySnapshots })
-            .from(bans)
-            .innerJoin(identitySnapshots, eq(bans.subjectSnapshotId, identitySnapshots.id))
-            .where(and(eq(bans.id, action.recordUuid), eq(bans.guildId, guildId)))
-            .limit(1);
-        const row = rows[0];
-        const actionName = row?.record.banType === 'soft' ? 'soft-ban' : 'ban';
-        return row ? { actionId: action, caseType: 'ban', actionName, subjectUserId: row.subject.discordUserId, record: row.record } : null;
-    }
-
-    if (action.recordType === 'timeout') {
-        const rows = await db
-            .select({ record: timeouts, subject: identitySnapshots })
-            .from(timeouts)
-            .innerJoin(identitySnapshots, eq(timeouts.subjectSnapshotId, identitySnapshots.id))
-            .where(and(eq(timeouts.id, action.recordUuid), eq(timeouts.guildId, guildId)))
-            .limit(1);
-        const row = rows[0];
-        return row
-            ? {
-                  actionId: action,
-                  caseType: 'timeout',
-                  actionName: 'timeout',
-                  subjectUserId: row.subject.discordUserId,
-                  record: row.record,
-              }
-            : null;
-    }
-
-    return null;
+function getNewValue(interaction: ChatInputCommandInteraction, kind: UpdateChangeKind): string {
+    const optionNames: Record<UpdateChangeKind, string> = {
+        reason: 'new-reason',
+        note: 'new-note',
+        duration: 'new-duration',
+        expiration: 'new-expiration',
+        'purge-duration': 'new-purge-duration',
+    };
+    const optionName = optionNames[kind];
+    return interaction.options.getString(optionName, true).trim();
 }
 
 async function applyActionResolution(
@@ -471,8 +373,10 @@ async function applyActionResolution(
     loaded: LoadedAction,
     reason: string,
     moderator: User,
-): Promise<{ userNotUnbanned: boolean }> {
+): Promise<{ userNotUnbanned: boolean; unbanned: boolean; timeoutRemoved: boolean }> {
     let userNotUnbanned = false;
+    let unbanned = false;
+    let timeoutRemoved = false;
     if (loaded.caseType === 'ban' && loaded.subjectUserId) {
         const otherBanExists = await hasOtherActiveBan({
             guildId: guild.id,
@@ -490,6 +394,7 @@ async function applyActionResolution(
                     loaded.subjectUserId,
                     discordAuditReason(loaded.actionId.actionId, moderator.username, moderator.id, reason),
                 );
+                unbanned = true;
             }
         }
     }
@@ -499,100 +404,101 @@ async function applyActionResolution(
         if (member?.communicationDisabledUntilTimestamp && member.communicationDisabledUntilTimestamp > Date.now()) {
             if (!member.manageable) throw new Error('The timeout could not be removed because this member is not manageable.');
             await member.timeout(null, discordAuditReason(loaded.actionId.actionId, moderator.username, moderator.id, reason));
+            timeoutRemoved = true;
         }
     }
-    return { userNotUnbanned };
+    return { userNotUnbanned, unbanned, timeoutRemoved };
 }
 
 /** Atomically commits the case resolution and its immutable audit entry. */
 async function commitActionResolutionAndAudit(input: {
+    guild: Guild;
+    moderator: User;
     loaded: LoadedAction;
     status: ResolutionStatus;
     reason: string;
     publicNote: string | null;
     moderatorSnapshotId: string;
     moderatorUserId: string;
-    userNotUnbanned: boolean;
     label: string;
+    appealId: string | null;
 }) {
-    const db = getDb();
-    const resolvedAt = new Date();
-    const resolution = {
-        resolutionStatus: input.status,
-        resolvedAt,
-        resolvedByModeratorSnapshotId: input.moderatorSnapshotId,
-        resolutionReason: input.reason,
-        resolutionPublicNote: input.publicNote,
-    };
-
-    return db.transaction(async (tx) => {
-        const id = input.loaded.actionId.recordUuid;
-        let updated: unknown;
-        if (input.loaded.caseType === 'warning') {
-            [updated] = await tx
-                .update(warnings)
-                .set({ ...resolution, removedAt: resolvedAt, removedByModeratorSnapshotId: input.moderatorSnapshotId })
-                .where(and(eq(warnings.id, id), isNull(warnings.resolutionStatus)))
-                .returning();
-        } else if (input.loaded.caseType === 'kick') {
-            [updated] = await tx.update(kicks).set(resolution).where(and(eq(kicks.id, id), isNull(kicks.resolutionStatus))).returning();
-        } else if (input.loaded.caseType === 'ban') {
-            [updated] = await tx
-                .update(bans)
-                .set({
-                    ...resolution,
-                    liftedAt: resolvedAt,
-                    liftedByModeratorSnapshotId: input.moderatorSnapshotId,
-                    liftReason: `${resolutionLabel(input.status)}: ${input.reason}`,
-                })
-                .where(and(eq(bans.id, id), isNull(bans.resolutionStatus)))
-                .returning();
-        } else {
-            [updated] = await tx.update(timeouts).set(resolution).where(and(eq(timeouts.id, id), isNull(timeouts.resolutionStatus))).returning();
-        }
-        if (!updated) throw new Error('This action was resolved by another moderator.');
-        const [audit] = await tx.insert(moderationActionAudits).values({
-            guildId: input.loaded.actionId.guildId,
-            actionId: input.loaded.actionId.actionId,
-            recordType: input.loaded.actionId.recordType,
-            recordUuid: input.loaded.actionId.recordUuid,
-            changeType: input.label,
+    let discordEffects: Awaited<ReturnType<typeof applyActionResolution>> | null = null;
+    try {
+        const { audit, effect } = await commitActionResolution({
+            loaded: input.loaded,
+            status: input.status,
+            reason: input.reason,
+            publicNote: input.publicNote,
             moderatorSnapshotId: input.moderatorSnapshotId,
             moderatorUserId: input.moderatorUserId,
-            oldValue: null,
-            newValue: input.label,
-            rationale: input.reason,
-            notifyUser: true,
-            metadata: {
-                resolutionStatus: input.status,
-                publicNote: input.publicNote,
-                notificationMode: 'silent-edit',
-                userNotUnbanned: input.userNotUnbanned,
+            label: input.label,
+            appealId: input.appealId,
+            applyDiscord: async () => {
+                discordEffects = await applyActionResolution(
+                    input.guild,
+                    input.loaded,
+                    input.reason,
+                    input.moderator,
+                );
+                return discordEffects;
             },
-        }).returning();
-        return audit;
-    });
+            effectMetadata: (effects) => ({ userNotUnbanned: effects.userNotUnbanned }),
+        });
+        return { audit, userNotUnbanned: effect.userNotUnbanned };
+    } catch (error) {
+        if (discordEffects) {
+            await restoreResolvedDiscordState(input, discordEffects).catch((restoreError) => {
+                console.error('[ERROR] Failed to compensate Discord after resolution rollback:', restoreError);
+            });
+        }
+        throw error;
+    }
+}
+
+async function restoreResolvedDiscordState(
+    input: Parameters<typeof commitActionResolutionAndAudit>[0],
+    effects: Awaited<ReturnType<typeof applyActionResolution>>,
+): Promise<void> {
+    const subjectId = input.loaded.subjectUserId;
+    if (!subjectId) return;
+    const reason = discordAuditReason(
+        input.loaded.actionId.actionId,
+        input.moderator.username,
+        input.moderator.id,
+        'Restored after database transaction rollback',
+    );
+    if (effects.unbanned) {
+        await input.guild.members.ban(subjectId, { deleteMessageSeconds: 0, reason });
+    }
+    if (effects.timeoutRemoved) {
+        const expiresAt = input.loaded.record.expiresAt;
+        const remaining = expiresAt instanceof Date ? Math.max(0, expiresAt.getTime() - Date.now()) : 0;
+        const member = await input.guild.members.fetch(subjectId);
+        await member.timeout(remaining > 0 ? Math.min(remaining, MAX_TIMEOUT_MS) : null, reason);
+    }
 }
 
 async function applyActionUpdate(
+    db: ActionUpdateExecutor,
     guild: Guild,
     loaded: LoadedAction,
     kind: UpdateChangeKind,
     rawValue: string,
     rationale: string,
     moderator: User,
-): Promise<{ label: string; oldDisplay: string | null; newDisplay: string; metadata: Record<string, unknown> }> {
+    onDiscordTimeoutChanged: () => void,
+): Promise<AppliedActionEdit> {
     if (!rawValue) throw new Error('New value cannot be empty.');
     if (kind === 'reason' && rawValue.length > MAX_REASON_LENGTH)
         throw new Error(`Reasons cannot exceed ${MAX_REASON_LENGTH} characters.`);
     if (kind === 'note' && rawValue.length > MAX_PRIVATE_NOTE_LENGTH)
         throw new Error(`Private notes cannot exceed ${MAX_PRIVATE_NOTE_LENGTH} characters.`);
-    const db = getDb();
     const id = loaded.actionId.recordUuid;
 
     if (kind === 'reason') {
         const oldValue = stringValue(loaded.record.reason);
-        await updateTextField(loaded, 'reason', rawValue);
+        await updateActionText(db, loaded, 'reason', rawValue);
         return { label: 'Reason Updated', oldDisplay: oldValue, newDisplay: rawValue, metadata: {} };
     }
 
@@ -602,7 +508,7 @@ async function applyActionUpdate(
                 ? loaded.record.privateNotes
                 : loaded.record.privateNote,
         );
-        await updateTextField(loaded, 'note', rawValue);
+        await updateActionText(db, loaded, 'note', rawValue);
         return { label: 'Note Updated', oldDisplay: oldValue, newDisplay: rawValue, metadata: {} };
     }
 
@@ -614,10 +520,11 @@ async function applyActionUpdate(
         const expiresAt = new Date(Date.now() + effectiveDurationMs);
         const clamped = loaded.caseType === 'timeout' && durationMs > MAX_TIMEOUT_MS;
         if (loaded.caseType === 'ban') {
-            await db.update(bans).set({ expiresAt }).where(eq(bans.id, id));
+            await updateBanExpiration(db, id, expiresAt);
         } else {
             await updateDiscordTimeout(guild, loaded, effectiveDurationMs, rationale, moderator);
-            await db.update(timeouts).set({ durationMs: effectiveDurationMs, durationToken: rawValue, expiresAt }).where(eq(timeouts.id, id));
+            onDiscordTimeoutChanged();
+            await updateTimeoutDuration(db, id, effectiveDurationMs, rawValue, expiresAt);
         }
         return {
             label: 'Duration Updated',
@@ -631,9 +538,9 @@ async function applyActionUpdate(
         if (!['warning', 'ban', 'timeout'].includes(loaded.caseType)) throw new Error('This action type does not have an expiration.');
         const expiresAt = parseExpiration(rawValue);
         if (loaded.caseType === 'warning') {
-            await db.update(warnings).set({ expiresAt }).where(eq(warnings.id, id));
+            await updateWarningExpiration(db, id, expiresAt);
         } else if (loaded.caseType === 'ban') {
-            await db.update(bans).set({ expiresAt }).where(eq(bans.id, id));
+            await updateBanExpiration(db, id, expiresAt);
         } else {
             if (!expiresAt) throw new Error('Timeout expiration cannot be cleared.');
             const requestedDurationMs = expiresAt.getTime() - Date.now();
@@ -641,7 +548,8 @@ async function applyActionUpdate(
             const durationMs = Math.min(requestedDurationMs, MAX_TIMEOUT_MS);
             const effectiveExpiresAt = new Date(Date.now() + durationMs);
             await updateDiscordTimeout(guild, loaded, durationMs, rationale, moderator);
-            await db.update(timeouts).set({ durationMs, durationToken: rawValue, expiresAt: effectiveExpiresAt }).where(eq(timeouts.id, id));
+            onDiscordTimeoutChanged();
+            await updateTimeoutDuration(db, id, durationMs, rawValue, effectiveExpiresAt);
             expiresAt.setTime(effectiveExpiresAt.getTime());
         }
         return {
@@ -661,7 +569,7 @@ async function applyActionUpdate(
         const seconds = parseDurationToSeconds(rawValue);
         if (seconds <= 0) throw new Error('Please enter a valid purge duration.');
         if (seconds > MAX_PURGE_SECONDS) throw new Error('Purge duration cannot exceed 7 days.');
-        await db.update(bans).set({ deleteMessageSeconds: seconds }).where(eq(bans.id, id));
+        await updateBanPurgeDuration(db, id, seconds);
         return {
             label: 'Purge Duration Updated',
             oldDisplay: loaded.record.deleteMessageSeconds ? `${loaded.record.deleteMessageSeconds}s` : 'None',
@@ -673,20 +581,24 @@ async function applyActionUpdate(
     throw new Error('Unsupported update type.');
 }
 
-async function updateTextField(loaded: LoadedAction, field: 'reason' | 'note', value: string): Promise<void> {
-    const db = getDb();
-    const id = loaded.actionId.recordUuid;
-    if (field === 'reason') {
-        if (loaded.caseType === 'warning') await db.update(warnings).set({ reason: value }).where(eq(warnings.id, id));
-        else if (loaded.caseType === 'kick') await db.update(kicks).set({ reason: value }).where(eq(kicks.id, id));
-        else if (loaded.caseType === 'ban') await db.update(bans).set({ reason: value }).where(eq(bans.id, id));
-        else await db.update(timeouts).set({ reason: value }).where(eq(timeouts.id, id));
-        return;
-    }
-    if (loaded.caseType === 'warning') await db.update(warnings).set({ privateNote: value }).where(eq(warnings.id, id));
-    else if (loaded.caseType === 'kick') await db.update(kicks).set({ privateNote: value }).where(eq(kicks.id, id));
-    else if (loaded.caseType === 'ban') await db.update(bans).set({ privateNotes: value }).where(eq(bans.id, id));
-    else await db.update(timeouts).set({ privateNote: value }).where(eq(timeouts.id, id));
+async function restoreUpdatedTimeout(
+    guild: Guild,
+    loaded: LoadedAction,
+    previousDurationMs: number | null,
+    moderator: User,
+): Promise<void> {
+    if (!loaded.subjectUserId) return;
+    const member = await guild.members.fetch(loaded.subjectUserId);
+    if (!member.manageable) throw new Error('Member is not manageable during timeout compensation.');
+    await member.timeout(
+        previousDurationMs && previousDurationMs > 0 ? Math.min(previousDurationMs, MAX_TIMEOUT_MS) : null,
+        discordAuditReason(
+            loaded.actionId.actionId,
+            moderator.username,
+            moderator.id,
+            'Restored after database transaction rollback',
+        ),
+    );
 }
 
 async function refreshModLogAudit(
@@ -721,7 +633,7 @@ async function refreshModLogAudit(
     embed.setFields(fields);
     if (resolutionStatus) {
         const currentTitle = (current.title || `A user has received a ${loaded.actionName}`).replace(
-            /^\[(?:PENDING APPEAL|REVOKED|APPEAL APPROVED)\]\s*/i,
+            /^\[(?:PENDING APPEAL|REVOKED|APPEAL APPROVED|APPEAL DENIED)\]\s*/i,
             '',
         );
         embed.setTitle(`[${resolutionTitle(resolutionStatus)}] ${currentTitle}`);
@@ -782,6 +694,7 @@ async function postThreadResolutionEmbed(
     publicNote: string | null,
     notificationResult: NotificationResult,
     userNotUnbanned = false,
+    appealId: string | null = null,
 ): Promise<void> {
     const modLog = await findModLogByCase(loaded.caseType, loaded.actionId.recordUuid);
     if (!modLog?.threadId || modLog.messageDeleted || modLog.threadDeleted) return;
@@ -804,6 +717,9 @@ async function postThreadResolutionEmbed(
         { name: 'Reason', value: truncate(reason, 1024), inline: false },
         ...(publicNote
             ? [{ name: 'Public Note', value: truncate(quoteBlock(publicNote), 1024), inline: false }]
+            : []),
+        ...(appealId
+            ? [{ name: 'Appeal', value: `[View on ATC](${appealProgressUrl(loaded.actionId.actionId, appealId)})`, inline: false }]
             : []),
         {
             name: 'Notification',
@@ -1108,16 +1024,14 @@ function formatAuditSummary(audit: Awaited<ReturnType<typeof listModerationActio
 }
 
 function formatNotificationResult(result: NotificationResult): string {
-    const status =
-        result.status === 'not-requested'
-            ? 'No notification requested'
-            : result.status === 'edited'
-              ? 'Silent edit succeeded'
-              : result.status === 'delivered'
-                ? 'Notification delivered'
-                : result.status === 'skipped'
-                  ? 'Skipped'
-                  : 'Failed';
+    const statuses: Record<string, string> = {
+        'not-requested': 'No notification requested',
+        edited: 'Silent edit succeeded',
+        delivered: 'Notification delivered',
+        skipped: 'Skipped',
+        failed: 'Failed',
+    };
+    const status = statuses[result.status] || 'Failed';
     return result.detail ? `${status} — ${result.detail}` : status;
 }
 

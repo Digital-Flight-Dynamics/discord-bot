@@ -1,4 +1,4 @@
-import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
+import { CommandCategories, CommandDefinition, createErrorEmbed } from '../definitions';
 import { createEmbed, EmbedColors } from '../../lib/embed';
 import { captureIdentitySnapshot } from '../../db/repositories/snapshots';
 import { liftBansForUser, listActiveBansForUser } from '../../db/repositories/bans';
@@ -32,7 +32,11 @@ export const unban: CommandDefinition = {
             );
         } catch (err) {
             console.error('[ERROR] Manual unban failed:', err);
-            await message.reply({ embeds: [createErrorEmbed('Discord could not unban this user. No database records were changed.')] }).catch(console.error);
+            await message
+                .reply({
+                    embeds: [createErrorEmbed('Discord could not unban this user. No database records were changed.')],
+                })
+                .catch(console.error);
             return;
         }
 
@@ -60,7 +64,13 @@ export const unban: CommandDefinition = {
         } catch (err) {
             console.error('[ERROR] Manual unban database update failed:', err);
             await message.reply({
-                embeds: [createEmbed({ color: EmbedColors.WARNING, title: 'Unbanned User', description: `<@${id}> has been unbanned, but their database records need reconciliation.` })],
+                embeds: [
+                    createEmbed({
+                        color: EmbedColors.WARNING,
+                        title: 'Unbanned User',
+                        description: `<@${id}> has been unbanned, but their database records need reconciliation.`,
+                    }),
+                ],
             }).catch(console.error);
         }
     },

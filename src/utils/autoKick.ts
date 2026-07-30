@@ -24,7 +24,7 @@ const BLACKLIST = [
     'first',
 ];
 
-export const autoKick: UtilDefinition = {
+export const autoKick: UtilDefinition<'messageCreate'> = {
     event: 'messageCreate',
     execute: async (message: Discord.Message) => {
         if (message.channel.type === Discord.ChannelType.DM || !message.guild || !message.member) return;

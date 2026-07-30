@@ -6,7 +6,7 @@
     "rules": {
         "import/no-unresolved": "off",
         "no-undef": "off",
-        "no-nested-ternary": "off",
+        "no-nested-ternary": "error",
         "linebreak-style": "off",
         "global-require": "off",
         "import/no-dynamic-require": "off",

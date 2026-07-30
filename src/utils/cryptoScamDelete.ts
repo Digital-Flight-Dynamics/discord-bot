@@ -1,7 +1,7 @@
 import Discord from 'discord.js';
 import { UtilDefinition } from '.';
 
-export const cryptoScamDelete: UtilDefinition = {
+export const cryptoScamDelete: UtilDefinition<'messageCreate'> = {
     event: 'messageCreate',
     execute: async (message: Discord.Message) => {
         if (message.channel.type === Discord.ChannelType.DM || !message.guild) return;

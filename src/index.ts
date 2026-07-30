@@ -6,7 +6,7 @@ import { createEmbed, color as dfdBlue, EmbedColors } from './lib/embed';
 import { channels, config, prefix, roleGroups } from './config';
 import { configLoadError } from './config/load';
 import { CONFIG_DOCS, logMissingRequiredChannel } from './config/errors';
-import { describeConfigGaps, logUnsetChannelConstants, validateConfig } from './config/validate';
+import { describeConfigGaps, logUnsetChannelConstants, validateAtcUrl, validateConfig } from './config/validate';
 import logs from './logging';
 import utils from './utils';
 import { startHealthServer } from './health';
@@ -78,10 +78,10 @@ client.on('clientReady', (readyClient) => {
 });
 
 for (const log of logs) {
-    client.on(log.event, log.execute);
+    client.on(log.event, log.execute as (...args: Discord.ClientEvents[keyof Discord.ClientEvents]) => void);
 }
 for (const util of utils) {
-    client.on(util.event, util.execute);
+    client.on(util.event, util.execute as (...args: Discord.ClientEvents[keyof Discord.ClientEvents]) => void);
 }
 registerDiscordModerationTracker(client);
 registerModerationMessageTracker(client);
@@ -135,7 +135,7 @@ client.on('interactionCreate', async (interaction) => {
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
-    if (await handleHoneypotMessage(client, message)) return;
+    if (!isSoftLocked() && await handleHoneypotMessage(client, message)) return;
 
     const isDm = message.channel.type === Discord.ChannelType.DM;
     const isCommand = message.content.startsWith(prefix);
@@ -144,8 +144,7 @@ client.on('messageCreate', async (message) => {
     if (isDm) {
         if (isSoftLocked()) return;
 
-        const guild =
-            (config.guildId && client.guilds.cache.get(config.guildId)) || client.guilds.cache.at(0);
+        const guild = config.guildId ? client.guilds.cache.get(config.guildId) : undefined;
         const dmCh =
             (guild?.channels.cache.get(channels.botMessages) as TextChannel | undefined) ||
             (guild?.channels.cache.find((c) => c.name === 'bot-dms') as TextChannel | undefined);
@@ -183,8 +182,13 @@ client.on('messageCreate', async (message) => {
         for (const name of command.names) {
             if (commandUsed === name) {
                 cmdToExec = command;
-                if (command.requiredRoleGroup) hasPerms = hasRoleAccess(message.member, command.requiredRoleGroup);
-                else if (!command.permissions) hasPerms = true;
+                if (command.requiredRoleGroup) {
+                    const bootstrapOwner =
+                        command.allowOwnerDuringBootstrap &&
+                        isSoftLocked() &&
+                        message.author.id === message.guild.ownerId;
+                    hasPerms = Boolean(bootstrapOwner || hasRoleAccess(message.member, command.requiredRoleGroup));
+                } else if (!command.permissions) hasPerms = true;
                 else hasPerms = Boolean(message.member?.permissions.has(command.permissions));
             }
         }
@@ -194,6 +198,7 @@ client.on('messageCreate', async (message) => {
     if (!cmdToExec) {
         return;
     }
+    if (cmdToExec.silentGuard?.(message)) return;
 
     // Soft-lock: only allow a tiny allowlist (help, ping, whoosh, devchannels)
     if (isSoftLocked()) {
@@ -290,7 +295,12 @@ async function main() {
             validation.missingModerationCapabilities.forEach(logMissingRequiredChannel);
             addSoftLockReason(`Moderation requires ${validation.missingModerationCapabilities.join(' and ')}`, { silent: true });
         }
+        if (validation.invalidValues.length > 0) {
+            addSoftLockReason(`Invalid config: ${validation.invalidValues.join(', ')}`);
+        }
     }
+    const atcError = validateAtcUrl();
+    if (atcError) addSoftLockReason(atcError);
 
     try {
         await connectDatabase();

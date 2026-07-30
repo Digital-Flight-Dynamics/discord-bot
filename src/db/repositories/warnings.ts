@@ -1,6 +1,6 @@
 import { and, desc, eq, gt, inArray, isNull, or, SQL } from 'drizzle-orm';
 import { getDb } from '../client';
-import { identitySnapshots, warnings, Warning } from '../schema';
+import { actionIds, identitySnapshots, pendingModerationActions, warnings, Warning } from '../schema';
 import { LinkedMessage } from '../../lib/moderation';
 import { allocateActionId, resolveActionId } from '../../lib/actionId';
 
@@ -39,11 +39,11 @@ export async function createWarning(input: {
     expiresAt?: Date | null;
     linked?: LinkedMessage | null;
     legacyMongoId?: string | null;
+    pendingActionId?: string;
 }): Promise<Warning> {
     const db = getDb();
-    const [row] = await db
-        .insert(warnings)
-        .values({
+    return db.transaction(async (tx) => {
+        const [row] = await tx.insert(warnings).values({
             guildId: input.guildId,
             subjectSnapshotId: input.subjectSnapshotId,
             moderatorSnapshotId: input.moderatorSnapshotId,
@@ -55,20 +55,23 @@ export async function createWarning(input: {
             linkedMessageUrl: input.linked?.linkedMessageUrl ?? null,
             linkedMessageDeleted: input.linked?.linkedMessageDeleted ?? false,
             legacyMongoId: input.legacyMongoId ?? null,
-        })
-        .returning();
+        }).returning();
 
-    const actionId = await allocateActionId({
-        recordType: 'warning',
-        recordUuid: row.id,
-        guildId: input.guildId,
+        const actionId = await allocateActionId(
+            { recordType: 'warning', recordUuid: row.id, guildId: input.guildId },
+            async (value) => {
+                await tx.insert(actionIds).values(value);
+            },
+        );
+        const [withAction] = await tx.update(warnings).set({ actionId }).where(eq(warnings.id, row.id)).returning();
+        if (input.pendingActionId) {
+            await tx
+                .update(pendingModerationActions)
+                .set({ resultCaseId: row.id, updatedAt: new Date() })
+                .where(eq(pendingModerationActions.id, input.pendingActionId));
+        }
+        return withAction;
     });
-    const [withAction] = await db
-        .update(warnings)
-        .set({ actionId })
-        .where(eq(warnings.id, row.id))
-        .returning();
-    return withAction ?? { ...row, actionId };
 }
 
 function activeWarningConditions(now = new Date()): SQL {
@@ -114,7 +117,7 @@ export async function listAllWarnings(guildId: string, discordUserId: string): P
 }
 
 /**
- * Resolve a warning by its public Action ID (A26…), UUID, or legacy Mongo id,
+ * Resolve a warning by its public Action ID, UUID, or legacy Mongo id,
  * always scoped to `guildId` so IDs cannot be used to reach another guild's data.
  */
 export async function findWarningByIdOrLegacy(id: string, guildId: string): Promise<WarningWithSnapshots | null> {

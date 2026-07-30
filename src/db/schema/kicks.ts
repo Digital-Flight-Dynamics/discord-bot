@@ -18,6 +18,7 @@ export const kicks = pgTable('kicks', {
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     isAutomated: boolean('is_automated').notNull().default(false),
     source: text('source').notNull().default('bot'),
+    discordAuditLogId: text('discord_audit_log_id').unique(),
     resolutionStatus: text('resolution_status'),
     resolvedAt: timestamp('resolved_at', { withTimezone: true }),
     resolvedByModeratorSnapshotId: uuid('resolved_by_moderator_snapshot_id').references(() => identitySnapshots.id),

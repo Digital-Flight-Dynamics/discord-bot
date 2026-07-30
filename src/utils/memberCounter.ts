@@ -1,20 +1,16 @@
 import { Client } from 'discord.js';
 import { UtilDefinition } from '.';
-import { channels, guildId as configGuildId } from '../config';
+import { channels, config } from '../config';
 import { isUnsetSnowflake } from '../config/channelNames';
 import { logMissingRequiredChannel } from '../config/errors';
 import { isSoftLocked } from '../runtime/softLock';
 
 function resolveGuild(client: Client) {
-    if (configGuildId && !isUnsetSnowflake(configGuildId)) {
-        const byConfig = client.guilds.cache.get(configGuildId);
+    if (config.guildId && !isUnsetSnowflake(config.guildId)) {
+        const byConfig = client.guilds.cache.get(config.guildId);
         if (byConfig) return byConfig;
     }
-    if (process.env.GUILD_ID) {
-        const byEnv = client.guilds.cache.get(process.env.GUILD_ID);
-        if (byEnv) return byEnv;
-    }
-    return client.guilds.cache.first();
+    return undefined;
 }
 
 async function resolveMemberCountChannel(client: Client) {
@@ -46,7 +42,7 @@ export function stopMemberCounter(): void {
     memberCounterTimer = null;
 }
 
-export const memberCounter: UtilDefinition = {
+export const memberCounter: UtilDefinition<'clientReady'> = {
     event: 'clientReady',
     execute: (client: Client) => {
         stopMemberCounter();

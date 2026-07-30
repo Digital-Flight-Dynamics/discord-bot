@@ -1,0 +1,35 @@
+---
+import '../styles/global.css';
+---
+
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width" />
+        <meta name="theme-color" content="#11141a" />
+        <meta name="description" content="Digital Flight Dynamics moderation appeals portal" />
+        <link rel="icon" type="image/png" href="/assets/dfd-logo.png" />
+        <link rel="apple-touch-icon" href="/assets/dfd-logo.png" />
+        <title>ATC · Digital Flight Dynamics</title>
+    </head>
+    <body>
+        <div class="noise" aria-hidden="true"></div>
+        <div class="shell">
+            <main id="app" tabindex="-1">
+                <div class="loading-state">
+                    <span class="spinner" aria-hidden="true"></span>
+                    <p>Contacting the tower…</p>
+                </div>
+            </main>
+            <footer class="site-footer">
+                <a href="/privacy-policy">Privacy Policy</a>
+                <span aria-hidden="true">•</span>
+                <a href="/community-rules">Community Rules</a>
+            </footer>
+        </div>
+        <div id="modal-root"></div>
+        <div id="toast-root" aria-live="polite"></div>
+        <script src="../scripts/app.ts"></script>
+    </body>
+</html>

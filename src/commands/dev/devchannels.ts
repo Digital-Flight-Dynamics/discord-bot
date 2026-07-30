@@ -8,10 +8,10 @@ import {
     PermissionsBitField,
     Role,
 } from 'discord.js';
-import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
+import { CommandCategories, CommandDefinition, createErrorEmbed } from '../definitions';
 import { createEmbed, EmbedColors } from '../../lib/embed';
 import { config, channels, roles } from '../../config';
-import { isDevelopmentMode, isProductionConstantsFile } from '../../config/devMode';
+import { isDevSetupRuntimeAllowed, isProductionConstantsFile } from '../../config/devMode';
 import {
     BOOTSTRAP_CATEGORY_NAMES,
     CHANNEL_CATEGORY_BY_KEY,
@@ -46,6 +46,19 @@ function sleep(ms: number) {
 }
 
 type RoleKey = keyof typeof roles;
+const PRODUCTION_GUILD_ID = '808790838163406848';
+
+/** Deliberately redundant: this command destroys channels and writes config files. */
+function canRunDevSetup(message: Message): boolean {
+    return isDevSetupRuntimeAllowed({
+        configName: resolveConfigName(),
+        workspaceName: config.name,
+        nodeEnv: process.env.NODE_ENV,
+        guildId: message.guildId,
+        productionGuildId: PRODUCTION_GUILD_ID,
+        productionConstantsFile: isProductionConstantsFile(),
+    });
+}
 
 const BOOTSTRAP_ROLE_NAMES: Record<RoleKey, string> = {
     management: 'Management',
@@ -95,21 +108,11 @@ export const devchannels: CommandDefinition = {
     description: '[dev only] Bootstrap or cleanup guild channels/roles. `Arguments: create | cleanup`',
     category: CommandCategories.MODERATION,
     requiredRoleGroup: 'developer',
+    allowOwnerDuringBootstrap: true,
+    silentGuard: (message) => !canRunDevSetup(message),
     execute: async (message, args) => {
-        if (!isDevelopmentMode() || isProductionConstantsFile()) {
-            await message
-                .reply({
-                    embeds: [
-                        createErrorEmbed(
-                            'This command only works in development mode ' +
-                                '(`CONSTANTS_FILE=dev` or `NODE_ENV=development`) ' +
-                                'and never rewrites production constants.',
-                        ),
-                    ],
-                })
-                .catch(console.error);
-            return;
-        }
+        // Never acknowledge this destructive command outside an explicit dev workspace.
+        if (!canRunDevSetup(message)) return;
 
         if (!message.guild) {
             await message.reply({ embeds: [createErrorEmbed('Guild only')] }).catch(console.error);
@@ -239,6 +242,7 @@ async function ensureBootstrapRoles(guild: Guild): Promise<{
 }
 
 async function runCreate(message: Message) {
+    if (!canRunDevSetup(message)) return;
     const guild = message.guild!;
     const loading = await sendLoading(
         message,
@@ -350,6 +354,7 @@ async function runCreate(message: Message) {
 }
 
 async function runCleanup(message: Message) {
+    if (!canRunDevSetup(message)) return;
     const guild = message.guild!;
     const keepId = message.channel.id;
 

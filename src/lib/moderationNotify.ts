@@ -108,7 +108,7 @@ export async function logModerationAction(
         subjectTag?: string;
         caseType: ModCaseType;
         caseId?: string | null;
-        /** Public Action ID (A26…) for display / registry links */
+        /** Public Action ID for display / registry links */
         actionId?: string | null;
         /** Extra content posted as the first message inside the thread */
         threadIntro?: string;

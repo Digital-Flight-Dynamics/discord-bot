@@ -35,6 +35,9 @@ export type BotWorkspaceConfig = {
     /** Optional primary guild id (migrations / expiry fallback) */
     guildId?: string;
 
+    /** Permanent community invite shown by ATC after eligible resolutions. */
+    communityInviteUrl?: string;
+
     /** Command prefix, e.g. "." */
     prefix: string;
 

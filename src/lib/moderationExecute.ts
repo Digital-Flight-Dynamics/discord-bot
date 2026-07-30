@@ -1,15 +1,9 @@
-import { APIEmbedField, Client, Guild, GuildMember, TextChannel, User } from 'discord.js';
-import { createEmbed, EmbedColors, resultEmbedColor } from './embed';
+import { Client, Guild, GuildMember, User } from 'discord.js';
+import { EmbedColors } from './embed';
 import {
-    formatInfractionCountLine,
-    formatModeratorBlock,
-    formatUserInformationBlock,
     getInfractionCounts,
-    formatOrdinal,
-    appealUrl,
     modLogMessageUrl,
     modPortalUrl,
-    notifiedLine,
     discordAuditReason,
 } from './moderationFormat';
 import { logModerationAction, tryDmUser, type DmResult } from './moderationNotify';
@@ -21,21 +15,26 @@ import { createTimeout, deleteTimeoutById } from '../db/repositories/timeouts';
 import {
     claimPendingModeration,
     getPendingModerationById,
-    markPendingActionApplied,
     markPendingCancelled,
     markPendingCompleted,
+    markPendingDiscordApplied,
     markPendingFailed,
 } from '../db/repositories/pendingModeration';
-import { createModerationActionNotification } from '../db/repositories/moderationActionNotifications';
 import type { PendingModerationAction } from '../db/schema';
 import type { LinkedMessage } from './moderation';
-import { channels } from '../config';
 import { moderationTextForEmbed } from './moderationLimits';
+import { findActionIdByRecord } from '../db/repositories/actionIds';
+import { formatDurationMs, MAX_DISCORD_TIMEOUT_MS } from './moderationDuration';
+import {
+    buildModLogFields,
+    storeActionDm,
+    timeoutUserDmEmbed,
+    userActionDmEmbed,
+} from './moderationExecutionPresentation';
 
 export type ModerationExecutionResult =
     | { status: 'completed' | 'partial'; actionId: string; modLogUrl: string | null; notice?: string }
     | { status: 'not-executed'; reason: string };
-const MAX_DISCORD_TIMEOUT_MS = 28 * 24 * 60 * 60 * 1000;
 
 function linkedFromPending(p: PendingModerationAction): LinkedMessage | null {
     if (!p.linkedMessageId || !p.linkedChannelId) return null;
@@ -47,40 +46,6 @@ function linkedFromPending(p: PendingModerationAction): LinkedMessage | null {
     };
 }
 
-async function editConfirm(
-    client: Client,
-    p: PendingModerationAction,
-    embed: ReturnType<typeof createEmbed>,
-): Promise<void> {
-    if (!p.confirmChannelId || !p.confirmMessageId) return;
-    try {
-        const ch = await client.channels.fetch(p.confirmChannelId).catch(() => null);
-        if (!ch || !ch.isTextBased() || ch.isDMBased()) return;
-        const msg = await ch.messages.fetch(p.confirmMessageId).catch(() => null);
-        if (!msg) return;
-        await msg.edit({ embeds: [embed], components: [] }).catch(console.error);
-    } catch (err) {
-        console.error('[ERROR] Failed to edit confirm message:', err);
-    }
-}
-
-function commandConfirmEmbed(opts: {
-    actionPast: string;
-    subjectId: string;
-    /** Public Action ID (A26…) */
-    actionId: string;
-    modLogUrl: string | null;
-    timedOut?: boolean;
-    partial?: boolean;
-}) {
-    return createEmbed({
-        color: resultEmbedColor({ timedOut: opts.timedOut, partial: opts.partial }),
-        description:
-            `***<@${opts.subjectId}> has been ${opts.actionPast}***.` +
-            (opts.modLogUrl ? `\n-# [Go to mod log](${opts.modLogUrl})` : ''),
-    });
-}
-
 /**
  * Apply a pending moderation action (after confirm, timeout, or restart recovery).
  */
@@ -90,27 +55,9 @@ export async function executePendingModeration(
     opts?: {
         privateNote?: string | null;
         timedOut?: boolean;
-        cancelled?: boolean;
         preActionDm?: DmResult;
     },
 ): Promise<ModerationExecutionResult> {
-    if (opts?.cancelled) {
-        const current = (await getPendingModerationById(pending.id).catch(() => null)) || pending;
-        if (current.status !== 'pending') return { status: 'not-executed', reason: 'Action is no longer pending.' };
-        pending = current;
-        await markPendingCancelled(pending.id);
-        await editConfirm(
-            client,
-            pending,
-            createEmbed({
-                color: EmbedColors.WARNING,
-                title: 'Action cancelled',
-                description: 'No action was taken.',
-            }),
-        );
-        return { status: 'not-executed', reason: 'Action cancelled.' };
-    }
-
     // Atomically claim the row so concurrent workers / a crash-then-restart replay
     // cannot both execute the same pending action.
     const claimed = await claimPendingModeration(pending.id);
@@ -119,20 +66,30 @@ export async function executePendingModeration(
     }
     pending = claimed;
 
-    const privateNote =
-        opts?.privateNote !== undefined
-            ? opts.privateNote
-            : pending.privateNote && pending.privateNote !== 'None'
-              ? pending.privateNote
-              : null;
+    if (pending.resultCaseId) {
+        const action = await findActionIdByRecord(pending.resultCaseId, pending.guildId);
+        await markPendingCompleted(pending.id, pending.resultCaseId);
+        const applied = pending.actionType === 'warn' || Boolean(pending.discordAppliedAt);
+        return {
+            status: 'partial',
+            actionId: action?.actionId || pending.resultCaseId,
+            modLogUrl: null,
+            notice: applied
+                ? 'The action was already applied before restart and was not executed again.'
+                : 'The case was created before restart, but Discord application is uncertain. It was not repeated; staff reconciliation is required.',
+        };
+    }
+
+    const storedPrivateNote = pending.privateNote && pending.privateNote !== 'None' ? pending.privateNote : null;
+    const privateNote = opts?.privateNote !== undefined ? opts.privateNote : storedPrivateNote;
     const noteDisplay = privateNote || (opts?.timedOut ? 'None (auto — no response)' : 'None');
     const timedOut = Boolean(opts?.timedOut);
-    const automation =
-        pending.moderatorUserId === client.user?.id
-            ? typeof pending.payload.automation === 'string'
-                ? pending.payload.automation
-                : 'Automated moderation'
-            : null;
+    let automation: string | null = null;
+    if (pending.moderatorUserId === client.user?.id) {
+        automation = typeof pending.payload.automation === 'string'
+            ? pending.payload.automation
+            : 'Automated moderation';
+    }
 
     const guild = client.guilds.cache.get(pending.guildId) || (await client.guilds.fetch(pending.guildId).catch(() => null));
     if (!guild) {
@@ -141,7 +98,7 @@ export async function executePendingModeration(
         return { status: 'not-executed', reason: 'Guild unavailable.' };
     }
 
-    let member: GuildMember | null = await guild.members.fetch(pending.subjectUserId).catch(() => null);
+    const member: GuildMember | null = await guild.members.fetch(pending.subjectUserId).catch(() => null);
     let subjectUser: User | null = member?.user || null;
     if (!subjectUser) {
         subjectUser = await client.users.fetch(pending.subjectUserId).catch(() => null);
@@ -161,7 +118,7 @@ export async function executePendingModeration(
     try {
         switch (pending.actionType) {
             case 'warn':
-                return executeWarn(client, guild, pending, {
+                return executeWarn(guild, pending, {
                     member,
                     subjectUser,
                     moderatorMember,
@@ -173,7 +130,7 @@ export async function executePendingModeration(
                     automation,
                 });
             case 'kick':
-                return executeKick(client, guild, pending, {
+                return executeKick(guild, pending, {
                     member,
                     subjectUser,
                     moderatorMember,
@@ -185,7 +142,7 @@ export async function executePendingModeration(
                     automation,
                 });
             case 'ban':
-                return executeBan(client, guild, pending, {
+                return executeBan(guild, pending, {
                     member,
                     subjectUser,
                     moderatorMember,
@@ -199,7 +156,7 @@ export async function executePendingModeration(
                     automation,
                 });
             case 'timeout':
-                return executeTimeout(client, guild, pending, {
+                return executeTimeout(guild, pending, {
                     member,
                     subjectUser,
                     moderatorMember,
@@ -217,21 +174,26 @@ export async function executePendingModeration(
     } catch (err) {
         console.error(`[ERROR] Failed to execute pending ${pending.id}:`, err);
         const current = await getPendingModerationById(pending.id).catch(() => null);
-        if (current?.resultCaseId) {
+        if (current?.resultCaseId && (current.actionType === 'warn' || current.discordAppliedAt || pending.discordAppliedAt)) {
             await markPendingCompleted(pending.id, current.resultCaseId);
-            await editConfirm(client, pending, createEmbed({
-                color: EmbedColors.WARNING,
-                title: 'Action applied with follow-up failures',
-                description: 'The moderation action was applied, but a notification or log update failed. The case was retained for reconciliation.',
-            }));
-            return { status: 'partial', actionId: current.resultCaseId, modLogUrl: null, notice: 'The action was applied, but a follow-up update failed.' };
+            return {
+                status: 'partial',
+                actionId: current.resultCaseId,
+                modLogUrl: null,
+                notice: 'The action was applied, but a follow-up update failed.',
+            };
+        }
+        if (current?.resultCaseId) {
+            await markPendingFailed(pending.id);
+            const action = await findActionIdByRecord(current.resultCaseId, current.guildId).catch(() => null);
+            return {
+                status: 'partial',
+                actionId: action?.actionId || current.resultCaseId,
+                modLogUrl: null,
+                notice: 'Discord rejected the action and automatic case cleanup failed. The case requires manual reconciliation.',
+            };
         }
         await markPendingFailed(pending.id);
-        await editConfirm(client, pending, createEmbed({
-            color: EmbedColors.FAILURE,
-            title: 'Action failed',
-            description: 'Discord rejected this action, so no punishment was applied and no case was recorded. Please retry the command.',
-        }));
         return { status: 'not-executed', reason: 'Discord rejected the action.' };
     }
 }
@@ -249,121 +211,7 @@ type ExecCtx = {
     automation?: string | null;
 };
 
-const fieldValue = (value: string, actionId = 'unknown') => moderationTextForEmbed(value, actionId);
-
-function discordTimestamp(date: Date): string {
-    return `<t:${Math.floor(date.getTime() / 1000)}:F>`;
-}
-
-function discordTimestampRelative(date: Date): string {
-    return `<t:${Math.floor(date.getTime() / 1000)}:R>`;
-}
-
-function rulesUrl(guild: Guild): string {
-    return `https://discord.com/channels/${guild.id}/${channels.info}`;
-}
-
-async function storeActionDm(opts: {
-    guildId: string;
-    actionId: string;
-    recordType: string;
-    recordUuid: string;
-    userId: string;
-    dm: DmResult;
-}): Promise<void> {
-    if (!opts.dm.sent || !opts.dm.channelId || !opts.dm.messageId) return;
-    await createModerationActionNotification({
-        guildId: opts.guildId,
-        actionId: opts.actionId,
-        recordType: opts.recordType,
-        recordUuid: opts.recordUuid,
-        kind: 'action-dm',
-        userId: opts.userId,
-        channelId: opts.dm.channelId,
-        messageId: opts.dm.messageId,
-    }).catch(console.error);
-}
-
-function userActionDmEmbed(opts: {
-    guild: Guild;
-    color: number;
-    actionPast: string;
-    actionName: string;
-    actionId: string;
-    reason: string;
-    expiresAt?: Date | null;
-    infractionNumber: number;
-}) {
-    const fields: APIEmbedField[] = [
-        { name: 'Reason', value: fieldValue(opts.reason, opts.actionId), inline: false },
-    ];
-
-    if (opts.expiresAt) {
-        fields.push({
-            name: 'Expires',
-            value: `This ${opts.actionName} will expire at ${discordTimestamp(opts.expiresAt)}`,
-            inline: false,
-        });
-    }
-
-    fields.push(
-        {
-            name: 'Notice',
-            value: fieldValue(
-                `This is your **__${formatOrdinal(opts.infractionNumber)}__** ${opts.actionName} infraction. ` +
-                    `Further infractions${opts.expiresAt ? ` before this ${opts.actionName} expires` : ''} ` +
-                    `may result in removal from our community. It is recommended that you read our ` +
-                    `[server rules](${rulesUrl(opts.guild)}).`,
-            ),
-            inline: false,
-        },
-        {
-            name: 'Appeal',
-            value: `You may be able to appeal this action. You can do so on our [appeals form here](${appealUrl(opts.actionId)}).`,
-            inline: false,
-        },
-    );
-
-    return createEmbed(
-        {
-            color: opts.color,
-            title: `You have been ${opts.actionPast} in ${opts.guild.name}`,
-            description: `**Action ID**: \`${opts.actionId}\``,
-            fields,
-        },
-        true,
-    );
-}
-
-function timeoutUserDmEmbed(opts: {
-    guild: Guild;
-    actionId: string;
-    reason: string;
-    expiresAt: Date;
-}) {
-    return createEmbed(
-        {
-            color: EmbedColors.WARNING,
-            title: `You have been timed out at ${opts.guild.name}`,
-            description:
-                `You will be able to join the discussion again in ${discordTimestampRelative(opts.expiresAt)}. ` +
-                'In the meantime, maybe have a glass of water.',
-            fields: [
-                { name: 'Reason', value: fieldValue(opts.reason, opts.actionId), inline: false },
-                {
-                    name: 'Appeal',
-                    value: `You may be able to appeal this action. You can do so on our [appeals form here](${appealUrl(opts.actionId)}).`,
-                    inline: false,
-                },
-            ],
-            footer: { text: `This action (${opts.actionId}) has been logged into your account record.` },
-        },
-        true,
-    );
-}
-
 async function executeWarn(
-    client: Client,
     guild: Guild,
     pending: PendingModerationAction,
     ctx: ExecCtx,
@@ -389,11 +237,11 @@ async function executeWarn(
         privateNote: ctx.privateNote,
         expiresAt: pending.expiresAt,
         linked: ctx.linked,
+        pendingActionId: pending.id,
     });
 
     const counts = await getInfractionCounts(guild.id, pending.subjectUserId);
     const publicId = warning.actionId || warning.id;
-    await markPendingActionApplied(pending.id, warning.id);
     const dm = await tryDmUser(ctx.subjectUser, {
         embeds: [
             userActionDmEmbed({
@@ -447,18 +295,6 @@ async function executeWarn(
     });
 
     await markPendingCompleted(pending.id, warning.id);
-    await editConfirm(
-        client,
-        pending,
-        commandConfirmEmbed({
-            actionPast: 'warned',
-            subjectId: pending.subjectUserId,
-            actionId: publicId,
-            modLogUrl: modLog ? modLogMessageUrl(guild.id, modLog.channelId, modLog.messageId) : null,
-            timedOut: ctx.timedOut,
-            partial: !dm.sent,
-        }),
-    );
     return {
         status: 'completed',
         actionId: publicId,
@@ -467,7 +303,6 @@ async function executeWarn(
 }
 
 async function executeKick(
-    client: Client,
     guild: Guild,
     pending: PendingModerationAction,
     ctx: ExecCtx,
@@ -494,24 +329,11 @@ async function executeKick(
         linked: ctx.linked,
         isAutomated: false,
         source: ctx.automation ? ctx.automation.toLowerCase() : 'bot',
+        pendingActionId: pending.id,
     });
     const publicId = row.actionId || row.id;
-    try {
-        await ctx.member.kick(
-            discordAuditReason(
-                publicId,
-                ctx.moderatorUser?.username || 'Unknown',
-                pending.moderatorUserId,
-                pending.reason,
-            ),
-        );
-    } catch (err) {
-        await deleteKickById(row.id).catch(console.error);
-        throw err;
-    }
-    await markPendingActionApplied(pending.id, row.id);
-
     const counts = await getInfractionCounts(guild.id, pending.subjectUserId);
+    // Notify while the member is still in the guild, before Discord removes them.
     const dm = await tryDmUser(ctx.subjectUser, {
         embeds: [
             userActionDmEmbed({
@@ -533,6 +355,22 @@ async function executeKick(
         userId: pending.subjectUserId,
         dm,
     });
+    try {
+        await ctx.member.kick(
+            discordAuditReason(
+                publicId,
+                ctx.moderatorUser?.username || 'Unknown',
+                pending.moderatorUserId,
+                pending.reason,
+            ),
+        );
+    } catch (err) {
+        await deleteKickById(row.id, pending.id).catch(console.error);
+        await sendFailedActionCorrection(ctx.subjectUser, 'kick').catch(console.error);
+        throw err;
+    }
+    pending.discordAppliedAt = new Date();
+    await markPendingDiscordApplied(pending.id);
 
     const modLog = await logModerationAction(guild, {
         color: EmbedColors.WARNING,
@@ -563,18 +401,6 @@ async function executeKick(
     });
 
     await markPendingCompleted(pending.id, row.id);
-    await editConfirm(
-        client,
-        pending,
-        commandConfirmEmbed({
-            actionPast: 'kicked',
-            subjectId: pending.subjectUserId,
-            actionId: publicId,
-            modLogUrl: modLog ? modLogMessageUrl(guild.id, modLog.channelId, modLog.messageId) : null,
-            timedOut: ctx.timedOut,
-            partial: !dm.sent,
-        }),
-    );
     return {
         status: 'completed',
         actionId: publicId,
@@ -583,7 +409,6 @@ async function executeKick(
 }
 
 async function executeBan(
-    client: Client,
     guild: Guild,
     pending: PendingModerationAction,
     ctx: ExecCtx & { soft: boolean },
@@ -611,62 +436,11 @@ async function executeBan(
         deleteMessageSeconds: pending.deleteMessageSeconds,
         linked: ctx.linked,
         source: ctx.automation ? ctx.automation.toLowerCase() : 'bot',
+        pendingActionId: pending.id,
     });
     const publicId = row.actionId || row.id;
-    const auditReason = discordAuditReason(
-        publicId,
-        ctx.moderatorUser?.username || 'Unknown',
-        pending.moderatorUserId,
-        pending.reason,
-    );
-    try {
-        await guild.members.ban(pending.subjectUserId, {
-            deleteMessageSeconds: pending.deleteMessageSeconds || 0,
-            reason: auditReason,
-        });
-    } catch (err) {
-        await deleteBanById(row.id).catch(console.error);
-        throw err;
-    }
-
-    let softUnbanned = false;
-    if (ctx.soft) {
-        try {
-            await guild.members.unban(pending.subjectUserId, auditReason);
-            softUnbanned = true;
-        } catch (err) {
-            console.error(`[ERROR] Soft-ban follow-up unban failed for ${pending.subjectUserId} in guild ${guild.id}:`, err);
-        }
-    }
-    if (ctx.soft && !softUnbanned) {
-        await markPendingActionApplied(pending.id, row.id);
-        const modLog = await logModerationAction(guild, {
-            color: EmbedColors.FAILURE,
-            title: 'Soft-ban follow-up failed',
-            caseType: 'ban',
-            caseId: row.id,
-            actionId: publicId,
-            subjectUserId: pending.subjectUserId,
-            subjectTag: ctx.subjectUser.tag,
-            moderatorId: pending.moderatorUserId,
-            fields: [
-                { name: 'Status', value: 'The ban succeeded, but Discord rejected the follow-up unban. The user remains banned.', inline: false },
-                { name: 'Reason', value: moderationTextForEmbed(pending.reason, publicId), inline: false },
-            ],
-            footerUrl: modPortalUrl(publicId),
-        });
-        await markPendingCompleted(pending.id, row.id);
-        return {
-            status: 'partial',
-            actionId: publicId,
-            modLogUrl: modLog ? modLogMessageUrl(guild.id, modLog.channelId, modLog.messageId) : null,
-            notice: 'Soft-ban follow-up unban failed; the user remains banned and requires manual reconciliation.',
-        };
-    }
-    if (softUnbanned) await liftBanById(row.id, 'soft-ban completed');
-    await markPendingActionApplied(pending.id, row.id);
-
     const counts = await getInfractionCounts(guild.id, pending.subjectUserId);
+    // Use a caller-provided pre-action DM (honeypot), otherwise notify before banning.
     const dm =
         ctx.dmOverride ??
         (await tryDmUser(ctx.subjectUser, {
@@ -691,6 +465,59 @@ async function executeBan(
         userId: pending.subjectUserId,
         dm,
     });
+    const auditReason = discordAuditReason(
+        publicId,
+        ctx.moderatorUser?.username || 'Unknown',
+        pending.moderatorUserId,
+        pending.reason,
+    );
+    try {
+        await guild.members.ban(pending.subjectUserId, {
+            deleteMessageSeconds: pending.deleteMessageSeconds || 0,
+            reason: auditReason,
+        });
+    } catch (err) {
+        await deleteBanById(row.id, pending.id).catch(console.error);
+        await sendFailedActionCorrection(ctx.subjectUser, ctx.soft ? 'soft-ban' : 'ban').catch(console.error);
+        throw err;
+    }
+
+    let softUnbanned = false;
+    if (ctx.soft) {
+        try {
+            await guild.members.unban(pending.subjectUserId, auditReason);
+            softUnbanned = true;
+        } catch (err) {
+            console.error(`[ERROR] Soft-ban follow-up unban failed for ${pending.subjectUserId} in guild ${guild.id}:`, err);
+        }
+    }
+    pending.discordAppliedAt = new Date();
+    await markPendingDiscordApplied(pending.id);
+    if (ctx.soft && !softUnbanned) {
+        const modLog = await logModerationAction(guild, {
+            color: EmbedColors.FAILURE,
+            title: 'Soft-ban follow-up failed',
+            caseType: 'ban',
+            caseId: row.id,
+            actionId: publicId,
+            subjectUserId: pending.subjectUserId,
+            subjectTag: ctx.subjectUser.tag,
+            moderatorId: pending.moderatorUserId,
+            fields: [
+                { name: 'Status', value: 'The ban succeeded, but Discord rejected the follow-up unban. The user remains banned.', inline: false },
+                { name: 'Reason', value: moderationTextForEmbed(pending.reason, publicId), inline: false },
+            ],
+            footerUrl: modPortalUrl(publicId),
+        });
+        await markPendingCompleted(pending.id, row.id);
+        return {
+            status: 'partial',
+            actionId: publicId,
+            modLogUrl: modLog ? modLogMessageUrl(guild.id, modLog.channelId, modLog.messageId) : null,
+            notice: 'Soft-ban follow-up unban failed; the user remains banned and requires manual reconciliation.',
+        };
+    }
+    if (softUnbanned) await liftBanById(row.id, 'soft-ban completed');
 
     const modLog = await logModerationAction(guild, {
         color: EmbedColors.FAILURE,
@@ -723,18 +550,6 @@ async function executeBan(
     });
 
     await markPendingCompleted(pending.id, row.id);
-    await editConfirm(
-        client,
-        pending,
-        commandConfirmEmbed({
-            actionPast: ctx.soft ? 'soft-banned' : 'banned',
-            subjectId: pending.subjectUserId,
-            actionId: publicId,
-            modLogUrl: modLog ? modLogMessageUrl(guild.id, modLog.channelId, modLog.messageId) : null,
-            timedOut: ctx.timedOut,
-            partial: !dm.sent,
-        }),
-    );
     return {
         status: 'completed',
         actionId: publicId,
@@ -742,8 +557,15 @@ async function executeBan(
     };
 }
 
+async function sendFailedActionCorrection(user: User, action: string): Promise<void> {
+    await tryDmUser(user, {
+        content:
+            `Correction: the ${action} notification you just received was sent before Discord processed the action. ` +
+            'Discord rejected it, so that action was not applied.',
+    });
+}
+
 async function executeTimeout(
-    client: Client,
     guild: Guild,
     pending: PendingModerationAction,
     ctx: Omit<ExecCtx, 'linked'>,
@@ -778,6 +600,7 @@ async function executeTimeout(
         durationToken,
         expiresAt,
         source: ctx.automation ? ctx.automation.toLowerCase() : 'bot',
+        pendingActionId: pending.id,
     });
     const publicId = row.actionId || row.id;
     if (discordTimeoutMs > 0) {
@@ -792,12 +615,13 @@ async function executeTimeout(
                 ),
             );
         } catch (err) {
-            await deleteTimeoutById(row.id).catch(console.error);
+            await deleteTimeoutById(row.id, pending.id).catch(console.error);
             throw err;
         }
     }
+    pending.discordAppliedAt = new Date();
+    await markPendingDiscordApplied(pending.id);
 
-    await markPendingActionApplied(pending.id, row.id);
 
     const counts = await getInfractionCounts(guild.id, pending.subjectUserId);
 
@@ -852,113 +676,15 @@ async function executeTimeout(
     });
 
     await markPendingCompleted(pending.id, row.id);
-    await editConfirm(
-        client,
-        pending,
-        commandConfirmEmbed({
-            actionPast: 'muted',
-            subjectId: pending.subjectUserId,
-            actionId: publicId,
-            modLogUrl: modLog ? modLogMessageUrl(guild.id, modLog.channelId, modLog.messageId) : null,
-            timedOut: ctx.timedOut,
-            partial: !dm.sent,
-        }),
-    );
     return {
         status: 'completed',
         actionId: publicId,
         modLogUrl: modLog ? modLogMessageUrl(guild.id, modLog.channelId, modLog.messageId) : null,
         notice: timeoutClamped
-            ? `:warning: Could not time out for the requested duration, exceeds Discord limits. Timed out for ${formatDurationMs(MAX_DISCORD_TIMEOUT_MS)}.`
+            ? ':warning: Could not time out for the requested duration; it exceeds Discord limits. ' +
+              `Timed out for ${formatDurationMs(MAX_DISCORD_TIMEOUT_MS)}.`
             : undefined,
     };
-}
-
-function formatDurationMs(ms: number): string {
-    if (ms % 86400000 === 0) return `${ms / 86400000} days`;
-    if (ms % 3600000 === 0) return `${ms / 3600000} hours`;
-    return `${Math.round(ms / 60000)} minutes`;
-}
-
-function buildModLogFields(opts: {
-    action: 'warning' | 'kick' | 'ban' | 'timeout';
-    subjectMember: GuildMember | null;
-    subjectUser: User;
-    subjectSnap: Awaited<ReturnType<typeof captureIdentitySnapshot>>;
-    moderatorMember: GuildMember | null;
-    moderatorUser: User | null;
-    moderatorSnap: Awaited<ReturnType<typeof captureIdentitySnapshot>>;
-    counts: Awaited<ReturnType<typeof getInfractionCounts>>;
-    thisNth: number;
-    dm: DmResult;
-    expiresAt?: Date | null;
-    durationToken?: string | null;
-    reason: string;
-    privateNote?: string | null;
-    /** Public Action ID */
-    actionId: string;
-    automation?: string | null;
-}) {
-    const fields = [
-        {
-            name: 'User Information',
-            value: formatUserInformationBlock({
-                member: opts.subjectMember,
-                user: opts.subjectUser,
-                snap: opts.subjectSnap,
-            }),
-            inline: false,
-        },
-        {
-            name: 'Infraction Count',
-            value: formatInfractionCountLine(opts.action, opts.counts, opts.thisNth),
-            inline: false,
-        },
-        {
-            name: 'Notified',
-            value: notifiedLine(opts.dm.sent, opts.dm.reason),
-            inline: true,
-        },
-        {
-            name: 'Expiration',
-            value: opts.expiresAt ? opts.expiresAt.toUTCString() : 'Never',
-            inline: true,
-        },
-        {
-            name: 'Moderator',
-            value: opts.automation
-                ? `Bot Automation (${opts.automation})`
-                : formatModeratorBlock({
-                      member: opts.moderatorMember,
-                      user: opts.moderatorUser,
-                      snap: opts.moderatorSnap,
-                  }),
-            inline: false,
-        },
-    ];
-
-    if (opts.action === 'timeout' || opts.action === 'ban') {
-        fields.push({
-            name: 'Duration',
-            value: opts.durationToken || (opts.expiresAt ? 'Temporary' : 'Permanent'),
-            inline: true,
-        });
-    }
-
-    fields.push(
-        {
-            name: 'Reason',
-            value: moderationTextForEmbed(opts.reason, opts.actionId),
-            inline: false,
-        },
-        {
-            name: 'Private Note',
-            value: moderationTextForEmbed(opts.privateNote, opts.actionId),
-            inline: false,
-        },
-    );
-
-    return fields;
 }
 
 /** Resume stale pending actions after restart (no private note). */

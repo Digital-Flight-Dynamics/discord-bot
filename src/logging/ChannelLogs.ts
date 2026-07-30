@@ -1,4 +1,4 @@
-import { ChannelType, GuildChannel, TextChannel } from 'discord.js';
+import { ChannelType, TextChannel } from 'discord.js';
 import { createEmbed } from '../lib/embed';
 import { Colors, LogDefinition, getLogChannel } from '.';
 import { channels } from '../config';
@@ -13,9 +13,9 @@ function isMemberCountChannel(channel: { id: string; name: string }): boolean {
     return n === 'member-count' || n.includes('member count');
 }
 
-export const channelCreate: LogDefinition = {
+export const channelCreate: LogDefinition<'channelCreate'> = {
     event: 'channelCreate',
-    execute: async (channel: GuildChannel) => {
+    execute: async (channel) => {
         if (isMemberCountChannel(channel)) return;
 
         const logChannel = getLogChannel(channel);
@@ -37,9 +37,10 @@ export const channelCreate: LogDefinition = {
     },
 };
 
-export const channelDelete: LogDefinition = {
+export const channelDelete: LogDefinition<'channelDelete'> = {
     event: 'channelDelete',
-    execute: async (channel: GuildChannel) => {
+    execute: async (channel) => {
+        if (channel.isDMBased()) return;
         if (isMemberCountChannel(channel)) return;
 
         const logChannel = getLogChannel(channel);
@@ -59,9 +60,10 @@ export const channelDelete: LogDefinition = {
     },
 };
 
-export const channelUpdate: LogDefinition = {
+export const channelUpdate: LogDefinition<'channelUpdate'> = {
     event: 'channelUpdate',
-    execute: async (oldChannel: GuildChannel, newChannel: GuildChannel) => {
+    execute: async (oldChannel, newChannel) => {
+        if (oldChannel.isDMBased() || newChannel.isDMBased()) return;
         // Ignore automated member-counter renames (and any other touch of that channel)
         if (isMemberCountChannel(oldChannel) || isMemberCountChannel(newChannel)) return;
 

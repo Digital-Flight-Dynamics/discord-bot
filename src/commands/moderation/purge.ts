@@ -1,5 +1,5 @@
 import Discord from 'discord.js';
-import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
+import { CommandCategories, CommandDefinition, createErrorEmbed } from '../definitions';
 import { createEmbed } from '../../lib/embed';
 
 export const purge: CommandDefinition = {

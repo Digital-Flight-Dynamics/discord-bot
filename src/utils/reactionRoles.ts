@@ -1,10 +1,9 @@
-import { MessageReaction, PartialMessageReaction, User, PartialUser } from 'discord.js';
 import { UtilDefinition } from '.';
 import { channels, emojis, roles } from '../config';
 
-export const addRole: UtilDefinition = {
+export const addRole: UtilDefinition<'messageReactionAdd'> = {
     event: 'messageReactionAdd',
-    execute: async (reaction: MessageReaction, user: User) => {
+    execute: async (reaction, user) => {
         const guild = reaction.message.guild;
         if (!guild) return;
         const roleChannel = await guild.channels.fetch(channels.roles).catch(console.error);
@@ -49,9 +48,9 @@ export const addRole: UtilDefinition = {
         }
     },
 };
-export const removeRole: UtilDefinition = {
+export const removeRole: UtilDefinition<'messageReactionRemove'> = {
     event: 'messageReactionRemove',
-    execute: async (reaction: MessageReaction | PartialMessageReaction, user: User | PartialUser) => {
+    execute: async (reaction, user) => {
         const guild = reaction.message.guild;
         if (!guild) return;
         const roleChannel = await guild.channels.fetch(channels.roles).catch(console.error);

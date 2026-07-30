@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS "warnings" (
 CREATE TABLE IF NOT EXISTS "kicks" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"action_id" text,
+	"discord_audit_log_id" text,
 	"guild_id" text NOT NULL,
 	"subject_snapshot_id" uuid NOT NULL,
 	"moderator_snapshot_id" uuid,
@@ -60,6 +61,7 @@ ALTER TABLE "kicks" ADD COLUMN IF NOT EXISTS "source" text DEFAULT 'bot' NOT NUL
 CREATE TABLE IF NOT EXISTS "bans" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"action_id" text,
+	"discord_audit_log_id" text,
 	"guild_id" text NOT NULL,
 	"subject_snapshot_id" uuid NOT NULL,
 	"moderator_snapshot_id" uuid,
@@ -166,6 +168,7 @@ ALTER TABLE "mod_log_messages" ADD COLUMN IF NOT EXISTS "thread_deleted" boolean
 CREATE TABLE IF NOT EXISTS "timeouts" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"action_id" text,
+	"discord_audit_log_id" text,
 	"guild_id" text NOT NULL,
 	"subject_snapshot_id" uuid NOT NULL,
 	"moderator_snapshot_id" uuid,
@@ -330,15 +333,12 @@ CREATE TABLE IF NOT EXISTS "pending_moderation_actions" (
 	"expires_at" timestamp with time zone,
 	"delete_message_seconds" integer,
 	"ban_type" text,
-	"command_channel_id" text,
-	"command_message_id" text,
-	"confirm_channel_id" text,
-	"confirm_message_id" text,
 	"linked_message_id" text,
 	"linked_channel_id" text,
 	"linked_message_url" text,
 	"payload" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"result_case_id" text,
+	"discord_applied_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"completed_at" timestamp with time zone
@@ -359,8 +359,22 @@ CREATE TABLE IF NOT EXISTS "action_ids" (
 
 CREATE INDEX IF NOT EXISTS "action_ids_record_uuid_idx" ON "action_ids" ("record_uuid");
 CREATE INDEX IF NOT EXISTS "action_ids_guild_id_idx" ON "action_ids" ("guild_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "action_ids_record_unique" ON "action_ids" ("record_type", "record_uuid");
 
 CREATE UNIQUE INDEX IF NOT EXISTS "warnings_action_id_unique" ON "warnings" ("action_id");
 CREATE UNIQUE INDEX IF NOT EXISTS "kicks_action_id_unique" ON "kicks" ("action_id");
 CREATE UNIQUE INDEX IF NOT EXISTS "bans_action_id_unique" ON "bans" ("action_id");
 CREATE UNIQUE INDEX IF NOT EXISTS "timeouts_action_id_unique" ON "timeouts" ("action_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "kicks_discord_audit_log_id_unique" ON "kicks" ("discord_audit_log_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "bans_discord_audit_log_id_unique" ON "bans" ("discord_audit_log_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "timeouts_discord_audit_log_id_unique" ON "timeouts" ("discord_audit_log_id");
+
+ALTER TABLE "pending_moderation_actions" ADD CONSTRAINT "pending_moderation_actions_status_check" CHECK (status IN ('pending','processing','completed','cancelled','failed'));
+ALTER TABLE "pending_moderation_actions" ADD CONSTRAINT "pending_moderation_actions_action_type_check" CHECK (action_type IN ('warn','kick','ban','timeout'));
+ALTER TABLE "bans" ADD CONSTRAINT "bans_ban_type_check" CHECK (ban_type IN ('soft','hard'));
+ALTER TABLE "warnings" ADD CONSTRAINT "warnings_resolution_status_check" CHECK (resolution_status IS NULL OR resolution_status IN ('revoked','appeal-approved'));
+ALTER TABLE "kicks" ADD CONSTRAINT "kicks_resolution_status_check" CHECK (resolution_status IS NULL OR resolution_status IN ('revoked','appeal-approved'));
+ALTER TABLE "bans" ADD CONSTRAINT "bans_resolution_status_check" CHECK (resolution_status IS NULL OR resolution_status IN ('revoked','appeal-approved'));
+ALTER TABLE "timeouts" ADD CONSTRAINT "timeouts_resolution_status_check" CHECK (resolution_status IS NULL OR resolution_status IN ('revoked','appeal-approved'));
+ALTER TABLE "timeouts" ADD CONSTRAINT "timeouts_duration_max_check" CHECK (duration_ms > 0 AND duration_ms <= 2419200000);
+ALTER TABLE "pending_moderation_actions" ADD CONSTRAINT "pending_moderation_actions_timeout_max_check" CHECK (action_type <> 'timeout' OR duration_ms IS NULL OR (duration_ms > 0 AND duration_ms <= 2419200000));

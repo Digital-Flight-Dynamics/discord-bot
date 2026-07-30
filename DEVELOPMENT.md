@@ -4,7 +4,7 @@ Local setup, workspace constants, and dev-only tooling for this bot.
 
 ## Prerequisites
 
-- Node 18+
+- Bun 1.3.12+
 - PostgreSQL (for moderation persistence)
 - A Discord bot token with the intents enabled in the Developer Portal (Guilds, Members, Messages, Message Content, etc.)
 
@@ -17,11 +17,11 @@ cp .env.example .env
 cp src/config/dev.example.ts src/config/dev.ts
 # Fill snowflakes, or use `.devchannels create` (see below)
 
-npm install
-npm run dev          # also ensures Postgres schema from drizzle/*.sql on boot
+bun install
+bun run dev          # also ensures Postgres schema from drizzle/*.sql on boot
 ```
 
-`npm run dev` / `bun run dev` set `CONSTANTS_FILE=dev` by default and run with nodemon + ts-node.
+`bun run dev` sets `CONSTANTS_FILE=dev` and uses Bun's built-in watch mode.
 
 ## Environment variables
 
@@ -29,13 +29,34 @@ npm run dev          # also ensures Postgres schema from drizzle/*.sql on boot
 |----------|----------|--------|
 | `BOT_TOKEN` | yes | Discord bot token |
 | `DATABASE_URL` | yes | Postgres connection string |
+| `ATC_URL` | yes | Moderation portal base URL; placeholder values soft-lock the bot |
+| `ATC_INTERNAL_API_KEY` | production | Shared secret for authenticated ATC → bot events; use a long random value |
 | `CONSTANTS_FILE` | no | Workspace constants module name (see below). Dev script defaults to `dev`. |
-| `GUILD_ID` | no | Fallback guild for expiry worker |
 | `HEALTH_PORT` | no | Health HTTP port (default `3000`) |
+| `INTERNAL_API_HOST` | no | Bind address for health/events (default `0.0.0.0`; keep the port private) |
 | `AVWX_KEY` | no | METAR/TAF |
-| `NODE_ENV` | no | Use `development` to enable dev-only commands |
+| `NODE_ENV` | no | Must not be `production` for destructive dev setup commands |
 
-Persistence is **PostgreSQL only** (Drizzle). On boot the bot runs SQL schema ensure from `drizzle/*.sql` (idempotent DDL). You can also run `npm run db:migrate` manually.
+Persistence is **PostgreSQL only** (Drizzle). On boot the bot runs SQL schema ensure from `drizzle/*.sql` (idempotent DDL). You can also run `bun run db:migrate` manually.
+
+## ATC internal event API
+
+The health server also exposes `POST /internal/events`. Requests require
+`Authorization: Bearer <ATC_INTERNAL_API_KEY>` and a validated event envelope.
+ATC uses it to notify Discord when appeals are submitted and the same endpoint
+supports appeal lifecycle and moderation-action events. The endpoint also
+rejects clients whose socket address is not loopback or part of a private IP
+range.
+
+For Coolify, bind the bot to `0.0.0.0` inside its container but **do not publish
+port 3000 publicly**. Set ATC's `BOT_INTERNAL_API_URL` to the bot's private
+service address (for example, `http://discord-bot:3000`). Containers cannot
+reach each other through `127.0.0.1`.
+
+Supported event types:
+
+- `appeal.submitted`, `appeal.review_started`, `appeal.approved`, `appeal.denied`
+- `moderation.action.created`, `moderation.action.updated`, `moderation.action.revoked`
 
 ## Workspace constants (`CONSTANTS_FILE`)
 
@@ -51,15 +72,15 @@ Guild-specific IDs (channels, roles, emojis, prefix) live under `src/config/`:
 
 | Situation | Config loaded |
 |-----------|----------------|
-| `npm run dev` / `bun run dev` | `dev` (`CONSTANTS_FILE=dev` in the script) |
+| `bun run dev` | `dev` (`CONSTANTS_FILE=dev` in the script) |
 | `CONSTANTS_FILE=dfd-discord` | production constants |
-| `npm start` / unset (not under `dev` lifecycle) | `dfd-discord` |
+| `bun start` / unset (not under `dev` lifecycle) | `dfd-discord` |
 
 Override examples:
 
 ```bash
-CONSTANTS_FILE=dfd-discord npm run dev   # hit prod IDs while developing
-CONSTANTS_FILE=dev npm start             # unusual; still needs dev.ts
+CONSTANTS_FILE=dfd-discord bun run dev   # hit prod IDs while developing
+CONSTANTS_FILE=dev bun start             # unusual; still needs dev.ts
 ```
 
 Import anywhere:
@@ -81,7 +102,7 @@ Embed palette is **not** in workspace config — see `src/lib/embed.ts` (`EmbedC
 
 Staff-facing **Action IDs** are short codes, not UUIDs. Internal rows still use UUID primary keys.
 
-**Format:** `A` + `DD` + `MM` + `.` + `YY` + kind + `NN` + `-` + `X|Y|Z`
+**Format:** `A` + `DD` + `MM` + `.` + `YY` + kind + `-` + 16 hexadecimal characters
 
 | Part | Meaning |
 |------|---------|
@@ -91,11 +112,10 @@ Staff-facing **Action IDs** are short codes, not UUIDs. Internal rows still use 
 | `.` | Separator |
 | `YY` | UTC year (e.g. `26`) |
 | kind | `T` timeout · `W` warning · `K` kick · `B` ban · `S` softban |
-| `NN` | Random `00`–`99` |
 | `-` | Separator |
-| letter | Random `X`, `Y`, or `Z` |
+| suffix | 64 bits of cryptographically secure random hexadecimal data |
 
-Examples: `A0701.26W42-X` (warning, 2026-01-07), `A2607.26T03-Y` (timeout, 2026-07-26), `A1512.26S88-Z` (softban, 2026-12-15).
+Example: `A0701.26W-9E6B9F5A81D2C407` (warning, 2026-01-07).
 
 IDs are reserved in the `action_ids` table; collisions regenerate until unique.
 
@@ -163,20 +183,20 @@ Deletes **every** channel in the guild **except** the channel where you ran the 
 
 | Script | Purpose |
 |--------|---------|
-| `npm run dev` | Watch + ts-node, `CONSTANTS_FILE=dev` |
-| `npm run build` | `tsc` → `out/` |
-| `npm start` | Run compiled bot (connects to Postgres + ensures schema) |
-| `npm run db:migrate` | Apply SQL files in `drizzle/` (same schema ensure, manual) |
-| `npm run db:generate` | Generate migrations from schema |
+| `bun run dev` | Bun watch mode, `CONSTANTS_FILE=dev` |
+| `bun run build` | `tsc` → `out/` |
+| `bun start` | Run compiled bot (connects to Postgres + ensures schema) |
+| `bun run db:migrate` | Apply SQL files in `drizzle/` (same schema ensure, manual) |
+| `bun run db:generate` | Generate migrations from schema |
 
-> `scripts/migrate-mongo-warnings.ts` remains for a possible one-shot historical import later; it is not wired into npm scripts or boot (Postgres only at runtime).
+> `scripts/migrate-mongo-warnings.ts` remains for a possible one-shot historical import later; it is not wired into Bun scripts or boot (Postgres only at runtime).
 
 ## Health check
 
 With the bot running:
 
 ```text
-GET http://127.0.0.1:3001/health
+GET http://127.0.0.1:3000/health
 ```
 
 (`HEALTH_PORT` if set; otherwise default `3000`.)

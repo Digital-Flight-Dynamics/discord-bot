@@ -1,17 +1,15 @@
 import { APIEmbedField } from 'discord.js';
-import { CommandCategories, CommandDefinition, createErrorEmbed } from '../index';
+import { CommandCategories, CommandDefinition, createErrorEmbed } from '../definitions';
 import { createEmbed } from '../../lib/embed';
 import { formatSnapshotLabel } from '../../db/repositories/snapshots';
 import { listAllWarnings } from '../../db/repositories/warnings';
 import { listKicksForUser } from '../../db/repositories/kicks';
 import { listBansForUser } from '../../db/repositories/bans';
+import { listTimeoutsForUser } from '../../db/repositories/timeouts';
 import { parseUserId, warningStatusLabel } from '../../lib/moderation';
+import { moderationTextForEmbed } from '../../lib/moderationLimits';
 
-const MAX_FIELD_VALUE = 1024;
-
-function fieldValue(value: string): string {
-    return value.length > MAX_FIELD_VALUE ? `${value.slice(0, MAX_FIELD_VALUE - 1)}…` : value;
-}
+const CASES_PER_TYPE = 6;
 
 export const background: CommandDefinition = {
     names: ['background', 'bgcheck', 'infractions'],
@@ -29,10 +27,11 @@ export const background: CommandDefinition = {
 
         try {
             const guildId = message.guild.id;
-            const [warns, kickRows, banRows] = await Promise.all([
+            const [warns, kickRows, banRows, timeoutRows] = await Promise.all([
                 listAllWarnings(guildId, id),
                 listKicksForUser(guildId, id),
                 listBansForUser(guildId, id),
+                listTimeoutsForUser(guildId, id),
             ]);
 
             const fields: APIEmbedField[] = [];
@@ -40,13 +39,13 @@ export const background: CommandDefinition = {
             if (warns.length === 0) {
                 fields.push({ name: 'Warnings', value: 'None' });
             } else {
-                warns.slice(0, 10).forEach((w, i) => {
+                warns.slice(0, CASES_PER_TYPE).forEach((w, i) => {
                     const status = warningStatusLabel(w);
                     fields.push({
                         name: `Warning #${i + 1} [${status}]`,
-                        value: fieldValue(
+                        value: moderationTextForEmbed(
                             [
-                                `ID: \`${w.id}\``,
+                                `Action ID: \`${w.actionId || w.id}\``,
                                 `Reason: ${w.reason}`,
                                 `Private Note: ${w.privateNote ?? 'None'}`,
                                 `Mod: ${formatSnapshotLabel(w.moderator)}`,
@@ -56,24 +55,21 @@ export const background: CommandDefinition = {
                                 w.linkedMessageUrl ? `Message: [jump](${w.linkedMessageUrl})` : null,
                             ]
                                 .filter(Boolean)
-                                .join('\n'),
+                                .join('\n'), w.actionId || w.id, 1024,
                         ),
                     });
                 });
-                if (warns.length > 10) {
-                    fields.push({ name: 'Warnings (more)', value: `…and ${warns.length - 10} more` });
-                }
             }
 
             if (kickRows.length === 0) {
                 fields.push({ name: 'Kicks', value: 'None' });
             } else {
-                kickRows.slice(0, 5).forEach((k, i) => {
+                kickRows.slice(0, CASES_PER_TYPE).forEach((k, i) => {
                     fields.push({
-                        name: `Kick #${i + 1}${k.isAutomated ? ' [AUTO]' : ''}`,
-                        value: fieldValue(
+                        name: `Kick #${i + 1}${k.isAutomated ? ' [AUTO]' : ''}${k.resolutionStatus ? ` [${k.resolutionStatus}]` : ''}`,
+                        value: moderationTextForEmbed(
                             [
-                                `ID: \`${k.id}\``,
+                                `Action ID: \`${k.actionId || k.id}\``,
                                 `Reason: ${k.reason}`,
                                 `Private Note: ${k.privateNote ?? 'None'}`,
                                 `Mod: ${k.moderator ? formatSnapshotLabel(k.moderator) : 'Automated'}`,
@@ -81,7 +77,7 @@ export const background: CommandDefinition = {
                                 k.linkedMessageUrl ? `Message: [jump](${k.linkedMessageUrl})` : null,
                             ]
                                 .filter(Boolean)
-                                .join('\n'),
+                                .join('\n'), k.actionId || k.id, 1024,
                         ),
                     });
                 });
@@ -90,13 +86,13 @@ export const background: CommandDefinition = {
             if (banRows.length === 0) {
                 fields.push({ name: 'Bans', value: 'None' });
             } else {
-                banRows.slice(0, 5).forEach((b, i) => {
-                    const state = b.liftedAt ? `LIFTED (${b.liftReason || 'unknown'})` : 'ACTIVE';
+                banRows.slice(0, CASES_PER_TYPE).forEach((b, i) => {
+                    const state = b.resolutionStatus || (b.liftedAt ? `LIFTED (${b.liftReason || 'unknown'})` : 'ACTIVE');
                     fields.push({
                         name: `Ban #${i + 1} [${b.banType.toUpperCase()}] [${state}]`,
-                        value: fieldValue(
+                        value: moderationTextForEmbed(
                             [
-                                `ID: \`${b.id}\``,
+                                `Action ID: \`${b.actionId || b.id}\``,
                                 `Reason: ${b.reason}`,
                                 `Private Note: ${b.privateNotes ?? 'None'}`,
                                 `Mod: ${b.moderator ? formatSnapshotLabel(b.moderator) : 'Unknown'}`,
@@ -106,8 +102,27 @@ export const background: CommandDefinition = {
                                 b.linkedMessageUrl ? `Message: [jump](${b.linkedMessageUrl})` : null,
                             ]
                                 .filter(Boolean)
-                                .join('\n'),
+                                .join('\n'), b.actionId || b.id, 1024,
                         ),
+                    });
+                });
+            }
+
+            if (timeoutRows.length === 0) {
+                fields.push({ name: 'Timeouts', value: 'None' });
+            } else {
+                timeoutRows.slice(0, CASES_PER_TYPE).forEach((timeout, i) => {
+                    const actionId = timeout.actionId || timeout.id;
+                    fields.push({
+                        name: `Timeout #${i + 1}${timeout.resolutionStatus ? ` [${timeout.resolutionStatus}]` : ''}`,
+                        value: moderationTextForEmbed([
+                            `Action ID: \`${actionId}\``,
+                            `Reason: ${timeout.reason}`,
+                            `Private Note: ${timeout.privateNote ?? 'None'}`,
+                            `Mod: ${formatSnapshotLabel(timeout.moderator)}`,
+                            `Date: ${timeout.createdAt.toUTCString()}`,
+                            timeout.expiresAt ? `Expires: ${timeout.expiresAt.toUTCString()}` : null,
+                        ].filter(Boolean).join('\n'), actionId, 1024),
                     });
                 });
             }
@@ -117,7 +132,7 @@ export const background: CommandDefinition = {
                 title: 'Background Check',
                 description: `User ID: \`${id}\`\nUsername: \`${member ? member.user.username : 'Not Found'}\`\nWarnings: ${
                     warns.length
-                } · Kicks: ${kickRows.length} · Bans: ${banRows.length}`,
+                } · Kicks: ${kickRows.length} · Bans: ${banRows.length} · Timeouts: ${timeoutRows.length}`,
                 fields,
             });
 

@@ -3,7 +3,7 @@ import { identitySnapshots } from './identitySnapshots';
 
 export const warnings = pgTable('warnings', {
     id: uuid('id').defaultRandom().primaryKey(),
-    /** Public human Action ID (e.g. A26A07K7X3). UUID `id` stays internal. */
+    /** Public human Action ID. UUID `id` stays internal. */
     actionId: text('action_id').unique(),
     guildId: text('guild_id').notNull(),
     subjectSnapshotId: uuid('subject_snapshot_id')

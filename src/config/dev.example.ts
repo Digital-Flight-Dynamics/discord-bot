@@ -7,16 +7,17 @@ import type { BotWorkspaceConfig } from './types';
  *   1. Copy this file to `dev.ts` (same folder):
  *        cp src/config/dev.example.ts src/config/dev.ts
  *   2. Replace placeholder snowflakes with your server's channel/role IDs
- *   3. `npm run dev` loads `dev.ts` by default (CONSTANTS_FILE=dev)
+ *   3. `bun run dev` loads `dev.ts` by default (CONSTANTS_FILE=dev)
  *
  * Override anytime:
- *   CONSTANTS_FILE=dfd-discord npm run dev
+ *   CONSTANTS_FILE=dfd-discord bun run dev
  *
  * `dev.ts` is gitignored — never commit real personal IDs.
  */
 const dev: BotWorkspaceConfig = {
     name: 'dev',
     guildId: '000000000000000000',
+    communityInviteUrl: 'https://discord.gg/',
     prefix: '.',
 
     channels: {

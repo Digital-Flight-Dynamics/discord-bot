@@ -1,4 +1,4 @@
-import { ClientEvents, TextChannel } from 'discord.js';
+import { ClientEvents, Guild, TextChannel } from 'discord.js';
 import { channelCreate, channelDelete, channelUpdate } from './ChannelLogs';
 import { emojiCreate, emojiDelete, emojiUpdate } from './EmojiLogs';
 import { messageDelete, messageDeleteBulk, messageUpdate } from './MessageLogs';
@@ -17,14 +17,17 @@ export enum Colors {
     DARK = EmbedColors.PENDING,
 }
 
-export interface LogDefinition {
-    event: keyof ClientEvents;
-    execute: (...args: any[]) => void;
-}
+type EventHandler<Event extends keyof ClientEvents> = (...args: ClientEvents[Event]) => void | Promise<void>;
+
+export type LogDefinition<Event extends keyof ClientEvents = keyof ClientEvents> = {
+    event: Event;
+    execute: EventHandler<Event>;
+};
 
 /** Audit log channel (messages, roles, channels, Discord ban events). */
-export const getLogChannel = (guildProperty: any) => {
+export const getLogChannel = (guildProperty: { guild: Guild | null }) => {
     const guild = guildProperty.guild;
+    if (!guild) return undefined;
     return (
         (guild.channels.cache.get(channels.logs) as TextChannel | undefined) ||
         (guild.channels.cache.find(
@@ -34,8 +37,9 @@ export const getLogChannel = (guildProperty: any) => {
 };
 
 /** Punishment / case log channel (warns, kicks, bans, timeouts). */
-export const getModLogChannel = (guildProperty: any) => {
+export const getModLogChannel = (guildProperty: { guild: Guild | null }) => {
     const guild = guildProperty.guild;
+    if (!guild) return undefined;
     return (
         (guild.channels.cache.get(channels.modLogs) as TextChannel | undefined) ||
         (guild.channels.cache.find((c: { name: string }) => c.name === 'mod-logs') as TextChannel | undefined)
@@ -50,7 +54,7 @@ export const snakeToNorm = (str: string) => {
         .join(' ');
 };
 
-export default [
+const logDefinitions = [
     channelCreate,
     channelDelete,
     channelUpdate,
@@ -66,3 +70,5 @@ export default [
     roleDelete,
     roleUpdate,
 ];
+
+export default logDefinitions;

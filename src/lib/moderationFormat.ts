@@ -1,9 +1,6 @@
 import type { GuildMember, User } from 'discord.js';
 import type { IdentitySnapshot } from '../db/schema';
-import { countActiveWarnings, listAllWarnings } from '../db/repositories/warnings';
-import { listKicksForUser } from '../db/repositories/kicks';
-import { listBansForUser } from '../db/repositories/bans';
-import { listTimeoutsForUser } from '../db/repositories/timeouts';
+import { countInfractions, type InfractionCounts } from '../db/repositories/infractionCounts';
 
 export function formatOrdinal(n: number): string {
     const mod100 = n % 100;
@@ -21,15 +18,19 @@ export function formatOrdinal(n: number): string {
 }
 
 export function modPortalUrl(actionId: string): string {
-    return `${atcUrl()}/go-to/${encodeURIComponent(actionId)}`;
+    return `${atcUrl()}/action/${encodeURIComponent(actionId)}`;
 }
 
 export function appealUrl(actionId: string): string {
-    return `${atcUrl()}/go-to/appeal?id=${encodeURIComponent(actionId)}`;
+    return modPortalUrl(actionId);
+}
+
+export function appealProgressUrl(actionId: string, appealId: string): string {
+    return `${modPortalUrl(actionId)}/appeal/${encodeURIComponent(appealId)}`;
 }
 
 export function atcUrl(): string {
-    return (process.env.ATC_URL || 'https://atc.example.com').replace(/\/+$/, '');
+    return (process.env.ATC_URL || 'http://localhost:4321').replace(/\/+$/, '');
 }
 
 export function spoiler(text: string | null | undefined, empty = 'None'): string {
@@ -99,41 +100,10 @@ function firstUsefulDisplayName(names: Array<string | null | undefined>, usernam
     return names.find((name) => name && name !== username) || null;
 }
 
-export type InfractionCounts = {
-    warningsTotal: number;
-    warningsActive: number;
-    mutes: number;
-    kicks: number;
-    bans: number;
-    warningsRevoked: number;
-    mutesRevoked: number;
-    kicksRevoked: number;
-    bansRevoked: number;
-};
+export type { InfractionCounts };
 
 export async function getInfractionCounts(guildId: string, discordUserId: string): Promise<InfractionCounts> {
-    const [warningsActive, allWarnings, kicks, bans, mutes] = await Promise.all([
-        countActiveWarnings(guildId, discordUserId),
-        listAllWarnings(guildId, discordUserId),
-        listKicksForUser(guildId, discordUserId),
-        listBansForUser(guildId, discordUserId),
-        listTimeoutsForUser(guildId, discordUserId),
-    ]);
-    const activeWarnings = allWarnings.filter((warning) => !warning.resolutionStatus);
-    const activeKicks = kicks.filter((kick) => !kick.resolutionStatus);
-    const activeBans = bans.filter((ban) => !ban.resolutionStatus);
-    const activeMutes = mutes.filter((timeout) => !timeout.resolutionStatus);
-    return {
-        warningsTotal: activeWarnings.length,
-        warningsActive,
-        mutes: activeMutes.length,
-        kicks: activeKicks.length,
-        bans: activeBans.length,
-        warningsRevoked: allWarnings.length - activeWarnings.length,
-        mutesRevoked: mutes.length - activeMutes.length,
-        kicksRevoked: kicks.length - activeKicks.length,
-        bansRevoked: bans.length - activeBans.length,
-    };
+    return countInfractions(guildId, discordUserId);
 }
 
 export function formatInfractionCountLine(
@@ -142,9 +112,15 @@ export function formatInfractionCountLine(
     /** 1-based index of *this* action after it is recorded */
     thisNth?: number,
 ): string {
-    const n = thisNth ?? (action === 'warning' ? counts.warningsTotal : action === 'kick' ? counts.kicks : action === 'ban' ? counts.bans : counts.mutes);
-    const actionWord =
-        action === 'warning' ? 'warning' : action === 'kick' ? 'kick' : action === 'ban' ? 'ban' : 'mute';
+    const totals = {
+        warning: counts.warningsTotal,
+        kick: counts.kicks,
+        ban: counts.bans,
+        timeout: counts.mutes,
+    };
+    const actionWords = { warning: 'warning', kick: 'kick', ban: 'ban', timeout: 'mute' };
+    const n = thisNth ?? totals[action];
+    const actionWord = actionWords[action];
     const otherCounts = [
         action !== 'warning' ? formatRecordCount(counts.warningsTotal, counts.warningsRevoked, 'warning') : null,
         action !== 'timeout' ? formatRecordCount(counts.mutes, counts.mutesRevoked, 'mute') : null,

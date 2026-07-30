@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { getDb } from '../client';
-import { actionIds, identitySnapshots, kicks, Kick } from '../schema';
+import { actionIds, identitySnapshots, kicks, Kick, moderationActionNotifications, pendingModerationActions } from '../schema';
 import { LinkedMessage } from '../../lib/moderation';
 import { allocateActionId } from '../../lib/actionId';
 
@@ -37,11 +37,12 @@ export async function createKick(input: {
     linked?: LinkedMessage | null;
     isAutomated?: boolean;
     source?: string;
+    discordAuditLogId?: string | null;
+    pendingActionId?: string;
 }): Promise<Kick> {
     const db = getDb();
-    const [row] = await db
-        .insert(kicks)
-        .values({
+    return db.transaction(async (tx) => {
+        const [row] = await tx.insert(kicks).values({
             guildId: input.guildId,
             subjectSnapshotId: input.subjectSnapshotId,
             moderatorSnapshotId: input.moderatorSnapshotId,
@@ -53,20 +54,24 @@ export async function createKick(input: {
             linkedMessageDeleted: input.linked?.linkedMessageDeleted ?? false,
             isAutomated: input.isAutomated ?? false,
             source: input.source ?? 'bot',
-        })
-        .returning();
+            discordAuditLogId: input.discordAuditLogId ?? null,
+        }).returning();
 
-    const actionId = await allocateActionId({
-        recordType: 'kick',
-        recordUuid: row.id,
-        guildId: input.guildId,
+        const actionId = await allocateActionId(
+            { recordType: 'kick', recordUuid: row.id, guildId: input.guildId },
+            async (value) => {
+                await tx.insert(actionIds).values(value);
+            },
+        );
+        const [withAction] = await tx.update(kicks).set({ actionId }).where(eq(kicks.id, row.id)).returning();
+        if (input.pendingActionId) {
+            await tx
+                .update(pendingModerationActions)
+                .set({ resultCaseId: row.id, updatedAt: new Date() })
+                .where(eq(pendingModerationActions.id, input.pendingActionId));
+        }
+        return withAction;
     });
-    const [withAction] = await db
-        .update(kicks)
-        .set({ actionId })
-        .where(eq(kicks.id, row.id))
-        .returning();
-    return withAction ?? { ...row, actionId };
 }
 
 export async function listKicksForUser(guildId: string, discordUserId: string): Promise<KickWithSnapshots[]> {
@@ -80,10 +85,20 @@ export async function listKicksForUser(guildId: string, discordUserId: string): 
     return hydrate(rows.map((r) => r.kicks));
 }
 
-export async function deleteKickById(id: string): Promise<void> {
+export async function deleteKickById(id: string, pendingActionId?: string): Promise<void> {
     const db = getDb();
     await db.transaction(async (tx) => {
         await tx.delete(actionIds).where(eq(actionIds.recordUuid, id));
+        await tx.delete(moderationActionNotifications).where(eq(moderationActionNotifications.recordUuid, id));
         await tx.delete(kicks).where(eq(kicks.id, id));
+        if (pendingActionId) {
+            await tx
+                .update(pendingModerationActions)
+                .set({ resultCaseId: null, updatedAt: new Date() })
+                .where(and(
+                    eq(pendingModerationActions.id, pendingActionId),
+                    eq(pendingModerationActions.resultCaseId, id),
+                ));
+        }
     });
 }

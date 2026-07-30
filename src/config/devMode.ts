@@ -18,3 +18,27 @@ export function isDevelopmentMode(): boolean {
 export function isProductionConstantsFile(): boolean {
     return resolveConfigName() === 'dfd-discord';
 }
+
+export interface DevSetupRuntime {
+    configName: string;
+    workspaceName: string;
+    nodeEnv?: string;
+    guildId: string | null;
+    productionGuildId: string;
+    productionConstantsFile: boolean;
+}
+
+/**
+ * Fail closed unless every independent signal identifies a non-production
+ * workspace and guild. Kept pure so the destructive setup command's guards
+ * can be verified without loading Discord or mutating process environment.
+ */
+export function isDevSetupRuntimeAllowed(runtime: DevSetupRuntime): boolean {
+    return (
+        runtime.configName === 'dev' &&
+        runtime.workspaceName === 'dev' &&
+        runtime.nodeEnv?.toLowerCase() !== 'production' &&
+        !runtime.productionConstantsFile &&
+        runtime.guildId !== runtime.productionGuildId
+    );
+}

@@ -9,7 +9,6 @@ import {
     GuildMember,
     Message,
     ModalBuilder,
-    SlashCommandBuilder,
     TextInputBuilder,
     TextInputStyle,
     User,
@@ -28,11 +27,12 @@ import { MAX_PRIVATE_NOTE_LENGTH, MAX_REASON_LENGTH, limitModerationText } from 
 import { executePendingModeration } from './lib/moderationExecute';
 import { modPortalUrl } from './lib/moderationFormat';
 import type { ModerationPreset, PendingActionType } from './db/schema';
-import { handleUpdateActionCommand, updateActionSlashCommand } from './slashUpdateAction';
+import { handleUpdateActionCommand } from './slashUpdateAction';
+import { moderationSlashCommands } from './moderationCommandDefinitions';
+import { formatDeleteMessageWindow, MAX_DISCORD_TIMEOUT_MS, MAX_PURGE_SECONDS } from './lib/moderationDuration';
 
 const FLOW_TIMEOUT_MS = 5 * 60 * 1000;
 const FLOW_TIMEOUT_LABEL = '5 minutes';
-const MAX_DELETE_MESSAGE_SECONDS = 7 * 24 * 60 * 60;
 const DEFAULT_TIMEOUT_MS = 60 * 60 * 1000;
 const DEFAULT_TIMEOUT_TOKEN = '1h';
 
@@ -48,117 +48,18 @@ type ActionDetails = {
     deleteToken?: string | null;
 };
 
-const durationExample = 'e.g. 7d, 7 days, next Friday';
-
-export const moderationSlashCommands = [
-    new SlashCommandBuilder()
-        .setName('warn')
-        .setDescription('Warn a server member')
-        .addUserOption((o) => o.setName('user').setDescription('User to warn').setRequired(true))
-        .addStringOption((o) => o.setName('reason').setDescription('Reason for the warning').setMaxLength(MAX_REASON_LENGTH))
-        .addStringOption((o) =>
-            o.setName('preset').setDescription('Preset punishment to apply').setAutocomplete(true),
-        )
-        .addStringOption((o) => o.setName('expiration').setDescription(`Optional expiration, ${durationExample}`))
-        .addStringOption((o) => o.setName('private-note').setDescription('Optional staff-only note').setMaxLength(MAX_PRIVATE_NOTE_LENGTH)),
-    new SlashCommandBuilder()
-        .setName('kick')
-        .setDescription('Kick a server member')
-        .addUserOption((o) => o.setName('user').setDescription('User to kick').setRequired(true))
-        .addStringOption((o) =>
-            o.setName('preset').setDescription('Preset punishment to apply').setAutocomplete(true),
-        )
-        .addStringOption((o) => o.setName('reason').setDescription('Reason for the kick').setMaxLength(MAX_REASON_LENGTH))
-        .addStringOption((o) => o.setName('private-note').setDescription('Optional staff-only note').setMaxLength(MAX_PRIVATE_NOTE_LENGTH)),
-    new SlashCommandBuilder()
-        .setName('ban')
-        .setDescription('Hard ban: standard ban, lifted manually or when duration expires')
-        .addUserOption((o) => o.setName('user').setDescription('User to hard-ban').setRequired(true))
-        .addStringOption((o) =>
-            o.setName('preset').setDescription('Preset punishment to apply').setAutocomplete(true),
-        )
-        .addStringOption((o) => o.setName('duration').setDescription(`Ban duration, ${durationExample}`))
-        .addStringOption((o) => o.setName('reason').setDescription('Reason for the hard ban').setMaxLength(MAX_REASON_LENGTH))
-        .addStringOption((o) =>
-            o.setName('purge-duration').setDescription('Message purge duration, e.g. 10s, 1h, 1 day'),
-        )
-        .addStringOption((o) => o.setName('private-note').setDescription('Optional staff-only note').setMaxLength(MAX_PRIVATE_NOTE_LENGTH)),
-    new SlashCommandBuilder()
-        .setName('soft-ban')
-        .setDescription('Ban then immediately unban to remove a user and their messages')
-        .addUserOption((o) => o.setName('user').setDescription('User to soft-ban').setRequired(true))
-        .addStringOption((o) =>
-            o.setName('purge-duration').setDescription('Message purge duration, defaults to 1 day'),
-        )
-        .addStringOption((o) =>
-            o.setName('preset').setDescription('Preset punishment to apply').setAutocomplete(true),
-        )
-        .addStringOption((o) => o.setName('reason').setDescription('Reason for the soft ban').setMaxLength(MAX_REASON_LENGTH))
-        .addStringOption((o) => o.setName('private-note').setDescription('Optional staff-only note').setMaxLength(MAX_PRIVATE_NOTE_LENGTH)),
-    new SlashCommandBuilder()
-        .setName('timeout')
-        .setDescription('Timeout / mute a server member')
-        .addUserOption((o) => o.setName('user').setDescription('User to timeout').setRequired(true))
-        .addStringOption((o) =>
-            o.setName('preset').setDescription('Preset punishment to apply').setAutocomplete(true),
-        )
-        .addStringOption((o) => o.setName('duration').setDescription(`Timeout duration, ${durationExample}`))
-        .addStringOption((o) => o.setName('reason').setDescription('Reason for the timeout').setMaxLength(MAX_REASON_LENGTH))
-        .addStringOption((o) => o.setName('private-note').setDescription('Optional staff-only note').setMaxLength(MAX_PRIVATE_NOTE_LENGTH)),
-    new SlashCommandBuilder()
-        .setName('moderation-presets')
-        .setDescription('Manage moderation punishment presets')
-        .addSubcommand((sub) => sub.setName('list').setDescription('List all moderation presets'))
-        .addSubcommand((sub) =>
-            sub
-                .setName('create')
-                .setDescription('Create a moderation preset')
-                .addStringOption((o) => o.setName('name').setDescription('Preset name').setRequired(true))
-                .addStringOption((o) => o.setName('reason').setDescription('Reason text').setRequired(true).setMaxLength(MAX_REASON_LENGTH))
-                .addStringOption((o) =>
-                    o.setName('duration').setDescription(`Timeouts & bans only: duration, ${durationExample}`),
-                )
-                .addStringOption((o) =>
-                    o.setName('purge-duration').setDescription('Bans only: message purge duration, e.g. 10s, 1h, 1 day'),
-                ),
-        )
-        .addSubcommand((sub) =>
-            sub
-                .setName('edit')
-                .setDescription('Edit a moderation preset')
-                .addStringOption((o) =>
-                    o.setName('preset').setDescription('Preset to edit').setRequired(true).setAutocomplete(true),
-                )
-                .addStringOption((o) => o.setName('name').setDescription('New preset name'))
-                .addStringOption((o) => o.setName('reason').setDescription('New reason text').setMaxLength(MAX_REASON_LENGTH))
-                .addStringOption((o) =>
-                    o.setName('duration').setDescription(`Timeouts & bans only: duration, ${durationExample}`),
-                )
-                .addStringOption((o) =>
-                    o.setName('purge-duration').setDescription('Bans only: message purge duration, e.g. 10s, 1h, 1 day'),
-                ),
-        )
-        .addSubcommand((sub) =>
-            sub
-                .setName('delete')
-                .setDescription('Delete a moderation preset')
-                .addStringOption((o) =>
-                    o.setName('preset').setDescription('Preset to delete').setRequired(true).setAutocomplete(true),
-                ),
-        ),
-    updateActionSlashCommand,
-].map((command) => 'toJSON' in command ? command.toJSON() : command);
-
 export async function registerModerationSlashCommands(client: Client, guildId?: string): Promise<void> {
     if (!client.application) return;
     try {
         if (guildId) {
             const guild = client.guilds.cache.get(guildId) || (await client.guilds.fetch(guildId).catch(() => null));
-            if (guild) {
-                await guild.commands.set(moderationSlashCommands);
-                console.log(`Registered moderation slash commands in guild ${guild.id}`);
+            if (!guild) {
+                console.error(`[ERROR] Refusing global command registration: configured guild ${guildId} is unavailable`);
                 return;
             }
+            await guild.commands.set(moderationSlashCommands);
+            console.log(`Registered moderation slash commands in guild ${guild.id}`);
+            return;
         }
         await client.application.commands.set(moderationSlashCommands);
         console.log('Registered moderation slash commands globally');
@@ -176,6 +77,12 @@ export async function handleModerationAutocomplete(interaction: AutocompleteInte
     const isPresetAutocomplete =
         interaction.commandName === 'moderation-presets' || isModerationAction(interaction.commandName);
     if (!isPresetAutocomplete) return false;
+
+    const actingMember = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+    if (!hasRoleAccess(actingMember, 'moderation')) {
+        await interaction.respond([]).catch(console.error);
+        return true;
+    }
 
     const focused = interaction.options.getFocused().toLowerCase();
     const presets = await listAllModerationPresets(interaction.guild.id).catch((err) => {
@@ -463,6 +370,15 @@ function detailsFromOptions(interaction: ChatInputCommandInteraction, action: Sl
     const durationToken = interaction.options.getString(action === 'warn' ? 'expiration' : 'duration');
     const deleteToken = interaction.options.getString('purge-duration');
     const resolvedDurationToken = action === 'timeout' ? durationToken || DEFAULT_TIMEOUT_TOKEN : durationToken;
+    let deleteMessageSeconds: number | null = null;
+    let resolvedDeleteToken: string | null = null;
+    if (action === 'soft-ban') {
+        deleteMessageSeconds = deleteToken ? parseDurationToSeconds(deleteToken) : 86_400;
+        resolvedDeleteToken = deleteToken || '1d';
+    } else if (action === 'ban' && deleteToken) {
+        deleteMessageSeconds = parseDurationToSeconds(deleteToken);
+        resolvedDeleteToken = deleteToken;
+    }
     return {
         reason: limitModerationText(interaction.options.getString('reason') || 'None', MAX_REASON_LENGTH),
         privateNote: interaction.options.getString('private-note')
@@ -470,10 +386,8 @@ function detailsFromOptions(interaction: ChatInputCommandInteraction, action: Sl
             : null,
         durationToken: resolvedDurationToken,
         durationMs: resolvedDurationToken && !isPermanentDuration(resolvedDurationToken) ? parseDurationToMs(resolvedDurationToken) : 0,
-        deleteMessageSeconds: action === 'soft-ban'
-            ? deleteToken ? parseDurationToSeconds(deleteToken) : 86400
-            : action === 'ban' && deleteToken ? parseDurationToSeconds(deleteToken) : null,
-        deleteToken: action === 'soft-ban' ? deleteToken || '1d' : action === 'ban' ? deleteToken : null,
+        deleteMessageSeconds,
+        deleteToken: resolvedDeleteToken,
     };
 }
 
@@ -482,17 +396,19 @@ function detailsFromPreset(preset: ModerationPreset, privateNote: string | null,
     const durationToken = action === 'timeout' ? preset.durationToken || DEFAULT_TIMEOUT_TOKEN : preset.durationToken;
     const durationMs = action === 'timeout' ? preset.durationMs || DEFAULT_TIMEOUT_MS : preset.durationMs || 0;
     const usesMessageDelete = action === 'ban' || action === 'soft-ban';
+    let deleteMessageSeconds = usesMessageDelete ? preset.deleteMessageSeconds : null;
+    let deleteToken = deleteMessageSeconds ? `${deleteMessageSeconds}s` : null;
+    if (action === 'soft-ban') {
+        deleteMessageSeconds ||= 86_400;
+        deleteToken ||= '1d';
+    }
     return {
         reason: preset.reason,
         privateNote,
         durationToken: usesDuration ? durationToken : null,
         durationMs: usesDuration ? durationMs : 0,
-        deleteMessageSeconds: action === 'soft-ban'
-            ? preset.deleteMessageSeconds || 86400
-            : usesMessageDelete ? preset.deleteMessageSeconds : null,
-        deleteToken: action === 'soft-ban'
-            ? preset.deleteMessageSeconds ? `${preset.deleteMessageSeconds}s` : '1d'
-            : usesMessageDelete && preset.deleteMessageSeconds ? `${preset.deleteMessageSeconds}s` : null,
+        deleteMessageSeconds,
+        deleteToken,
     };
 }
 
@@ -510,15 +426,8 @@ function validateDuration(action: SlashAction, durationMs: number, durationToken
 
 function validatePurgeDuration(seconds?: number | null): string | null {
     if (!seconds) return null;
-    if (seconds > MAX_DELETE_MESSAGE_SECONDS) return 'Purge duration cannot exceed 7 days.';
+    if (seconds > MAX_PURGE_SECONDS) return 'Purge duration cannot exceed 7 days.';
     return null;
-}
-
-function formatDeleteMessageWindow(seconds: number): string {
-    if (seconds % 86400 === 0) return `${seconds / 86400}d`;
-    if (seconds % 3600 === 0) return `${seconds / 3600}h`;
-    if (seconds % 60 === 0) return `${seconds / 60}m`;
-    return `${seconds}s`;
 }
 
 function presetEmbedFields(preset: ModerationPreset) {
@@ -588,14 +497,15 @@ async function promptDetailsModal(
         const deleteToken = action === 'ban' || action === 'soft-ban'
             ? submitted.fields.getTextInputValue('delete_messages')?.trim() || initial?.deleteToken || null
             : null;
+        let deleteMessageSeconds: number | null = null;
+        if (deleteToken) deleteMessageSeconds = parseDurationToSeconds(deleteToken);
+        else if (action === 'soft-ban') deleteMessageSeconds = 86_400;
         const details: ActionDetails = {
             reason,
             privateNote,
             durationToken,
             durationMs: durationToken ? parseDurationToMs(durationToken) : 0,
-            deleteMessageSeconds: action === 'soft-ban'
-                ? deleteToken ? parseDurationToSeconds(deleteToken) : 86400
-                : deleteToken ? parseDurationToSeconds(deleteToken) : null,
+            deleteMessageSeconds,
             deleteToken: action === 'soft-ban' ? deleteToken || '1d' : deleteToken,
         };
         await submitted.deferUpdate().catch(console.error);
@@ -665,7 +575,7 @@ async function runSlashAction(
 ): Promise<void> {
     const guild = interaction.guild;
     if (!guild) return;
-    const effectiveDurationMs = action === 'timeout' ? Math.min(details.durationMs, 28 * 24 * 60 * 60 * 1000) : details.durationMs;
+    const effectiveDurationMs = action === 'timeout' ? Math.min(details.durationMs, MAX_DISCORD_TIMEOUT_MS) : details.durationMs;
     const expiresAt = effectiveDurationMs > 0 ? new Date(Date.now() + effectiveDurationMs) : null;
     await interaction.editReply({
         embeds: [workingEmbed()],
@@ -682,8 +592,7 @@ async function runSlashAction(
         durationToken: details.durationToken,
         expiresAt,
         deleteMessageSeconds: details.deleteMessageSeconds || null,
-        banType: action === 'soft-ban' ? 'soft' : action === 'ban' ? 'hard' : null,
-        commandChannelId: interaction.channelId,
+        banType: banTypeForAction(action),
     });
 
     const fresh = (await getPendingModerationById(pending.id)) || pending;
@@ -698,18 +607,25 @@ async function runSlashAction(
         result.modLogUrl ? `[View mod log](${result.modLogUrl})` : null,
         `[View on ATC](${modPortalUrl(result.actionId)})`,
     ].filter(Boolean).join(' • ');
+    const resultDescription = result.status === 'partial'
+        ? `Action partially applied — ${target} requires manual reconciliation.${links ? `\n${links}` : ''}`
+        : `Done — ${target} has been ${pastTense(action)}.${links ? `\n${links}` : ''}`;
     await interaction.editReply({
         embeds: [createEmbed({
             color: result.status === 'partial' ? EmbedColors.WARNING : EmbedColors.SUCCESS,
             description: [
-                result.status === 'partial'
-                    ? `Action partially applied — ${target} requires manual reconciliation.${links ? `\n${links}` : ''}`
-                    : `Done — ${target} has been ${pastTense(action)}.${links ? `\n${links}` : ''}`,
+                resultDescription,
                 result.notice ?? null,
             ].filter(Boolean).join('\n\n'),
         })],
         components: [],
     }).catch(console.error);
+}
+
+function banTypeForAction(action: SlashAction): 'soft' | 'hard' | null {
+    if (action === 'soft-ban') return 'soft';
+    if (action === 'ban') return 'hard';
+    return null;
 }
 
 function isModerationAction(name: string): name is SlashAction {

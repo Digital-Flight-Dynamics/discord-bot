@@ -3,7 +3,15 @@ export { config, loadConfig, resolveConfigName, configLoadError } from './load';
 export { isDevelopmentMode, isProductionConstantsFile } from './devMode';
 export { CHANNEL_DISCORD_NAMES, CHANNEL_KEYS, isUnsetSnowflake } from './channelNames';
 export type { ChannelKey } from './channelNames';
-export { isConfigEmpty, validateConfig, describeConfigGaps, listMissingModerationCapabilities, listUnsetChannelConstants, logUnsetChannelConstants } from './validate';
+export {
+    isConfigEmpty,
+    validateConfig,
+    validateAtcUrl,
+    describeConfigGaps,
+    listMissingModerationCapabilities,
+    listUnsetChannelConstants,
+    logUnsetChannelConstants,
+} from './validate';
 export { CONFIG_DOCS, logMissingRequiredChannel, logMissingRequiredConfig } from './errors';
 
 import { config } from './load';

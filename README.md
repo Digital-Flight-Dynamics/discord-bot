@@ -10,9 +10,9 @@ Official bot for the [Digital Flight Dynamics](https://discord.gg/REGJgP4gZd) Di
 
 ```bash
 cp .env.example .env          # fill BOT_TOKEN, DATABASE_URL, …
-npm install
-npm run dev                   # connects to Postgres + ensures schema on boot
-# or: npm start (after npm run build)
+bun install
+bun run dev                   # connects to Postgres + ensures schema on boot
+# or: bun start (after bun run build)
 ```
 
 ## Docs

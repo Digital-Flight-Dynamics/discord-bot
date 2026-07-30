@@ -1,21 +1,34 @@
 import { Client, EmbedBuilder } from 'discord.js';
 import { findActionId } from '../db/repositories/actionIds';
 import { findModLogByActionId, markModLogMessageDeleted } from '../db/repositories/modLogMessages';
-import { createEmbed, EmbedColors } from './embed';
-import { modPortalUrl } from './moderationFormat';
-import { handleDeletedModLogThread } from './moderationMessageTracker';
+import type { AtcInternalEvent } from './atcEvents';
 import { normalizeActionId } from './actionId';
+import { createEmbed, EmbedColors } from './embed';
+import { appealProgressUrl, modPortalUrl } from './moderationFormat';
+import { handleDeletedModLogThread } from './moderationMessageTracker';
 
-/**
- * Update Discord when ATC records a new appeal.
- * The future appeal-submission event can call this directly.
- */
-export async function logAppealSubmitted(client: Client, guildId: string, rawActionId: string): Promise<void> {
-    const actionId = normalizeActionId(rawActionId);
+const titlePrefixByEvent: Partial<Record<AtcInternalEvent['type'], string>> = {
+    'appeal.approved': 'APPEAL APPROVED',
+    'moderation.action.revoked': 'REVOKED',
+};
+
+const eventPresentation: Record<AtcInternalEvent['type'], { color: number; description: string }> = {
+    'moderation.action.created': { color: EmbedColors.DFD_BLUE, description: '📝 Moderation action created on ATC.' },
+    'moderation.action.updated': { color: EmbedColors.DFD_BLUE, description: '📝 Moderation action updated on ATC.' },
+    'moderation.action.revoked': { color: EmbedColors.WARNING, description: '⚪ The moderation action was revoked.' },
+    'appeal.submitted': { color: EmbedColors.WARNING, description: '📨 The user submitted an appeal.' },
+    'appeal.review_started': { color: EmbedColors.WARNING, description: '🟠 Moderation review of the appeal has started.' },
+    'appeal.approved': { color: EmbedColors.SUCCESS, description: '🟢 The appeal was approved.' },
+    'appeal.denied': { color: EmbedColors.FAILURE, description: '🔴 The appeal was denied.' },
+};
+
+/** Apply an authenticated ATC event to the matching Discord moderation log. */
+export async function handleAtcDiscordEvent(client: Client, event: AtcInternalEvent): Promise<void> {
+    const actionId = normalizeActionId(event.actionId);
     const action = await findActionId(actionId);
-    if (!action || action.guildId !== guildId) throw new Error('Action ID not found.');
+    if (!action || action.guildId !== event.guildId) throw new Error('Action ID not found.');
 
-    const modLog = await findModLogByActionId(guildId, actionId);
+    const modLog = await findModLogByActionId(event.guildId, actionId);
     if (!modLog) throw new Error('Mod-log message not found for this action.');
     if (modLog.messageDeleted) return;
 
@@ -29,16 +42,21 @@ export async function logAppealSubmitted(client: Client, guildId: string, rawAct
         await markModLogMessageDeleted(modLog.id);
         return;
     }
-    if (!message.embeds[0]) return;
 
+    const prefix = titlePrefixByEvent[event.type];
     const current = message.embeds[0];
-    const title = (current.title || 'A moderation action').replace(
-        /^\[(?:PENDING APPEAL|REVOKED|APPEAL APPROVED)\]\s*/i,
-        '',
-    );
-    await message.edit({
-        embeds: [EmbedBuilder.from(current).setTitle(`[PENDING APPEAL] ${title}`)],
-    });
+    if (prefix && current) {
+        const title = (current.title || 'A moderation action').replace(
+            /^\[(?:PENDING APPEAL|REVOKED|APPEAL APPROVED|APPEAL DENIED)\]\s*/i,
+            '',
+        );
+        await message.edit({ embeds: [EmbedBuilder.from(current).setTitle(`[${prefix}] ${title}`)] });
+    }
+
+    const url = event.appealId ? appealProgressUrl(actionId, event.appealId) : modPortalUrl(actionId);
+    if (event.type === 'appeal.submitted') {
+        await message.reply({ content: `📨 **User has submitted an appeal.** [View on ATC](${url})` });
+    }
 
     if (!modLog.threadId || modLog.threadDeleted) return;
     const thread = await client.channels.fetch(modLog.threadId).catch(() => null);
@@ -46,15 +64,35 @@ export async function logAppealSubmitted(client: Client, guildId: string, rawAct
         await handleDeletedModLogThread(client, modLog);
         return;
     }
+
+    const presentation = eventPresentation[event.type];
     await thread.send({
         embeds: [
             createEmbed(
                 {
-                    color: EmbedColors.WARNING,
-                    description: `User submitted an appeal. [View on ATC](${modPortalUrl(actionId)})`,
+                    color: presentation.color,
+                    description: `${presentation.description} [View on ATC](${url})`,
+                    footer: { text: `ATC event · ${event.id}` },
                 },
                 true,
             ),
         ],
+    });
+}
+
+/** Backwards-compatible direct entry point for an appeal submission. */
+export async function logAppealSubmitted(
+    client: Client,
+    guildId: string,
+    actionId: string,
+    appealId?: string,
+): Promise<void> {
+    await handleAtcDiscordEvent(client, {
+        id: appealId || actionId,
+        type: 'appeal.submitted',
+        occurredAt: new Date().toISOString(),
+        guildId,
+        actionId,
+        ...(appealId ? { appealId } : {}),
     });
 }

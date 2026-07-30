@@ -1,6 +1,6 @@
 import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, ne, or } from 'drizzle-orm';
 import { getDb } from '../client';
-import { actionIds, bans, Ban, BanType, identitySnapshots } from '../schema';
+import { actionIds, bans, Ban, BanType, identitySnapshots, moderationActionNotifications, pendingModerationActions } from '../schema';
 import { LinkedMessage } from '../../lib/moderation';
 import { loadIdentitySnapshotsByIds } from './snapshots';
 import { allocateActionId } from '../../lib/actionId';
@@ -32,11 +32,12 @@ export async function createBan(input: {
     deleteMessageSeconds?: number | null;
     linked?: LinkedMessage | null;
     source?: string;
+    discordAuditLogId?: string | null;
+    pendingActionId?: string;
 }): Promise<Ban> {
     const db = getDb();
-    const [row] = await db
-        .insert(bans)
-        .values({
+    return db.transaction(async (tx) => {
+        const [row] = await tx.insert(bans).values({
             guildId: input.guildId,
             subjectSnapshotId: input.subjectSnapshotId,
             moderatorSnapshotId: input.moderatorSnapshotId,
@@ -50,20 +51,28 @@ export async function createBan(input: {
             linkedMessageUrl: input.linked?.linkedMessageUrl ?? null,
             linkedMessageDeleted: input.linked?.linkedMessageDeleted ?? false,
             source: input.source ?? 'bot',
-        })
-        .returning();
+            discordAuditLogId: input.discordAuditLogId ?? null,
+        }).returning();
 
-    const actionId = await allocateActionId({
-        recordType: input.banType === 'soft' ? 'softban' : 'ban',
-        recordUuid: row.id,
-        guildId: input.guildId,
+        const actionId = await allocateActionId(
+            {
+                recordType: input.banType === 'soft' ? 'softban' : 'ban',
+                recordUuid: row.id,
+                guildId: input.guildId,
+            },
+            async (value) => {
+                await tx.insert(actionIds).values(value);
+            },
+        );
+        const [withAction] = await tx.update(bans).set({ actionId }).where(eq(bans.id, row.id)).returning();
+        if (input.pendingActionId) {
+            await tx
+                .update(pendingModerationActions)
+                .set({ resultCaseId: row.id, updatedAt: new Date() })
+                .where(eq(pendingModerationActions.id, input.pendingActionId));
+        }
+        return withAction;
     });
-    const [withAction] = await db
-        .update(bans)
-        .set({ actionId })
-        .where(eq(bans.id, row.id))
-        .returning();
-    return withAction ?? { ...row, actionId };
 }
 
 export async function listBansForUser(guildId: string, discordUserId: string): Promise<BanWithSnapshots[]> {
@@ -164,10 +173,20 @@ export async function liftBanById(id: string, liftReason: string): Promise<Ban |
     return row || null;
 }
 
-export async function deleteBanById(id: string): Promise<void> {
+export async function deleteBanById(id: string, pendingActionId?: string): Promise<void> {
     const db = getDb();
     await db.transaction(async (tx) => {
         await tx.delete(actionIds).where(eq(actionIds.recordUuid, id));
+        await tx.delete(moderationActionNotifications).where(eq(moderationActionNotifications.recordUuid, id));
         await tx.delete(bans).where(eq(bans.id, id));
+        if (pendingActionId) {
+            await tx
+                .update(pendingModerationActions)
+                .set({ resultCaseId: null, updatedAt: new Date() })
+                .where(and(
+                    eq(pendingModerationActions.id, pendingActionId),
+                    eq(pendingModerationActions.resultCaseId, id),
+                ));
+        }
     });
 }
