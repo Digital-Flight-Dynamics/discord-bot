@@ -44,6 +44,7 @@ type ActionDetails = {
     privateNote: string | null;
     durationToken: string | null;
     durationMs: number;
+    expirationToken: string | null;
     deleteMessageSeconds?: number | null;
     deleteToken?: string | null;
 };
@@ -140,7 +141,12 @@ export async function handleModerationSlashCommand(interaction: ChatInputCommand
     }
 
     let details = selectedPreset
-        ? detailsFromPreset(selectedPreset, interaction.options.getString('private-note'), action)
+        ? detailsFromPreset(
+              selectedPreset,
+              interaction.options.getString('private-note'),
+              interaction.options.getString('expiration'),
+              action,
+          )
         : detailsFromOptions(interaction, action);
 
     if (!selectedPreset && needsMoreDetails(action, details)) {
@@ -160,6 +166,11 @@ export async function handleModerationSlashCommand(interaction: ChatInputCommand
     const durationError = validateDuration(action, details.durationMs, details.durationToken);
     if (durationError) {
         await editOrReply(interaction, errorEmbed(durationError));
+        return true;
+    }
+    const expirationError = validateExpiration(details.expirationToken);
+    if (expirationError) {
+        await editOrReply(interaction, errorEmbed(expirationError));
         return true;
     }
     if ((action === 'ban' || action === 'soft-ban') && details.deleteToken && !details.deleteMessageSeconds) {
@@ -367,7 +378,8 @@ async function validateTarget(
 }
 
 function detailsFromOptions(interaction: ChatInputCommandInteraction, action: SlashAction): ActionDetails {
-    const durationToken = interaction.options.getString(action === 'warn' ? 'expiration' : 'duration');
+    const durationToken = action === 'ban' || action === 'timeout' ? interaction.options.getString('duration') : null;
+    const expirationToken = interaction.options.getString('expiration');
     const deleteToken = interaction.options.getString('purge-duration');
     const resolvedDurationToken = action === 'timeout' ? durationToken || DEFAULT_TIMEOUT_TOKEN : durationToken;
     let deleteMessageSeconds: number | null = null;
@@ -386,12 +398,18 @@ function detailsFromOptions(interaction: ChatInputCommandInteraction, action: Sl
             : null,
         durationToken: resolvedDurationToken,
         durationMs: resolvedDurationToken && !isPermanentDuration(resolvedDurationToken) ? parseDurationToMs(resolvedDurationToken) : 0,
+        expirationToken,
         deleteMessageSeconds,
         deleteToken: resolvedDeleteToken,
     };
 }
 
-function detailsFromPreset(preset: ModerationPreset, privateNote: string | null, action: SlashAction): ActionDetails {
+function detailsFromPreset(
+    preset: ModerationPreset,
+    privateNote: string | null,
+    expirationToken: string | null,
+    action: SlashAction,
+): ActionDetails {
     const usesDuration = action === 'ban' || action === 'timeout';
     const durationToken = action === 'timeout' ? preset.durationToken || DEFAULT_TIMEOUT_TOKEN : preset.durationToken;
     const durationMs = action === 'timeout' ? preset.durationMs || DEFAULT_TIMEOUT_MS : preset.durationMs || 0;
@@ -407,6 +425,7 @@ function detailsFromPreset(preset: ModerationPreset, privateNote: string | null,
         privateNote,
         durationToken: usesDuration ? durationToken : null,
         durationMs: usesDuration ? durationMs : 0,
+        expirationToken,
         deleteMessageSeconds,
         deleteToken,
     };
@@ -422,6 +441,11 @@ function validateDuration(action: SlashAction, durationMs: number, durationToken
         return 'Please enter a valid duration or a permanent duration such as `perm`.';
     if (action === 'timeout' && durationMs === 0) return 'Please enter a valid duration.';
     return null;
+}
+
+function validateExpiration(expirationToken: string | null): string | null {
+    if (!expirationToken || /^(clear|none|never|no expiration)$/i.test(expirationToken.trim())) return null;
+    return parseDurationToMs(expirationToken) > 0 ? null : 'Please enter a valid expiration.';
 }
 
 function validatePurgeDuration(seconds?: number | null): string | null {
@@ -494,6 +518,7 @@ async function promptDetailsModal(
         const durationToken = modalHasDuration(action)
             ? submitted.fields.getTextInputValue('duration')?.trim() || null
             : null;
+        const expirationToken = submitted.fields.getTextInputValue('expiration')?.trim() || initial?.expirationToken || null;
         const deleteToken = action === 'ban' || action === 'soft-ban'
             ? submitted.fields.getTextInputValue('delete_messages')?.trim() || initial?.deleteToken || null
             : null;
@@ -505,6 +530,7 @@ async function promptDetailsModal(
             privateNote,
             durationToken,
             durationMs: durationToken ? parseDurationToMs(durationToken) : 0,
+            expirationToken,
             deleteMessageSeconds,
             deleteToken: action === 'soft-ban' ? deleteToken || '1d' : deleteToken,
         };
@@ -531,14 +557,24 @@ function buildDetailsModal(modalId: string, action: SlashAction, initial?: Actio
     if (modalHasDuration(action)) {
         const duration = new TextInputBuilder()
             .setCustomId('duration')
-            .setLabel(action === 'warn' ? 'Expiration' : `${action} duration`)
+            .setLabel(`${action} duration`)
             .setRequired(action === 'ban' || action === 'timeout')
-            .setPlaceholder(action === 'warn' ? 'Optional, e.g. 7d, 7 days' : 'Required, e.g. 7d, 7 days')
+            .setPlaceholder('Required, e.g. 7d, 7 days')
             .setMaxLength(40)
             .setStyle(TextInputStyle.Short);
         if (initial?.durationToken) duration.setValue(initial.durationToken);
         modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(duration));
     }
+
+    const expiration = new TextInputBuilder()
+        .setCustomId('expiration')
+        .setLabel('Profile expiration')
+        .setRequired(false)
+        .setPlaceholder('Optional, e.g. 30d or next Friday')
+        .setMaxLength(40)
+        .setStyle(TextInputStyle.Short);
+    if (initial?.expirationToken) expiration.setValue(initial.expirationToken);
+    modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(expiration));
 
     if (action === 'ban' || action === 'soft-ban') {
         const deleteMessages = new TextInputBuilder()
@@ -564,7 +600,7 @@ function buildDetailsModal(modalId: string, action: SlashAction, initial?: Actio
 }
 
 function modalHasDuration(action: SlashAction): boolean {
-    return action === 'warn' || action === 'ban' || action === 'timeout';
+    return action === 'ban' || action === 'timeout';
 }
 
 async function runSlashAction(
@@ -577,6 +613,8 @@ async function runSlashAction(
     if (!guild) return;
     const effectiveDurationMs = action === 'timeout' ? Math.min(details.durationMs, MAX_DISCORD_TIMEOUT_MS) : details.durationMs;
     const expiresAt = effectiveDurationMs > 0 ? new Date(Date.now() + effectiveDurationMs) : null;
+    const expirationMs = details.expirationToken ? parseDurationToMs(details.expirationToken) : 0;
+    const recordExpiresAt = expirationMs > 0 ? new Date(Date.now() + expirationMs) : null;
     await interaction.editReply({
         embeds: [workingEmbed()],
         components: [],
@@ -591,6 +629,7 @@ async function runSlashAction(
         durationMs: effectiveDurationMs || null,
         durationToken: details.durationToken,
         expiresAt,
+        recordExpiresAt,
         deleteMessageSeconds: details.deleteMessageSeconds || null,
         banType: banTypeForAction(action),
     });

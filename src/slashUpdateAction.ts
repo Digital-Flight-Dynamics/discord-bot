@@ -22,7 +22,7 @@ import { findModLogByCase, markModLogMessageDeleted } from './db/repositories/mo
 import { captureIdentitySnapshot } from './db/repositories/snapshots';
 import { createEmbed, EmbedColors } from './lib/embed';
 import { tryDmUser } from './lib/moderationNotify';
-import { parseDurationToMs, parseDurationToSeconds } from './lib/moderation';
+import { isPermanentDuration, parseDurationToMs, parseDurationToSeconds } from './lib/moderation';
 import { hasOtherActiveBan } from './db/repositories/bans';
 import { hasRoleAccess } from './lib/moderationAccess';
 import { moderationTextForEmbed, MAX_PRIVATE_NOTE_LENGTH, MAX_REASON_LENGTH } from './lib/moderationLimits';
@@ -34,11 +34,11 @@ import {
     commitActionEdit,
     commitActionResolution,
     loadAction,
+    updateActionRecordExpiration,
     updateActionText,
     updateBanExpiration,
     updateBanPurgeDuration,
     updateTimeoutDuration,
-    updateWarningExpiration,
     type ActionUpdateExecutor,
     type AppliedActionEdit,
     type LoadedAction,
@@ -514,6 +514,15 @@ async function applyActionUpdate(
 
     if (kind === 'duration') {
         if (loaded.caseType !== 'ban' && loaded.caseType !== 'timeout') throw new Error('Only bans and timeouts have durations.');
+        if (loaded.caseType === 'ban' && isPermanentDuration(rawValue)) {
+            await updateBanExpiration(db, id, null);
+            return {
+                label: 'Duration Updated',
+                oldDisplay: displayExpiresAt(loaded.record.expiresAt),
+                newDisplay: 'Permanent',
+                metadata: { durationMs: null, expiresAt: null },
+            };
+        }
         const durationMs = parseDurationToMs(rawValue);
         if (durationMs <= 0) throw new Error('Please enter a valid duration.');
         const effectiveDurationMs = loaded.caseType === 'timeout' ? Math.min(durationMs, MAX_TIMEOUT_MS) : durationMs;
@@ -535,32 +544,13 @@ async function applyActionUpdate(
     }
 
     if (kind === 'expiration') {
-        if (!['warning', 'ban', 'timeout'].includes(loaded.caseType)) throw new Error('This action type does not have an expiration.');
-        const expiresAt = parseExpiration(rawValue);
-        if (loaded.caseType === 'warning') {
-            await updateWarningExpiration(db, id, expiresAt);
-        } else if (loaded.caseType === 'ban') {
-            await updateBanExpiration(db, id, expiresAt);
-        } else {
-            if (!expiresAt) throw new Error('Timeout expiration cannot be cleared.');
-            const requestedDurationMs = expiresAt.getTime() - Date.now();
-            if (requestedDurationMs <= 0) throw new Error('Expiration must be in the future.');
-            const durationMs = Math.min(requestedDurationMs, MAX_TIMEOUT_MS);
-            const effectiveExpiresAt = new Date(Date.now() + durationMs);
-            await updateDiscordTimeout(guild, loaded, durationMs, rationale, moderator);
-            onDiscordTimeoutChanged();
-            await updateTimeoutDuration(db, id, durationMs, rawValue, effectiveExpiresAt);
-            expiresAt.setTime(effectiveExpiresAt.getTime());
-        }
+        const recordExpiresAt = parseExpiration(rawValue);
+        await updateActionRecordExpiration(db, loaded, recordExpiresAt);
         return {
             label: 'Expiration Updated',
-            oldDisplay: displayExpiresAt(loaded.record.expiresAt),
-            newDisplay:
-                displayExpiresAt(expiresAt) +
-                (loaded.caseType === 'timeout' && expiresAt && expiresAt.getTime() - Date.now() > MAX_TIMEOUT_MS
-                    ? ' — Discord timeout capped at 28 days'
-                    : ''),
-            metadata: { expiresAt: expiresAt?.toISOString() ?? null },
+            oldDisplay: displayExpiresAt(loaded.record.recordExpiresAt),
+            newDisplay: displayExpiresAt(recordExpiresAt),
+            metadata: { recordExpiresAt: recordExpiresAt?.toISOString() ?? null },
         };
     }
 
@@ -956,16 +946,22 @@ function upsertUserDmField(fields: { name: string; value: string; inline?: boole
 
 function fieldNameForChange(changeLabel: string): string {
     if (changeLabel === 'Reason Updated') return 'Reason';
-    if (changeLabel === 'Duration Updated' || changeLabel === 'Expiration Updated') return 'Expires';
+    if (changeLabel === 'Duration Updated') return 'Duration';
+    if (changeLabel === 'Expiration Updated') return 'Expiration';
     if (changeLabel === 'Purge Duration Updated') return 'Purge duration';
     return 'Update';
 }
 
 function userFacingValueForChange(changeLabel: string, newValue: string, actionName: string): string {
-    if (changeLabel === 'Duration Updated' || changeLabel === 'Expiration Updated') {
-        if (newValue === 'None') return `This ${userActionNoun(actionName)} no longer has an expiration.`;
+    if (changeLabel === 'Duration Updated') {
+        if (newValue === 'Permanent') return `This ${userActionNoun(actionName)} is now permanent.`;
         const timestamp = newValue.match(/<t:\d+:[A-Za-z]>/)?.[0] || newValue;
-        return `This ${userActionNoun(actionName)} will now expire at ${timestamp}`;
+        return `This ${userActionNoun(actionName)} will now end at ${timestamp}.`;
+    }
+    if (changeLabel === 'Expiration Updated') {
+        if (newValue === 'None') return 'This action will remain visible on your profile.';
+        const timestamp = newValue.match(/<t:\d+:[A-Za-z]>/)?.[0] || newValue;
+        return `This action will no longer appear on your profile after ${timestamp}.`;
     }
     return newValue;
 }

@@ -155,8 +155,16 @@ export async function updateBanExpiration(db: ActionUpdateExecutor, id: string, 
     await db.update(bans).set({ expiresAt }).where(eq(bans.id, id));
 }
 
-export async function updateWarningExpiration(db: ActionUpdateExecutor, id: string, expiresAt: Date | null): Promise<void> {
-    await db.update(warnings).set({ expiresAt }).where(eq(warnings.id, id));
+export async function updateActionRecordExpiration(
+    db: ActionUpdateExecutor,
+    loaded: LoadedAction,
+    recordExpiresAt: Date | null,
+): Promise<void> {
+    const id = loaded.actionId.recordUuid;
+    if (loaded.caseType === 'warning') await db.update(warnings).set({ recordExpiresAt }).where(eq(warnings.id, id));
+    else if (loaded.caseType === 'kick') await db.update(kicks).set({ recordExpiresAt }).where(eq(kicks.id, id));
+    else if (loaded.caseType === 'ban') await db.update(bans).set({ recordExpiresAt }).where(eq(bans.id, id));
+    else await db.update(timeouts).set({ recordExpiresAt }).where(eq(timeouts.id, id));
 }
 
 export async function updateTimeoutDuration(

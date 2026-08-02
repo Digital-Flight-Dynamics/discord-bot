@@ -48,8 +48,8 @@ export const warnings: CommandDefinition = {
                 `__Moderator:__ ${formatSnapshotLabel(warning.moderator)} (<@${warning.moderator?.discordUserId ?? 'unknown'}>)`,
                 `__Date:__ ${warning.createdAt?.toUTCString() ?? 'Unknown'}`,
             ];
-            if (warning.expiresAt) {
-                lines.push(`__Expires:__ ${warning.expiresAt.toUTCString()}`);
+            if (warning.recordExpiresAt) {
+                lines.push(`__Expiration:__ ${warning.recordExpiresAt.toUTCString()}`);
             }
             if (warning.linkedMessageUrl) {
                 lines.push(`__Message:__ [jump](${warning.linkedMessageUrl})`);

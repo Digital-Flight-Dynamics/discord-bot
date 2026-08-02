@@ -55,7 +55,7 @@ export const updateActionSlashCommand = new SlashCommandBuilder()
             .setName('change-duration')
             .setDescription('Update timeout/ban duration from now')
             .addStringOption((o) => o.setName('action-id').setDescription('Public action ID').setRequired(true))
-            .addStringOption((o) => o.setName('new-duration').setDescription('New duration, e.g. 7d or 7 days').setRequired(true))
+            .addStringOption((o) => o.setName('new-duration').setDescription('New duration, e.g. 7d, 7 days, or permanent (bans)').setRequired(true))
             .addStringOption((o) => o
                     .setName('rationale')
                     .setDescription('Why this edit is being made')
@@ -76,9 +76,9 @@ export const updateActionSlashCommand = new SlashCommandBuilder()
     .addSubcommand((sub) =>
         sub
             .setName('change-expiration')
-            .setDescription('Update or clear warning/timeout/ban expiration')
+            .setDescription('Update or clear when an action disappears from the user profile')
             .addStringOption((o) => o.setName('action-id').setDescription('Public action ID').setRequired(true))
-            .addStringOption((o) => o.setName('new-expiration').setDescription('New expiration, duration, or clear').setRequired(true))
+            .addStringOption((o) => o.setName('new-expiration').setDescription('Profile expiration, e.g. 30d, next Friday, or clear').setRequired(true))
             .addStringOption((o) => o
                     .setName('rationale')
                     .setDescription('Why this edit is being made')
@@ -178,7 +178,7 @@ export const moderationSlashCommands = [
         .addStringOption((o) =>
             o.setName('preset').setDescription('Preset punishment to apply').setAutocomplete(true),
         )
-        .addStringOption((o) => o.setName('expiration').setDescription(`Optional expiration, ${durationExample}`))
+        .addStringOption((o) => o.setName('expiration').setDescription(`Profile expiration, ${durationExample}`))
         .addStringOption((o) => o.setName('private-note').setDescription('Optional staff-only note').setMaxLength(MAX_PRIVATE_NOTE_LENGTH)),
     new SlashCommandBuilder()
         .setName('kick')
@@ -188,6 +188,7 @@ export const moderationSlashCommands = [
             o.setName('preset').setDescription('Preset punishment to apply').setAutocomplete(true),
         )
         .addStringOption((o) => o.setName('reason').setDescription('Reason for the kick').setMaxLength(MAX_REASON_LENGTH))
+        .addStringOption((o) => o.setName('expiration').setDescription(`Profile expiration, ${durationExample}`))
         .addStringOption((o) => o.setName('private-note').setDescription('Optional staff-only note').setMaxLength(MAX_PRIVATE_NOTE_LENGTH)),
     new SlashCommandBuilder()
         .setName('ban')
@@ -197,6 +198,7 @@ export const moderationSlashCommands = [
             o.setName('preset').setDescription('Preset punishment to apply').setAutocomplete(true),
         )
         .addStringOption((o) => o.setName('duration').setDescription(`Ban duration, ${durationExample}`))
+        .addStringOption((o) => o.setName('expiration').setDescription(`Profile expiration, ${durationExample}`))
         .addStringOption((o) => o.setName('reason').setDescription('Reason for the hard ban').setMaxLength(MAX_REASON_LENGTH))
         .addStringOption((o) =>
             o.setName('purge-duration').setDescription('Message purge duration, e.g. 10s, 1h, 1 day'),
@@ -213,6 +215,7 @@ export const moderationSlashCommands = [
             o.setName('preset').setDescription('Preset punishment to apply').setAutocomplete(true),
         )
         .addStringOption((o) => o.setName('reason').setDescription('Reason for the soft ban').setMaxLength(MAX_REASON_LENGTH))
+        .addStringOption((o) => o.setName('expiration').setDescription(`Profile expiration, ${durationExample}`))
         .addStringOption((o) => o.setName('private-note').setDescription('Optional staff-only note').setMaxLength(MAX_PRIVATE_NOTE_LENGTH)),
     new SlashCommandBuilder()
         .setName('timeout')
@@ -222,6 +225,7 @@ export const moderationSlashCommands = [
             o.setName('preset').setDescription('Preset punishment to apply').setAutocomplete(true),
         )
         .addStringOption((o) => o.setName('duration').setDescription(`Timeout duration, ${durationExample}`))
+        .addStringOption((o) => o.setName('expiration').setDescription(`Profile expiration, ${durationExample}`))
         .addStringOption((o) => o.setName('reason').setDescription('Reason for the timeout').setMaxLength(MAX_REASON_LENGTH))
         .addStringOption((o) => o.setName('private-note').setDescription('Optional staff-only note').setMaxLength(MAX_PRIVATE_NOTE_LENGTH)),
     new SlashCommandBuilder()

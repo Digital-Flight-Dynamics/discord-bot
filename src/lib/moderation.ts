@@ -134,14 +134,14 @@ export function getLinkedMessageFromCommand(message: Message, opts?: { includeCo
     return null;
 }
 
-export function isActiveWarning(row: { removedAt: Date | null; expiresAt: Date | null }, now = new Date()): boolean {
+export function isActiveWarning(row: { removedAt: Date | null; recordExpiresAt: Date | null }, now = new Date()): boolean {
     if (row.removedAt) return false;
-    if (row.expiresAt && row.expiresAt.getTime() <= now.getTime()) return false;
+    if (row.recordExpiresAt && row.recordExpiresAt.getTime() <= now.getTime()) return false;
     return true;
 }
 
-export function warningStatusLabel(row: { removedAt: Date | null; expiresAt: Date | null }, now = new Date()): string {
+export function warningStatusLabel(row: { removedAt: Date | null; recordExpiresAt: Date | null }, now = new Date()): string {
     if (row.removedAt) return 'REMOVED';
-    if (row.expiresAt && row.expiresAt.getTime() <= now.getTime()) return 'EXPIRED';
+    if (row.recordExpiresAt && row.recordExpiresAt.getTime() <= now.getTime()) return 'EXPIRED';
     return 'ACTIVE';
 }

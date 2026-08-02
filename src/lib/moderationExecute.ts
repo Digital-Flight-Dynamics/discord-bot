@@ -235,12 +235,12 @@ async function executeWarn(
         moderatorSnapshotId: moderatorSnap.id,
         reason: pending.reason,
         privateNote: ctx.privateNote,
-        expiresAt: pending.expiresAt,
-        recordExpiresAt: pending.recordExpiresAt ?? pending.expiresAt,
+        expiresAt: null,
+        recordExpiresAt: pending.recordExpiresAt,
         linked: ctx.linked,
         pendingActionId: pending.id,
     });
-    const recordExpiresAt = pending.recordExpiresAt ?? pending.expiresAt;
+    const recordExpiresAt = pending.recordExpiresAt;
 
     const counts = await getInfractionCounts(guild.id, pending.subjectUserId);
     const publicId = warning.actionId || warning.id;
@@ -436,7 +436,7 @@ async function executeBan(
         banType: ctx.soft ? 'soft' : 'hard',
         privateNotes: ctx.privateNote,
         expiresAt: pending.expiresAt,
-        recordExpiresAt: pending.recordExpiresAt ?? pending.expiresAt,
+        recordExpiresAt: pending.recordExpiresAt,
         deleteMessageSeconds: pending.deleteMessageSeconds,
         linked: ctx.linked,
         source: ctx.automation ? ctx.automation.toLowerCase() : 'bot',
@@ -603,7 +603,7 @@ async function executeTimeout(
         durationMs,
         durationToken,
         expiresAt,
-        recordExpiresAt: pending.recordExpiresAt ?? expiresAt,
+        recordExpiresAt: pending.recordExpiresAt,
         source: ctx.automation ? ctx.automation.toLowerCase() : 'bot',
         pendingActionId: pending.id,
     });

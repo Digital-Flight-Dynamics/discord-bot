@@ -219,6 +219,7 @@ const actionQuery = `
      WHERE a.discord_user_id = $1
        AND a.guild_id = $2
        AND a.action_id IS NOT NULL
+       AND (a.expires_at IS NULL OR a.expires_at > now())
 `;
 
 function mapAction(row: ActionRow): PublicAction {
@@ -651,26 +652,30 @@ export type SessionUser = {
 
 export async function createOauthState(input: {
     stateHash: string;
+    browserHash: string;
     codeVerifier: string;
     returnTo: string;
     expiresAt: Date;
 }): Promise<void> {
     await pool.query(
-        `INSERT INTO atc_oauth_states (state_hash, code_verifier, return_to, expires_at)
-         VALUES ($1, $2, $3, $4)`,
-        [input.stateHash, input.codeVerifier, input.returnTo, input.expiresAt],
+        `INSERT INTO atc_oauth_states (state_hash, browser_hash, code_verifier, return_to, expires_at)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [input.stateHash, input.browserHash, input.codeVerifier, input.returnTo, input.expiresAt],
     );
 }
 
-export async function consumeOauthState(stateHash: string): Promise<{ codeVerifier: string; returnTo: string } | null> {
+export async function consumeOauthState(
+    stateHash: string,
+    browserHash: string,
+): Promise<{ codeVerifier: string; returnTo: string } | null> {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
         const result = await client.query<{ code_verifier: string; return_to: string }>(
             `DELETE FROM atc_oauth_states
-              WHERE state_hash = $1 AND expires_at > now()
+              WHERE state_hash = $1 AND browser_hash = $2 AND expires_at > now()
           RETURNING code_verifier, return_to`,
-            [stateHash],
+            [stateHash, browserHash],
         );
         await client.query('COMMIT');
         return result.rows[0] ? { codeVerifier: result.rows[0].code_verifier, returnTo: result.rows[0].return_to } : null;
@@ -705,6 +710,14 @@ export async function findSession(tokenHash: string): Promise<SessionUser | null
     );
     const row = result.rows[0];
     return row ? { id: row.discord_user_id, username: row.username, globalName: row.global_name, avatarHash: row.avatar_hash } : null;
+}
+
+export async function cleanupExpiredAtcData(): Promise<void> {
+    await Promise.all([
+        pool.query('DELETE FROM atc_oauth_states WHERE expires_at <= now()'),
+        pool.query('DELETE FROM atc_sessions WHERE expires_at <= now()'),
+        pool.query('DELETE FROM atc_appeal_windows WHERE expires_at <= now()'),
+    ]);
 }
 
 export async function deleteSession(tokenHash: string): Promise<void> {

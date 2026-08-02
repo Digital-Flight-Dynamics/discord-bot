@@ -3,14 +3,18 @@ import { Elysia } from 'elysia';
 import {
     buildDiscordAuthorizeUrl,
     endSession,
+    expiredOauthBrowserCookie,
     expiredSessionCookie,
     finishDiscordOauth,
     getRequestSession,
+    oauthBrowserCookie,
+    readOauthBrowserToken,
     sessionCookie,
 } from './server/auth';
 import { config } from './server/config';
 import {
     createAppealWindow,
+    cleanupExpiredAtcData,
     findActionForUser,
     findAppealForUser,
     findAppealWindow,
@@ -65,7 +69,16 @@ function json(data: unknown, status = 200): Response {
 }
 
 function redirect(location: string, headers?: HeadersInit): Response {
-    return new Response(null, { status: 302, headers: { location, ...headers } });
+    const responseHeaders = new Headers(headers);
+    responseHeaders.set('location', location);
+    return new Response(null, { status: 302, headers: responseHeaders });
+}
+
+function oauthCallbackHeaders(sessionToken?: string): Headers {
+    const headers = new Headers();
+    if (sessionToken) headers.append('set-cookie', sessionCookie(sessionToken));
+    headers.append('set-cookie', expiredOauthBrowserCookie());
+    return headers;
 }
 
 function errorMessage(error: unknown): string {
@@ -175,19 +188,22 @@ const app = new Elysia()
     .get('/health', () => json({ status: 'ok' }))
     .get('/auth/discord/start', async ({ request }) => {
         const url = new URL(request.url);
-        return redirect(await buildDiscordAuthorizeUrl(url.searchParams.get('returnTo')));
+        const authorization = await buildDiscordAuthorizeUrl(url.searchParams.get('returnTo'));
+        return redirect(authorization.url, { 'set-cookie': oauthBrowserCookie(authorization.browserToken) });
     })
     .get('/auth/discord/callback', async ({ request }) => {
         const url = new URL(request.url);
         const code = url.searchParams.get('code');
         const state = url.searchParams.get('state');
-        if (!code || !state) return redirect('/logged-out?error=Discord%20sign-in%20was%20cancelled.');
+        if (!code || !state) {
+            return redirect('/logged-out?error=Discord%20sign-in%20was%20cancelled.', oauthCallbackHeaders());
+        }
         try {
-            const result = await finishDiscordOauth(code, state);
-            return redirect(result.returnTo, { 'set-cookie': sessionCookie(result.token) });
+            const result = await finishDiscordOauth(code, state, readOauthBrowserToken(request));
+            return redirect(result.returnTo, oauthCallbackHeaders(result.token));
         } catch (error) {
             console.error('Discord OAuth callback failed:', errorMessage(error));
-            return redirect(`/logged-out?error=${encodeURIComponent(errorMessage(error))}`);
+            return redirect(`/logged-out?error=${encodeURIComponent(errorMessage(error))}`, oauthCallbackHeaders());
         }
     })
     .post('/auth/logout', async ({ request }) => {
@@ -556,5 +572,10 @@ const app = new Elysia()
         return json({ error: 'An unexpected error occurred.' }, 500);
     })
     .listen({ hostname: config.host, port: config.port });
+
+void cleanupExpiredAtcData().catch((error) => console.error('ATC cleanup failed:', error));
+setInterval(() => {
+    void cleanupExpiredAtcData().catch((error) => console.error('ATC cleanup failed:', error));
+}, 60 * 60_000).unref();
 
 console.log(`ATC is listening on http://${app.server?.hostname}:${app.server?.port}`);

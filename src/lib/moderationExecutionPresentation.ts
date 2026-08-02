@@ -20,7 +20,6 @@ const fieldValue = (value: string, actionId = 'unknown') => moderationTextForEmb
 function discordTimestamp(date: Date): string {
     return `<t:${Math.floor(date.getTime() / 1000)}:F>`;
 }
-
 function discordTimestampRelative(date: Date): string {
     return `<t:${Math.floor(date.getTime() / 1000)}:R>`;
 }
@@ -208,4 +207,3 @@ export function buildModLogFields(opts: {
 
     return fields;
 }
-

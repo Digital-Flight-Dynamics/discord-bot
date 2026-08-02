@@ -2,11 +2,15 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 CREATE TABLE IF NOT EXISTS "atc_oauth_states" (
     "state_hash" text PRIMARY KEY,
+    "browser_hash" text NOT NULL,
     "code_verifier" text NOT NULL,
     "return_to" text NOT NULL,
     "expires_at" timestamp with time zone NOT NULL,
     "created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS "atc_oauth_states_expires_idx"
+    ON "atc_oauth_states" ("expires_at");
 
 CREATE TABLE IF NOT EXISTS "atc_sessions" (
     "token_hash" text PRIMARY KEY,
@@ -20,6 +24,9 @@ CREATE TABLE IF NOT EXISTS "atc_sessions" (
 
 CREATE INDEX IF NOT EXISTS "atc_sessions_user_idx"
     ON "atc_sessions" ("discord_user_id");
+
+CREATE INDEX IF NOT EXISTS "atc_sessions_expires_idx"
+    ON "atc_sessions" ("expires_at");
 
 CREATE TABLE IF NOT EXISTS "atc_appeal_windows" (
     "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
@@ -37,6 +44,9 @@ CREATE TABLE IF NOT EXISTS "atc_appeal_windows" (
 
 CREATE INDEX IF NOT EXISTS "atc_appeal_windows_lookup_idx"
     ON "atc_appeal_windows" ("id", "session_hash", "discord_user_id");
+
+CREATE INDEX IF NOT EXISTS "atc_appeal_windows_expires_idx"
+    ON "atc_appeal_windows" ("expires_at");
 
 CREATE TABLE IF NOT EXISTS "atc_appeals" (
     "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
@@ -64,3 +74,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS "atc_appeals_one_open_per_action_user_idx"
 
 CREATE INDEX IF NOT EXISTS "atc_appeals_action_submitted_idx"
     ON "atc_appeals" (upper("action_id"), "submitted_at" DESC);
+
+CREATE TABLE IF NOT EXISTS "bot_settings" (
+    "guild_id" text NOT NULL,
+    "setting_key" text NOT NULL,
+    "setting_value" text NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+    "updated_by_discord_user_id" text,
+    CONSTRAINT "bot_settings_pkey" PRIMARY KEY ("guild_id", "setting_key")
+);

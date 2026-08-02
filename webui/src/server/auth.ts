@@ -10,7 +10,9 @@ import {
 import { safeReturnPath } from './domain';
 
 const SESSION_COOKIE = 'atc_session';
+const OAUTH_BROWSER_COOKIE = 'atc_oauth_browser';
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 14;
+const OAUTH_MAX_AGE_SECONDS = 10 * 60;
 
 function randomToken(bytes = 32): string {
     return Buffer.from(crypto.getRandomValues(new Uint8Array(bytes))).toString('base64url');
@@ -56,13 +58,17 @@ export function expiredSessionCookie(): string {
     return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${config.secureCookies ? '; Secure' : ''}`;
 }
 
-export async function buildDiscordAuthorizeUrl(returnToValue: string | null): Promise<string> {
+export async function buildDiscordAuthorizeUrl(
+    returnToValue: string | null,
+): Promise<{ url: string; browserToken: string }> {
     const state = randomToken();
+    const browserToken = randomToken();
     const verifier = randomToken(64);
     const challenge = await sha256(verifier);
     const returnTo = safeReturnPath(returnToValue);
     await createOauthState({
         stateHash: await sha256(state),
+        browserHash: await sha256(browserToken),
         codeVerifier: verifier,
         returnTo,
         expiresAt: new Date(Date.now() + 10 * 60_000),
@@ -77,7 +83,24 @@ export async function buildDiscordAuthorizeUrl(returnToValue: string | null): Pr
         code_challenge: challenge,
         code_challenge_method: 'S256',
     });
-    return `https://discord.com/oauth2/authorize?${params}`;
+    return { url: `https://discord.com/oauth2/authorize?${params}`, browserToken };
+}
+
+export function oauthBrowserCookie(token: string): string {
+    return [
+        `${OAUTH_BROWSER_COOKIE}=${encodeURIComponent(token)}`,
+        'Path=/auth/discord/callback',
+        'HttpOnly',
+        'SameSite=Lax',
+        `Max-Age=${OAUTH_MAX_AGE_SECONDS}`,
+        config.secureCookies ? 'Secure' : '',
+    ]
+        .filter(Boolean)
+        .join('; ');
+}
+
+export function expiredOauthBrowserCookie(): string {
+    return `${OAUTH_BROWSER_COOKIE}=; Path=/auth/discord/callback; HttpOnly; SameSite=Lax; Max-Age=0${config.secureCookies ? '; Secure' : ''}`;
 }
 
 type DiscordUser = {
@@ -87,8 +110,13 @@ type DiscordUser = {
     avatar: string | null;
 };
 
-export async function finishDiscordOauth(code: string, state: string): Promise<{ token: string; returnTo: string }> {
-    const oauthState = await consumeOauthState(await sha256(state));
+export async function finishDiscordOauth(
+    code: string,
+    state: string,
+    browserToken: string | null,
+): Promise<{ token: string; returnTo: string }> {
+    if (!browserToken) throw new Error('This sign-in request expired. Please try again.');
+    const oauthState = await consumeOauthState(await sha256(state), await sha256(browserToken));
     if (!oauthState) throw new Error('This sign-in request expired. Please try again.');
 
     const tokenResponse = await fetch('https://discord.com/api/v10/oauth2/token', {
@@ -124,6 +152,10 @@ export async function finishDiscordOauth(code: string, state: string): Promise<{
         new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1_000),
     );
     return { token, returnTo: safeReturnPath(oauthState.returnTo) };
+}
+
+export function readOauthBrowserToken(request: Request): string | null {
+    return readCookie(request, OAUTH_BROWSER_COOKIE);
 }
 
 export async function endSession(request: Request): Promise<void> {

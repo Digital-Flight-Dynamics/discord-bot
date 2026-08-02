@@ -17,7 +17,6 @@ COPY --from=build /app/webui/src/server ./src/server
 COPY --from=build /app/webui/src/server.ts ./src/server.ts
 COPY --from=build /app/webui/drizzle ./drizzle
 COPY --from=build /app/src/config /app/src/config
-COPY --from=build /app/src/lib/atcEvents.ts /app/src/lib/atcEvents.ts
 USER bun
 EXPOSE 4321
 CMD ["bun", "src/server.ts"]

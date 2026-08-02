@@ -50,7 +50,7 @@ export const background: CommandDefinition = {
                                 `Private Note: ${w.privateNote ?? 'None'}`,
                                 `Mod: ${formatSnapshotLabel(w.moderator)}`,
                                 `Date: ${w.createdAt?.toUTCString() ?? 'Unknown'}`,
-                                w.expiresAt ? `Expires: ${w.expiresAt.toUTCString()}` : null,
+                                w.recordExpiresAt ? `Expiration: ${w.recordExpiresAt.toUTCString()}` : null,
                                 w.removedAt ? `Removed: ${w.removedAt.toUTCString()}` : null,
                                 w.linkedMessageUrl ? `Message: [jump](${w.linkedMessageUrl})` : null,
                             ]
@@ -74,6 +74,7 @@ export const background: CommandDefinition = {
                                 `Private Note: ${k.privateNote ?? 'None'}`,
                                 `Mod: ${k.moderator ? formatSnapshotLabel(k.moderator) : 'Automated'}`,
                                 `Date: ${k.createdAt?.toUTCString() ?? 'Unknown'}`,
+                                k.recordExpiresAt ? `Expiration: ${k.recordExpiresAt.toUTCString()}` : null,
                                 k.linkedMessageUrl ? `Message: [jump](${k.linkedMessageUrl})` : null,
                             ]
                                 .filter(Boolean)
@@ -97,7 +98,8 @@ export const background: CommandDefinition = {
                                 `Private Note: ${b.privateNotes ?? 'None'}`,
                                 `Mod: ${b.moderator ? formatSnapshotLabel(b.moderator) : 'Unknown'}`,
                                 `Date: ${b.createdAt?.toUTCString() ?? 'Unknown'}`,
-                                b.expiresAt ? `Expires: ${b.expiresAt.toUTCString()}` : null,
+                                b.expiresAt ? `Duration ends: ${b.expiresAt.toUTCString()}` : null,
+                                b.recordExpiresAt ? `Expiration: ${b.recordExpiresAt.toUTCString()}` : null,
                                 b.liftedAt ? `Lifted: ${b.liftedAt.toUTCString()}` : null,
                                 b.linkedMessageUrl ? `Message: [jump](${b.linkedMessageUrl})` : null,
                             ]
@@ -121,7 +123,8 @@ export const background: CommandDefinition = {
                             `Private Note: ${timeout.privateNote ?? 'None'}`,
                             `Mod: ${formatSnapshotLabel(timeout.moderator)}`,
                             `Date: ${timeout.createdAt.toUTCString()}`,
-                            timeout.expiresAt ? `Expires: ${timeout.expiresAt.toUTCString()}` : null,
+                            timeout.expiresAt ? `Duration ends: ${timeout.expiresAt.toUTCString()}` : null,
+                            timeout.recordExpiresAt ? `Expiration: ${timeout.recordExpiresAt.toUTCString()}` : null,
                         ].filter(Boolean).join('\n'), actionId, 1024),
                     });
                 });
