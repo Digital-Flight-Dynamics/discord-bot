@@ -17,6 +17,7 @@ export const pendingModerationActions = pgTable('pending_moderation_actions', {
     durationMs: bigint('duration_ms', { mode: 'number' }),
     durationToken: text('duration_token'),
     expiresAt: timestamp('expires_at', { withTimezone: true }),
+    recordExpiresAt: timestamp('record_expires_at', { withTimezone: true }),
     deleteMessageSeconds: integer('delete_message_seconds'),
     banType: text('ban_type'),
     linkedMessageId: text('linked_message_id'),

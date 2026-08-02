@@ -14,13 +14,30 @@ import {
     findActionForUser,
     findAppealForUser,
     findAppealWindow,
+    getModerationAction,
+    getModerationDashboard,
     listAppealsForUserAction,
+    listManagedBotSettings,
     listActionsForUser,
+    listModerationPresets,
+    listModeratorActionsForUser,
+    listModerationLogs,
     prepareAppealWindow,
+    searchModerationActions,
+    searchModerationUsers,
     submitAppeal,
+    updateManagedBotSettings,
 } from './server/database';
-import { actionStatus, appealEligibility, normalizeCaptchaAnswer, safeReturnPath, validateAppealAnswers } from './server/domain';
-import { publishAtcEvent } from './server/events';
+import {
+    actionStatus,
+    appealEligibility,
+    normalizeCaptchaAnswer,
+    safeReturnPath,
+    validateAppealAnswers,
+    type DiscordMemberProfile,
+    type ModeratorAccess,
+} from './server/domain';
+import { callBotAtc, publishAtcEvent } from './server/events';
 
 const distDirectory = resolve(import.meta.dir, '../dist');
 const indexFile = resolve(distDirectory, 'index.html');
@@ -70,6 +87,64 @@ async function authenticated(request: Request) {
     const session = await getRequestSession(request);
     if (!session) return { response: json({ error: 'Authentication required.' }, 401), session: null };
     return { response: null, session };
+}
+
+const noModeratorAccess: ModeratorAccess = {
+    moderator: false,
+    management: false,
+    developer: false,
+    messageTools: false,
+};
+
+async function memberProfile(userId: string): Promise<DiscordMemberProfile | null> {
+    return callBotAtc<DiscordMemberProfile>({ operation: 'member.get', userId }).catch(() => null);
+}
+
+async function moderatorAuthenticated(request: Request, messageTools = false) {
+    const auth = await authenticated(request);
+    if (!auth.session) return { ...auth, access: noModeratorAccess };
+    const profile = await memberProfile(auth.session.user.id);
+    const access = profile?.access || noModeratorAccess;
+    if (!access.moderator || (messageTools && !access.messageTools)) {
+        return {
+            response: json({ error: messageTools ? 'Management or developer access is required.' : 'Moderator access is required.' }, 403),
+            session: null,
+            access,
+        };
+    }
+    return { ...auth, access };
+}
+
+async function managementAuthenticated(request: Request) {
+    const auth = await authenticated(request);
+    if (!auth.session) return { ...auth, access: noModeratorAccess };
+    const profile = await memberProfile(auth.session.user.id);
+    const access = profile?.access || noModeratorAccess;
+    if (!access.management) {
+        return {
+            response: json({ error: 'Management access is required.' }, 403),
+            session: null,
+            access,
+        };
+    }
+    return { ...auth, access };
+}
+
+async function botToolResponse(body: Record<string, unknown>): Promise<Response> {
+    try {
+        return json(await callBotAtc(body));
+    } catch (error) {
+        return json({ error: errorMessage(error) }, 400);
+    }
+}
+
+function pagination(request: Request): { page: number; limit: 10 | 25 } {
+    const params = new URL(request.url).searchParams;
+    const requestedPage = Number(params.get('page') || 1);
+    return {
+        page: Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1,
+        limit: params.get('limit') === '25' ? 25 : 10,
+    };
 }
 
 function staticFile(pathname: string): Response | null {
@@ -126,6 +201,7 @@ const app = new Elysia()
         const auth = await authenticated(request);
         if (!auth.session) return auth.response;
         const user = auth.session.user;
+        const profile = await memberProfile(user.id);
         return json({
             id: user.id,
             username: user.username,
@@ -133,6 +209,196 @@ const app = new Elysia()
             avatarUrl: user.avatarHash
                 ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatarHash}.webp?size=128`
                 : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(user.id) >> 22n) % 6}.png`,
+            access: profile?.access || noModeratorAccess,
+        });
+    })
+    .get('/api/moderation/dashboard', async ({ request }) => {
+        const auth = await moderatorAuthenticated(request);
+        if (!auth.session) return auth.response;
+        return json(await getModerationDashboard());
+    })
+    .get('/api/moderation/users/search', async ({ request }) => {
+        const auth = await moderatorAuthenticated(request);
+        if (!auth.session) return auth.response;
+        const query = new URL(request.url).searchParams.get('q')?.trim() || '';
+        if (query.length < 2) return json([]);
+        const [discordUsers, recordedUsers] = await Promise.all([
+            callBotAtc<DiscordMemberProfile[]>({ operation: 'member.search', query }),
+            searchModerationUsers(query),
+        ]);
+        const records = new Map(recordedUsers.map((user) => [user.id, user]));
+        const combined = new Map<string, Record<string, unknown>>();
+        for (const user of discordUsers) combined.set(user.id, { ...user, record: records.get(user.id) || null });
+        const missingRecords = recordedUsers
+            .filter((user) => !combined.has(user.id))
+            .slice(0, Math.max(0, 10 - combined.size));
+        const hydratedRecords = await Promise.all(
+            missingRecords.map(async (record) => ({
+                record,
+                profile: await memberProfile(record.id),
+            })),
+        );
+        for (const { record, profile } of hydratedRecords) {
+            combined.set(record.id, profile
+                ? { ...profile, record }
+                : {
+                      id: record.id,
+                      username: record.username || record.id,
+                      displayName: record.displayName || record.username || record.id,
+                      avatarUrl: null,
+                      isMember: false,
+                      roles: [],
+                      access: noModeratorAccess,
+                      databaseOnly: true,
+                      record,
+                  });
+        }
+        return json([...combined.values()].slice(0, 10));
+    })
+    .get('/api/moderation/users/:userId', async ({ request, params }) => {
+        const auth = await moderatorAuthenticated(request);
+        if (!auth.session) return auth.response;
+        const [profile, actions] = await Promise.all([
+            memberProfile(params.userId),
+            listModeratorActionsForUser(params.userId),
+        ]);
+        if (!profile && actions.length === 0) return json({ error: 'User not found.' }, 404);
+        return json({
+            profile: profile || {
+                id: params.userId,
+                username: params.userId,
+                displayName: params.userId,
+                globalName: null,
+                avatarUrl: null,
+                createdAt: null,
+                joinedAt: null,
+                isMember: false,
+                roles: [],
+                access: noModeratorAccess,
+            },
+            actions,
+        });
+    })
+    .get('/api/moderation/logs', async ({ request }) => {
+        const auth = await moderatorAuthenticated(request);
+        if (!auth.session) return auth.response;
+        const { page, limit } = pagination(request);
+        return json(await listModerationLogs(page, limit));
+    })
+    .get('/api/moderation/actions', async ({ request }) => {
+        const auth = await moderatorAuthenticated(request);
+        if (!auth.session) return auth.response;
+        const query = new URL(request.url).searchParams.get('q') || '';
+        const { page, limit } = pagination(request);
+        return json(await searchModerationActions(query, page, limit));
+    })
+    .get('/api/moderation/actions/:actionId', async ({ request, params }) => {
+        const auth = await moderatorAuthenticated(request);
+        if (!auth.session) return auth.response;
+        const result = await getModerationAction(params.actionId);
+        return result ? json(result) : json({ error: 'Action not found.' }, 404);
+    })
+    .get('/api/moderation/tools/member/:userId', async ({ request, params }) => {
+        const auth = await moderatorAuthenticated(request);
+        if (!auth.session) return auth.response;
+        if (!/^\d{17,20}$/.test(params.userId)) return json({ error: 'Enter a valid Discord user ID.' }, 400);
+        const profile = await memberProfile(params.userId);
+        return profile ? json(profile) : json({ error: 'Discord user not found.' }, 404);
+    })
+    .get('/api/moderation/tools/presets', async ({ request }) => {
+        const auth = await moderatorAuthenticated(request);
+        if (!auth.session) return auth.response;
+        return json(await listModerationPresets());
+    })
+    .get('/api/moderation/tools/channels', async ({ request }) => {
+        const auth = await moderatorAuthenticated(request, true);
+        if (!auth.session) return auth.response;
+        return botToolResponse({
+            operation: 'message.channels',
+            actorUserId: auth.session.user.id,
+        });
+    })
+    .get('/api/moderation/settings', async ({ request }) => {
+        const auth = await managementAuthenticated(request);
+        if (!auth.session) return auth.response;
+        return json({ settings: await listManagedBotSettings() });
+    })
+    .post('/api/moderation/settings', async ({ request, body }) => {
+        const auth = await managementAuthenticated(request);
+        if (!auth.session) return auth.response;
+        const input = body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
+        const rawSettings = input.settings;
+        if (!rawSettings || typeof rawSettings !== 'object' || Array.isArray(rawSettings)) {
+            return json({ error: 'Settings payload is invalid.' }, 400);
+        }
+        const updates: Record<string, { value?: string; clear?: boolean }> = {};
+        for (const [key, rawUpdate] of Object.entries(rawSettings)) {
+            if (!rawUpdate || typeof rawUpdate !== 'object' || Array.isArray(rawUpdate)) continue;
+            const update = rawUpdate as Record<string, unknown>;
+            updates[key] = {
+                ...(typeof update.value === 'string' ? { value: update.value } : {}),
+                ...(update.clear === true ? { clear: true } : {}),
+            };
+        }
+        try {
+            return json({ settings: await updateManagedBotSettings(updates, auth.session.user.id) });
+        } catch (error) {
+            return json({ error: errorMessage(error) }, 400);
+        }
+    })
+    .post('/api/moderation/tools/action', async ({ request, body }) => {
+        const auth = await moderatorAuthenticated(request);
+        if (!auth.session) return auth.response;
+        const input = body as Record<string, unknown>;
+        return botToolResponse({
+            operation: 'moderation.execute',
+            actorUserId: auth.session.user.id,
+            targetUserId: input.targetUserId,
+            kind: input.kind,
+            reason: input.reason,
+            durationMs: input.durationMs,
+            recordExpiresAt: input.expiration,
+            privateNote: input.privateNote,
+        });
+    })
+    .post('/api/moderation/tools/message', async ({ request, body }) => {
+        const auth = await moderatorAuthenticated(request, true);
+        if (!auth.session) return auth.response;
+        const input = body as Record<string, unknown>;
+        return botToolResponse({
+            operation: 'message.send',
+            actorUserId: auth.session.user.id,
+            channelId: input.channelId,
+            content: input.content,
+            embeds: input.embeds,
+            title: input.title,
+            description: input.description,
+        });
+    })
+    .post('/api/moderation/tools/message-get', async ({ request, body }) => {
+        const auth = await moderatorAuthenticated(request, true);
+        if (!auth.session) return auth.response;
+        const input = body as Record<string, unknown>;
+        return botToolResponse({
+            operation: 'message.get',
+            actorUserId: auth.session.user.id,
+            channelId: input.channelId,
+            messageId: input.messageId,
+        });
+    })
+    .post('/api/moderation/tools/message-edit', async ({ request, body }) => {
+        const auth = await moderatorAuthenticated(request, true);
+        if (!auth.session) return auth.response;
+        const input = body as Record<string, unknown>;
+        return botToolResponse({
+            operation: 'message.edit',
+            actorUserId: auth.session.user.id,
+            channelId: input.channelId,
+            messageId: input.messageId,
+            content: input.content,
+            embeds: input.embeds,
+            title: input.title,
+            description: input.description,
         });
     })
     .get('/api/actions', async ({ request }) => {

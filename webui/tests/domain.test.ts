@@ -2,7 +2,9 @@ import { describe, expect, test } from 'bun:test';
 import {
     actionStatus,
     appealEligibility,
+    formatNaturalDuration,
     normalizeCaptchaAnswer,
+    parseNaturalDuration,
     safeReturnPath,
     validateAppealAnswers,
     type PublicAction,
@@ -47,6 +49,22 @@ describe('actionStatus', () => {
         const now = new Date('2026-02-01T00:00:00.000Z');
         expect(actionStatus({ ...baseAction, expiresAt: '2026-01-02T00:00:00.000Z' }, now)).toBe('expired');
         expect(actionStatus(baseAction, now)).toBe('active');
+    });
+});
+
+describe('natural moderation durations', () => {
+    const now = new Date('2026-07-30T12:00:00.000Z');
+
+    test('parses compact and conversational durations', () => {
+        expect(parseNaturalDuration('3m', now)).toBe(180_000);
+        expect(parseNaturalDuration('1 hour and 30 minutes', now)).toBe(5_400_000);
+        expect(parseNaturalDuration('tomorrow at 4pm', now)).toBeGreaterThan(0);
+        expect(parseNaturalDuration('not a duration', now)).toBeNull();
+    });
+
+    test('formats durations for editing', () => {
+        expect(formatNaturalDuration(180_000)).toBe('3 Minutes');
+        expect(formatNaturalDuration(5_400_000)).toBe('1 Hour 30 Minutes');
     });
 });
 

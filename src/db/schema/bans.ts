@@ -15,6 +15,7 @@ export const bans = pgTable('bans', {
     linkedMessageUrl: text('linked_message_url'),
     linkedMessageDeleted: boolean('linked_message_deleted').notNull().default(false),
     expiresAt: timestamp('expires_at', { withTimezone: true }),
+    recordExpiresAt: timestamp('record_expires_at', { withTimezone: true }),
     banType: text('ban_type').notNull(), // 'soft' | 'hard'
     privateNotes: text('private_notes'),
     deleteMessageSeconds: integer('delete_message_seconds'),

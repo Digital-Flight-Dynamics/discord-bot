@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { CommandCategories, CommandDefinition, createErrorEmbed } from '../definitions';
+import { getAvwxApiKey } from '../../db/repositories/botSettings';
 import { createEmbed } from '../../lib/embed';
 
 export const metar: CommandDefinition = {
@@ -11,6 +12,14 @@ export const metar: CommandDefinition = {
 
         if (!icao) {
             await message.channel.send({ embeds: [createErrorEmbed('Please provide an ICAO code')] }).catch(console.error);
+            return;
+        }
+
+        const avwxApiKey = await getAvwxApiKey(message.guild.id);
+        if (!avwxApiKey) {
+            await message.channel
+                .send({ embeds: [createErrorEmbed('The weather API is not configured. Ask management to add it in Bot Settings.')] })
+                .catch(console.error);
             return;
         }
 
@@ -26,7 +35,7 @@ export const metar: CommandDefinition = {
         await axios
             .get(`https://avwx.rest/api/metar/${icao}`, {
                 headers: {
-                    Authorization: `BEARER ${process.env.AVWX_KEY}`,
+                    Authorization: `BEARER ${avwxApiKey}`,
                 },
             })
             .then(async (response) => {

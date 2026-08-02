@@ -25,6 +25,7 @@ import { resumeStalePendingModeration } from './lib/moderationExecute';
 import { registerDiscordModerationTracker } from './lib/discordModerationTracker';
 import { registerModerationMessageTracker } from './lib/moderationMessageTracker';
 import { handleHoneypotMessage } from './lib/honeypot';
+import { migrateLegacyBotSettings } from './db/repositories/botSettings';
 import { stopMemberCounter } from './utils/memberCounter';
 import { hasRoleAccess } from './lib/moderationAccess';
 import { MAX_EMBED_FIELD_LENGTH } from './lib/moderationLimits';
@@ -305,6 +306,7 @@ async function main() {
     try {
         await connectDatabase();
         await runMigrations();
+        await migrateLegacyBotSettings(config.guildId);
         console.log('Connected to PostgreSQL!');
         dbReady = true;
     } catch (err) {

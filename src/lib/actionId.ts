@@ -1,4 +1,4 @@
-import { randomBytes } from 'crypto';
+import { randomInt } from 'crypto';
 import { and, eq } from 'drizzle-orm';
 import { getDb } from '../db/client';
 import { actionIds, type NewActionIdRow } from '../db/schema';
@@ -7,7 +7,7 @@ import { actionIds, type NewActionIdRow } from '../db/schema';
  * Public moderation Action IDs (human-facing).
  *
  * Format:
- *   A + DD + MM + . + YY + K + - + R
+ *   A + DD + MM + . + YY + K + NN + - + L
  *
  *   A   fixed "Action" prefix
  *   DD  UTC day (zero-padded)
@@ -15,17 +15,25 @@ import { actionIds, type NewActionIdRow } from '../db/schema';
  *   .   separator
  *   YY  UTC year (2 digits, e.g. 26)
  *   K   kind letter: T timeout, W warning, K kick, B ban, S softban
+ *   NN  two-digit discriminator
  *   -   separator
- *   R   64 bits of cryptographically secure random hex
+ *   L   X, Y, or Z
  *
  * Examples:
- *   A0701.26W-9E6B9F5A81D2C407 — warning on 2026-01-07
+ *   A0701.26W90-X — warning on 2026-01-07
  *
  * UUIDs remain internal primary keys; Action IDs are unique public references.
  * Collisions regenerate until the registry insert succeeds.
+ *
+ * IMPORTANT: Keep this short, human-readable format. The server creates only a
+ * handful of moderation actions per day, so the 300 daily IDs per action kind
+ * are intentionally sufficient. Do not replace the suffix with a UUID or long
+ * hexadecimal value merely to increase the theoretical ID space.
  */
 
-const MAX_ATTEMPTS = 32;
+const ACTION_ID_LETTERS = 'XYZ';
+const ACTION_ID_SUFFIX_COUNT = 100 * ACTION_ID_LETTERS.length;
+const MAX_ATTEMPTS = ACTION_ID_SUFFIX_COUNT;
 
 export type ActionRecordType = 'warning' | 'kick' | 'ban' | 'softban' | 'timeout' | 'other';
 
@@ -51,18 +59,28 @@ export function actionKindLetter(recordType: ActionRecordType): string {
 export function buildActionIdCandidate(
     recordType: ActionRecordType = 'other',
     date: Date = new Date(),
+    suffixIndex: number = randomInt(ACTION_ID_SUFFIX_COUNT),
 ): string {
     const dd = String(date.getUTCDate()).padStart(2, '0');
     const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
     const yy = String(date.getUTCFullYear()).slice(-2);
     const kind = actionKindLetter(recordType);
-    const random = randomBytes(8).toString('hex').toUpperCase();
-    return `A${dd}${mm}.${yy}${kind}-${random}`;
+    const safeSuffixIndex =
+        Number.isInteger(suffixIndex) &&
+        suffixIndex >= 0 &&
+        suffixIndex < ACTION_ID_SUFFIX_COUNT
+            ? suffixIndex
+            : randomInt(ACTION_ID_SUFFIX_COUNT);
+    const discriminator = String(
+        Math.floor(safeSuffixIndex / ACTION_ID_LETTERS.length),
+    ).padStart(2, '0');
+    const letter = ACTION_ID_LETTERS[safeSuffixIndex % ACTION_ID_LETTERS.length];
+    return `A${dd}${mm}.${yy}${kind}${discriminator}-${letter}`;
 }
 
 /** Regex for the Action ID shape. */
-export const ACTION_ID_RE = /^A\d{4}\.\d{2}[TWKBSX]-(?:[A-F0-9]{16}|\d{2}-[XYZ])$/i;
-const LEGACY_ACTION_ID_RE = /^A\d{4}\.\d{2}[TWKBSX]\d{2}-[XYZ]$/i;
+export const ACTION_ID_RE = /^A\d{4}\.\d{2}[TWKBSX]\d{2}-[XYZ]$/i;
+const LONG_ACTION_ID_RE = /^A\d{4}\.\d{2}[TWKBSX]-[A-F0-9]{16}$/i;
 
 /**
  * Accept Action IDs with either separator omitted, with no separators, and
@@ -70,7 +88,7 @@ const LEGACY_ACTION_ID_RE = /^A\d{4}\.\d{2}[TWKBSX]\d{2}-[XYZ]$/i;
  */
 export function normalizeActionId(raw: string): string {
     const cleaned = raw.trim().replace(/[`#]/g, '').toUpperCase();
-    if (ACTION_ID_RE.test(cleaned) || LEGACY_ACTION_ID_RE.test(cleaned)) return cleaned;
+    if (ACTION_ID_RE.test(cleaned) || LONG_ACTION_ID_RE.test(cleaned)) return cleaned;
 
     const compact = cleaned.replace(/[^A-Z0-9]/g, '');
     if (/^A\d{6}[TWKBSX][A-F0-9]{16}$/.test(compact)) {
@@ -122,8 +140,15 @@ export async function allocateActionId(
         await getDb().insert(actionIds).values(row);
     },
 ): Promise<string> {
+    const date = new Date();
+    const firstSuffix = randomInt(ACTION_ID_SUFFIX_COUNT);
+
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-        const candidate = buildActionIdCandidate(input.recordType);
+        const candidate = buildActionIdCandidate(
+            input.recordType,
+            date,
+            (firstSuffix + attempt) % ACTION_ID_SUFFIX_COUNT,
+        );
         try {
             await reserve({
                 actionId: candidate,

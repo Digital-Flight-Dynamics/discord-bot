@@ -1,4 +1,26 @@
+import * as chrono from 'chrono-node';
+
 export type AppealStatus = 'submitted' | 'review' | 'approved' | 'denied';
+
+export type ModeratorAccess = {
+    moderator: boolean;
+    management: boolean;
+    developer: boolean;
+    messageTools: boolean;
+};
+
+export type DiscordMemberProfile = {
+    id: string;
+    username: string;
+    displayName: string;
+    globalName: string | null;
+    avatarUrl: string;
+    createdAt: string;
+    joinedAt: string | null;
+    isMember: boolean;
+    roles: Array<{ id: string; name: string; color: number }>;
+    access: ModeratorAccess;
+};
 
 export type PublicAppealSummary = {
     id: string;
@@ -239,4 +261,83 @@ export function formatDuration(durationMs: number | null): string | null {
     if (hours < 48) return `${hours} hour${hours === 1 ? '' : 's'}`;
     const days = Math.round(hours / 24);
     return `${days} day${days === 1 ? '' : 's'}`;
+}
+
+const maximumNaturalDurationMs = 10 * 365 * 24 * 60 * 60 * 1_000;
+const naturalDurationUnits: Record<string, number> = {
+    s: 1_000,
+    sec: 1_000,
+    secs: 1_000,
+    second: 1_000,
+    seconds: 1_000,
+    m: 60_000,
+    min: 60_000,
+    mins: 60_000,
+    minute: 60_000,
+    minutes: 60_000,
+    h: 3_600_000,
+    hr: 3_600_000,
+    hrs: 3_600_000,
+    hour: 3_600_000,
+    hours: 3_600_000,
+    d: 86_400_000,
+    day: 86_400_000,
+    days: 86_400_000,
+    w: 604_800_000,
+    wk: 604_800_000,
+    wks: 604_800_000,
+    week: 604_800_000,
+    weeks: 604_800_000,
+    mo: 2_592_000_000,
+    mos: 2_592_000_000,
+    month: 2_592_000_000,
+    months: 2_592_000_000,
+    y: 31_536_000_000,
+    yr: 31_536_000_000,
+    yrs: 31_536_000_000,
+    year: 31_536_000_000,
+    years: 31_536_000_000,
+};
+
+/** Parse compact, conversational, or calendar-based future durations. */
+export function parseNaturalDuration(value: string, now = new Date()): number | null {
+    const input = value.trim().replace(/\s+/g, ' ');
+    if (!input) return null;
+    const compact = input.replace(/^in\s+/i, '');
+    const tokenPattern = /(\d+)\s*(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|wks?|wk|w|months?|mos?|mo|years?|yrs?|yr|y)\b/gi;
+    const matches = [...compact.matchAll(tokenPattern)];
+    const remainder = compact.replace(tokenPattern, '').replace(/(?:\s|,|\band\b)/gi, '');
+    if (matches.length && !remainder) {
+        const duration = matches.reduce((total, match) => {
+            return total + Number(match[1]) * naturalDurationUnits[match[2]!.toLowerCase()]!;
+        }, 0);
+        return Number.isSafeInteger(duration) && duration > 0 && duration <= maximumNaturalDurationMs ? duration : null;
+    }
+
+    const result = chrono.parse(input, now, { forwardDate: true })[0];
+    if (!result || result.text.trim().toLowerCase() !== input.toLowerCase()) return null;
+    const duration = result.date().getTime() - now.getTime();
+    return Number.isSafeInteger(duration) && duration > 0 && duration <= maximumNaturalDurationMs ? duration : null;
+}
+
+export function formatNaturalDuration(durationMs: number): string {
+    const units = [
+        ['Year', 31_536_000_000],
+        ['Month', 2_592_000_000],
+        ['Week', 604_800_000],
+        ['Day', 86_400_000],
+        ['Hour', 3_600_000],
+        ['Minute', 60_000],
+        ['Second', 1_000],
+    ] as const;
+    let remaining = Math.max(1_000, Math.round(durationMs / 1_000) * 1_000);
+    const parts: string[] = [];
+    for (const [label, unitMs] of units) {
+        const amount = Math.floor(remaining / unitMs);
+        if (!amount) continue;
+        parts.push(`${amount} ${label}${amount === 1 ? '' : 's'}`);
+        remaining -= amount * unitMs;
+        if (parts.length === 2) break;
+    }
+    return parts.join(' ') || '1 Second';
 }

@@ -10,3 +10,4 @@ export * from './moderationPresets';
 export * from './moderationActionAudits';
 export * from './moderationActionNotifications';
 export * from './atcAppeals';
+export * from './botSettings';

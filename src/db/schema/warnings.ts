@@ -17,6 +17,7 @@ export const warnings = pgTable('warnings', {
     linkedMessageUrl: text('linked_message_url'),
     linkedMessageDeleted: boolean('linked_message_deleted').notNull().default(false),
     expiresAt: timestamp('expires_at', { withTimezone: true }),
+    recordExpiresAt: timestamp('record_expires_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     removedAt: timestamp('removed_at', { withTimezone: true }),
     removedByModeratorSnapshotId: uuid('removed_by_moderator_snapshot_id').references(() => identitySnapshots.id),

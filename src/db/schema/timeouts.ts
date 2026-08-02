@@ -15,6 +15,7 @@ export const timeouts = pgTable('timeouts', {
     durationMs: bigint('duration_ms', { mode: 'number' }).notNull(),
     durationToken: text('duration_token'),
     expiresAt: timestamp('expires_at', { withTimezone: true }),
+    recordExpiresAt: timestamp('record_expires_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     source: text('source').notNull().default('bot'),
     discordAuditLogId: text('discord_audit_log_id').unique(),

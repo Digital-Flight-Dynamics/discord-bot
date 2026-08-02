@@ -236,9 +236,11 @@ async function executeWarn(
         reason: pending.reason,
         privateNote: ctx.privateNote,
         expiresAt: pending.expiresAt,
+        recordExpiresAt: pending.recordExpiresAt ?? pending.expiresAt,
         linked: ctx.linked,
         pendingActionId: pending.id,
     });
+    const recordExpiresAt = pending.recordExpiresAt ?? pending.expiresAt;
 
     const counts = await getInfractionCounts(guild.id, pending.subjectUserId);
     const publicId = warning.actionId || warning.id;
@@ -251,7 +253,7 @@ async function executeWarn(
                 actionName: 'warning',
                 actionId: publicId,
                 reason: pending.reason,
-                expiresAt: pending.expiresAt,
+                expiresAt: recordExpiresAt,
                 infractionNumber: counts.warningsTotal,
             }),
         ],
@@ -284,7 +286,7 @@ async function executeWarn(
             counts,
             thisNth: newWarnCount,
             dm,
-            expiresAt: pending.expiresAt,
+            expiresAt: recordExpiresAt,
             durationToken: pending.durationToken,
             reason: pending.reason,
             privateNote: ctx.noteDisplay,
@@ -326,6 +328,7 @@ async function executeKick(
         moderatorSnapshotId: moderatorSnap.id,
         reason: pending.reason,
         privateNote: ctx.privateNote,
+        recordExpiresAt: pending.recordExpiresAt,
         linked: ctx.linked,
         isAutomated: false,
         source: ctx.automation ? ctx.automation.toLowerCase() : 'bot',
@@ -433,6 +436,7 @@ async function executeBan(
         banType: ctx.soft ? 'soft' : 'hard',
         privateNotes: ctx.privateNote,
         expiresAt: pending.expiresAt,
+        recordExpiresAt: pending.recordExpiresAt ?? pending.expiresAt,
         deleteMessageSeconds: pending.deleteMessageSeconds,
         linked: ctx.linked,
         source: ctx.automation ? ctx.automation.toLowerCase() : 'bot',
@@ -599,6 +603,7 @@ async function executeTimeout(
         durationMs,
         durationToken,
         expiresAt,
+        recordExpiresAt: pending.recordExpiresAt ?? expiresAt,
         source: ctx.automation ? ctx.automation.toLowerCase() : 'bot',
         pendingActionId: pending.id,
     });

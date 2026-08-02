@@ -13,6 +13,7 @@ export async function createTimeout(input: {
     durationMs: number;
     durationToken?: string | null;
     expiresAt?: Date | null;
+    recordExpiresAt?: Date | null;
     source?: string;
     discordAuditLogId?: string | null;
     pendingActionId?: string;
@@ -31,6 +32,7 @@ export async function createTimeout(input: {
             durationMs,
             durationToken: input.durationToken ?? null,
             expiresAt,
+            recordExpiresAt: input.recordExpiresAt ?? null,
             source: input.source ?? 'bot',
             discordAuditLogId: input.discordAuditLogId ?? null,
         }).returning();

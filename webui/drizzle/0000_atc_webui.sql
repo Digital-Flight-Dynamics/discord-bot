@@ -49,10 +49,18 @@ CREATE TABLE IF NOT EXISTS "atc_appeals" (
     "review_started_at" timestamp with time zone,
     "decided_at" timestamp with time zone,
     "decision_note" text,
-    CONSTRAINT "atc_appeals_action_user_unique" UNIQUE ("action_id", "discord_user_id"),
+    "reviewed_by_discord_user_id" text,
+    "decided_by_discord_user_id" text,
     CONSTRAINT "atc_appeals_status_valid"
         CHECK ("status" IN ('submitted', 'review', 'approved', 'denied'))
 );
 
 CREATE INDEX IF NOT EXISTS "atc_appeals_user_submitted_idx"
     ON "atc_appeals" ("discord_user_id", "submitted_at" DESC);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "atc_appeals_one_open_per_action_user_idx"
+    ON "atc_appeals" (upper("action_id"), "discord_user_id")
+    WHERE "status" IN ('submitted', 'review');
+
+CREATE INDEX IF NOT EXISTS "atc_appeals_action_submitted_idx"
+    ON "atc_appeals" (upper("action_id"), "submitted_at" DESC);

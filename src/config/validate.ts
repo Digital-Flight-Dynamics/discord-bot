@@ -37,7 +37,7 @@ function listInvalidConfigValues(cfg: BotWorkspaceConfig): string[] {
     for (const role of ['management', 'moderator', 'developer', 'member'] as const) {
         if (!isDiscordSnowflake(cfg.roles[role])) invalid.push(`roles.${role}`);
     }
-    if (cfg.roleGroups.moderation.length === 0 || cfg.roleGroups.moderation.some((id) => !isDiscordSnowflake(id))) {
+    if (cfg.roleGroups.moderation.some((id) => !isDiscordSnowflake(id))) {
         invalid.push('roleGroups.moderation');
     }
     for (const key of CHANNEL_KEYS) {

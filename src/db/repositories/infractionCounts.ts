@@ -16,34 +16,46 @@ export type InfractionCounts = {
 export async function countInfractions(guildId: string, discordUserId: string): Promise<InfractionCounts> {
     const result = await getPool().query<Record<keyof InfractionCounts, string>>(
         `SELECT
-            count(*) FILTER (WHERE kind = 'warning' AND resolution_status IS NULL) AS "warningsTotal",
+            count(*) FILTER (
+                WHERE kind = 'warning' AND resolution_status IS NULL
+                  AND (record_expires_at IS NULL OR record_expires_at > now())
+            ) AS "warningsTotal",
             count(*) FILTER (
                 WHERE kind = 'warning'
                   AND resolution_status IS NULL
                   AND removed_at IS NULL
-                  AND (expires_at IS NULL OR expires_at > now())
+                  AND (record_expires_at IS NULL OR record_expires_at > now())
             ) AS "warningsActive",
-            count(*) FILTER (WHERE kind = 'timeout' AND resolution_status IS NULL) AS mutes,
-            count(*) FILTER (WHERE kind = 'kick' AND resolution_status IS NULL) AS kicks,
-            count(*) FILTER (WHERE kind = 'ban' AND resolution_status IS NULL) AS bans,
+            count(*) FILTER (
+                WHERE kind = 'timeout' AND resolution_status IS NULL
+                  AND (record_expires_at IS NULL OR record_expires_at > now())
+            ) AS mutes,
+            count(*) FILTER (
+                WHERE kind = 'kick' AND resolution_status IS NULL
+                  AND (record_expires_at IS NULL OR record_expires_at > now())
+            ) AS kicks,
+            count(*) FILTER (
+                WHERE kind = 'ban' AND resolution_status IS NULL
+                  AND (record_expires_at IS NULL OR record_expires_at > now())
+            ) AS bans,
             count(*) FILTER (WHERE kind = 'warning' AND resolution_status IS NOT NULL) AS "warningsRevoked",
             count(*) FILTER (WHERE kind = 'timeout' AND resolution_status IS NOT NULL) AS "mutesRevoked",
             count(*) FILTER (WHERE kind = 'kick' AND resolution_status IS NOT NULL) AS "kicksRevoked",
             count(*) FILTER (WHERE kind = 'ban' AND resolution_status IS NOT NULL) AS "bansRevoked"
          FROM (
-            SELECT 'warning' AS kind, w.resolution_status, w.removed_at, w.expires_at
+            SELECT 'warning' AS kind, w.resolution_status, w.removed_at, w.record_expires_at
               FROM warnings w JOIN identity_snapshots s ON s.id = w.subject_snapshot_id
              WHERE w.guild_id = $1 AND s.discord_user_id = $2
             UNION ALL
-            SELECT 'timeout', t.resolution_status, NULL, NULL
+            SELECT 'timeout', t.resolution_status, NULL, t.record_expires_at
               FROM timeouts t JOIN identity_snapshots s ON s.id = t.subject_snapshot_id
              WHERE t.guild_id = $1 AND s.discord_user_id = $2
             UNION ALL
-            SELECT 'kick', k.resolution_status, NULL, NULL
+            SELECT 'kick', k.resolution_status, NULL, k.record_expires_at
               FROM kicks k JOIN identity_snapshots s ON s.id = k.subject_snapshot_id
              WHERE k.guild_id = $1 AND s.discord_user_id = $2
             UNION ALL
-            SELECT 'ban', b.resolution_status, NULL, NULL
+            SELECT 'ban', b.resolution_status, NULL, b.record_expires_at
               FROM bans b JOIN identity_snapshots s ON s.id = b.subject_snapshot_id
              WHERE b.guild_id = $1 AND s.discord_user_id = $2
          ) cases`,

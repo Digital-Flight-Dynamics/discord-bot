@@ -5,16 +5,47 @@ import {
     appealAnswerEntries,
     appealEligibility,
     formatDuration,
+    formatNaturalDuration,
+    parseNaturalDuration,
     type AppealAnswers,
     type AppealStatus,
+    type DiscordMemberProfile,
+    type ModeratorAccess,
     type PublicAction,
 } from '../server/domain';
+import {
+    Ban,
+    CalendarDays,
+    Check,
+    ChevronDown,
+    ChevronLeft,
+    ChevronRight,
+    CircleCheck,
+    CircleX,
+    ClipboardList,
+    createIcons,
+    Database,
+    DoorOpen,
+    Info,
+    KeyRound,
+    LayoutDashboard,
+    PencilLine,
+    Radar,
+    Search,
+    Send,
+    Settings,
+    TriangleAlert,
+    VolumeX,
+    Wrench,
+    X,
+} from 'lucide';
 
 type User = {
     id: string;
     username: string;
     displayName: string;
     avatarUrl: string;
+    access: ModeratorAccess;
 };
 
 type Appeal = {
@@ -28,9 +59,101 @@ type Appeal = {
     decisionNote: string | null;
 };
 
+type ModerationPreset = {
+    id: string;
+    name: string;
+    reason: string;
+    durationMs: number | null;
+    durationToken: string | null;
+};
+
+type ManagementChannel = {
+    id: string;
+    name: string;
+    category: string;
+    categoryPosition: number;
+    position: number;
+};
+
+type ManagedBotSetting = {
+    key: string;
+    category: string;
+    label: string;
+    description: string;
+    help: string;
+    configured: boolean;
+    maskedValue: string | null;
+    updatedAt: string | null;
+};
+
+type ModerationEmbedField = {
+    name: string;
+    value: string;
+    inline: boolean;
+};
+
+type ModerationEmbed = {
+    title?: string;
+    url?: string;
+    description?: string;
+    color?: string | number;
+    timestamp?: string;
+    author?: { name: string; url?: string; icon_url?: string };
+    footer?: { text: string; icon_url?: string };
+    thumbnail?: { url: string };
+    image?: { url: string };
+    fields?: ModerationEmbedField[];
+};
+
+type EmbedBuilderController = {
+    serialize: () => ModerationEmbed[];
+    reset: () => void;
+    load: (embeds: ModerationEmbed[]) => void;
+};
+
 const app = document.querySelector<HTMLElement>('#app')!;
 const modalRoot = document.querySelector<HTMLElement>('#modal-root')!;
 const toastRoot = document.querySelector<HTMLElement>('#toast-root')!;
+const moderatorIcons = {
+    Ban,
+    CalendarDays,
+    Check,
+    ChevronDown,
+    ChevronLeft,
+    ChevronRight,
+    CircleCheck,
+    CircleX,
+    ClipboardList,
+    Database,
+    DoorOpen,
+    Info,
+    KeyRound,
+    LayoutDashboard,
+    PencilLine,
+    Radar,
+    Search,
+    Send,
+    Settings,
+    TriangleAlert,
+    VolumeX,
+    Wrench,
+    X,
+};
+
+function renderModeratorIcons(root: HTMLElement = app): void {
+    createIcons({
+        icons: moderatorIcons,
+        root,
+        attrs: {
+            'aria-hidden': 'true',
+            'stroke-width': 1.8,
+        },
+    });
+}
+
+function moderatorIcon(name: string): string {
+    return `<i data-lucide="${escapeHtml(name)}"></i>`;
+}
 
 function escapeHtml(value: unknown): string {
     return String(value ?? '')
@@ -59,11 +182,53 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
     return data;
 }
 
-function toast(message: string): void {
-    toastRoot.innerHTML = `<div class="toast" role="alert">${escapeHtml(message)}</div>`;
-    window.setTimeout(() => {
-        toastRoot.innerHTML = '';
-    }, 5_000);
+type ToastType = 'success' | 'warning' | 'info' | 'danger';
+type ToastNotice = { id: number; message: string; type: ToastType };
+
+const toastQueue: ToastNotice[] = [];
+let nextToastId = 1;
+
+const toastPresentation: Record<ToastType, { title: string; icon: string }> = {
+    success: { title: 'Success', icon: 'circle-check' },
+    warning: { title: 'Warning', icon: 'triangle-alert' },
+    info: { title: 'Information', icon: 'info' },
+    danger: { title: 'Something went wrong', icon: 'circle-x' },
+};
+
+function renderToastQueue(): void {
+    const visible = toastQueue.slice(0, 3);
+    const hidden = toastQueue.length - visible.length;
+    toastRoot.innerHTML = `
+        ${visible.map((notice) => {
+            const presentation = toastPresentation[notice.type];
+            return `
+                <section class="toast toast-${notice.type}" role="${notice.type === 'danger' ? 'alert' : 'status'}">
+                    <span class="toast-icon">${moderatorIcon(presentation.icon)}</span>
+                    <div class="toast-copy">
+                        <strong>${presentation.title}</strong>
+                        <p>${escapeHtml(notice.message)}</p>
+                    </div>
+                    <button type="button" data-toast-dismiss="${notice.id}" aria-label="Dismiss notification">
+                        ${moderatorIcon('x')}
+                    </button>
+                </section>`;
+        }).join('')}
+        ${hidden > 0 ? `<div class="toast-overflow" role="status"><span>+${hidden}</span> more notification${hidden === 1 ? '' : 's'} queued</div>` : ''}
+    `;
+    for (const button of toastRoot.querySelectorAll<HTMLButtonElement>('[data-toast-dismiss]')) {
+        button.addEventListener('click', () => {
+            const id = Number(button.dataset.toastDismiss);
+            const index = toastQueue.findIndex((notice) => notice.id === id);
+            if (index >= 0) toastQueue.splice(index, 1);
+            renderToastQueue();
+        });
+    }
+    renderModeratorIcons(toastRoot);
+}
+
+function toast(message: string, type: ToastType = 'info'): void {
+    toastQueue.push({ id: nextToastId++, message, type });
+    renderToastQueue();
 }
 
 function formatDate(value: string | null, includeTime = false): string {
@@ -151,15 +316,23 @@ function logoutIcon(): string {
     return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 5H5v14h5M14 8l4 4-4 4M18 12H9"></path></svg>`;
 }
 
-function userChip(user: User): string {
+function userChip(user: User, view: 'user' | 'moderation' = 'user'): string {
+    const viewButton = user.access.moderator
+        ? view === 'moderation'
+            ? '<a class="mod-view-button" href="/my-history">User View</a>'
+            : '<a class="mod-view-button" href="/moderation">Mod View</a>'
+        : '';
     return `
-        <div class="user-chip">
-            <img class="avatar" src="${escapeHtml(user.avatarUrl)}" alt="" />
-            <span>
-                <strong>${escapeHtml(user.displayName)}</strong>
-                <small>@${escapeHtml(user.username)}</small>
-            </span>
-            <button class="icon-button" id="logout" type="button" aria-label="Log out">${logoutIcon()}</button>
+        <div class="user-area">
+            ${viewButton}
+            <div class="user-chip">
+                <img class="avatar" src="${escapeHtml(user.avatarUrl)}" alt="" />
+                <span>
+                    <strong>${escapeHtml(user.displayName)}</strong>
+                    <small>@${escapeHtml(user.username)}</small>
+                </span>
+                <button class="icon-button" id="logout" type="button" aria-label="Log out">${logoutIcon()}</button>
+            </div>
         </div>
     `;
 }
@@ -185,7 +358,7 @@ function renderLoggedOut(): void {
                 <img class="app-logo" src="/assets/dfd-logo.png" alt="Digital Flight Dynamics" />
                 <h1>Digital Flight Dynamics Community</h1>
                 <p class="lede">Sign in to view your account history and appeal moderator actions on your account.</p>
-                ${error ? `<p class="toast" role="alert">${escapeHtml(error)}</p>` : ''}
+                ${error ? `<p class="inline-alert" role="alert">${escapeHtml(error)}</p>` : ''}
                 <a class="button discord-button" href="/auth/discord/start?returnTo=${encodeURIComponent(returnTo)}">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.7 5.3A18 18 0 0 0 15.3 4l-.5 1.1a16.4 16.4 0 0 0-5.6 0L8.7 4a18 18 0 0 0-4.4 1.3C1.5 9.4.7 13.4 1.1 17.4a17.7 17.7 0 0 0 5.4 2.7l1.3-1.8-1.8-.9.4-.3c3.5 1.6 7.7 1.6 11.2 0l.4.3-1.8.9 1.3 1.8a17.7 17.7 0 0 0 5.4-2.7c.5-4.6-.8-8.6-3.2-12.1ZM8.7 15.2c-1.1 0-2-1-2-2.2s.9-2.2 2-2.2 2 1 2 2.2-.9 2.2-2 2.2Zm6.6 0c-1.1 0-2-1-2-2.2s.9-2.2 2-2.2 2 1 2 2.2-.9 2.2-2 2.2Z"></path></svg>
                     Sign in with your Discord Account
@@ -406,7 +579,7 @@ async function beginAppeal(action: PublicAction): Promise<void> {
         });
         renderTerms(action, windowData);
     } catch (error) {
-        toast(error instanceof Error ? error.message : 'Could not begin the appeal.');
+        toast(error instanceof Error ? error.message : 'Could not begin the appeal.', 'danger');
         await renderAction(action.actionId);
     }
 }
@@ -741,7 +914,7 @@ function initializeCustomSelects(form: HTMLFormElement): void {
     for (const select of selects) {
         const input = select.querySelector<HTMLInputElement>('input[type="hidden"]')!;
         const trigger = select.querySelector<HTMLButtonElement>('.custom-select-trigger')!;
-        const valueLabel = trigger.querySelector<HTMLElement>('span')!;
+        const valueLabel = trigger.querySelector<HTMLElement>('[data-selected-label]') || trigger.querySelector<HTMLElement>('span')!;
         const options = Array.from(select.querySelectorAll<HTMLButtonElement>('[role="option"]'));
         trigger.addEventListener('click', () => {
             if (select.classList.contains('open')) close(select);
@@ -757,11 +930,14 @@ function initializeCustomSelects(form: HTMLFormElement): void {
         options.forEach((option, index) => {
             option.addEventListener('click', () => {
                 input.value = option.dataset.value || '';
-                valueLabel.textContent = option.querySelector('span')!.textContent;
+                valueLabel.textContent =
+                    option.querySelector<HTMLElement>('[data-option-label]')?.textContent ||
+                    option.querySelector('span')!.textContent;
                 options.forEach((item) => (item.ariaSelected = String(item === option)));
                 select.classList.remove('invalid');
                 close(select);
                 trigger.focus();
+                input.dispatchEvent(new Event('change', { bubbles: true }));
             });
             option.addEventListener('keydown', (event) => {
                 if (event.key === 'Escape') {
@@ -909,7 +1085,7 @@ function renderCaptchaStep(action: PublicAction, windowData: AppealWindow, draft
         } catch (error) {
             submit.disabled = false;
             submit.textContent = 'Submit';
-            toast(error instanceof Error ? error.message : 'Could not submit your appeal.');
+            toast(error instanceof Error ? error.message : 'Could not submit your appeal.', 'danger');
         }
     });
 }
@@ -1069,12 +1245,1932 @@ function showRejoinModal(action: PublicAction, needsCountdown: boolean): void {
             showButton.hidden = true;
         } catch (error) {
             showButton.disabled = false;
-            toast(error instanceof Error ? error.message : 'No invite is available.');
+            toast(error instanceof Error ? error.message : 'No invite is available.', 'danger');
+        }
+    });
+}
+
+type ModeratorAction = PublicAction & {
+    subjectUserId: string;
+    subjectUsername: string | null;
+    subjectDisplayName: string | null;
+    modLogUrl: string | null;
+    activityCount: number;
+    latestActivity: { label: string; at: string } | null;
+};
+
+type Paginated<T> = {
+    items: T[];
+    total: number;
+    page: number;
+    limit: 10 | 25;
+    pages: number;
+};
+
+type ModerationAuditEntry = {
+    id: string;
+    actionId: string;
+    actionKind: PublicAction['kind'];
+    activity: string;
+    details: string;
+    moderatorUserId: string | null;
+    moderatorUsername: string | null;
+    moderatorDisplayName: string | null;
+    subjectUserId: string;
+    subjectUsername: string | null;
+    subjectDisplayName: string | null;
+    createdAt: string;
+};
+
+function moderationSidebar(active: string, showManagementTools: boolean): string {
+    const items: Array<[string, string, string, string]> = [
+        ['dashboard', '/moderation', 'Dashboard', 'layout-dashboard'],
+        ['radar', '/moderation/radar', 'User Radar', 'radar'],
+        ['logs', '/moderation/logs', 'Mod Logs', 'clipboard-list'],
+        ['actions', '/moderation/actions', 'Actions DB', 'database'],
+    ];
+    if (showManagementTools) {
+        items.push(['tools', '/moderation/tools', 'Management Tools', 'wrench']);
+        items.push(['settings', '/moderation/settings', 'Bot Settings', 'settings']);
+    }
+    return `
+        <aside class="moderation-sidebar">
+            <a class="moderation-brand" href="/moderation">
+                <img src="/assets/dfd-logo.png" alt="" />
+                <span><strong>ATC</strong><small>Moderator Console</small></span>
+            </a>
+            <nav>
+                ${items.map(([id, href, label, icon]) => `
+                    <a class="${active === id ? 'active' : ''}" href="${href}">
+                        <span class="nav-symbol">${moderatorIcon(icon)}</span><span>${label}</span>
+                    </a>`).join('')}
+            </nav>
+        </aside>
+    `;
+}
+
+function moderationShell(
+    user: User,
+    active: string,
+    title: string,
+    subtitle: string,
+    content: string,
+): void {
+    app.innerHTML = `
+        <div class="moderation-root page-enter">
+            ${moderationSidebar(active, user.access.management)}
+            <section class="moderation-workspace">
+                <header class="moderation-topbar">
+                    <div>
+                        <h1>${escapeHtml(title)}</h1>
+                        <p class="lede">${escapeHtml(subtitle)}</p>
+                    </div>
+                    ${userChip(user, 'moderation')}
+                </header>
+                ${content}
+            </section>
+        </div>
+    `;
+    attachLogout();
+    renderModeratorIcons();
+}
+
+function moderatorActionRows(actions: ModeratorAction[], showActivity = false): string {
+    if (!actions.length) return `<div class="mod-empty">No matching moderation actions.</div>`;
+    return `
+        <div class="mod-table-wrap">
+            <table class="mod-table">
+                <thead><tr>
+                    <th>Action</th><th>User</th><th>Type</th><th>Status</th><th>Reason</th>
+                    ${showActivity ? '<th>Latest activity</th>' : ''}
+                    <th>Issued</th><th></th>
+                </tr></thead>
+                <tbody>
+                    ${actions.map((action) => `
+                        <tr>
+                            <td><a class="action-link" href="/moderation/actions/${encodeURIComponent(action.actionId)}">${escapeHtml(action.actionId)}</a></td>
+                            <td>
+                                <a class="subject-link" href="/moderation/radar/${encodeURIComponent(action.subjectUserId)}">
+                                    <strong>${escapeHtml(action.subjectDisplayName || action.subjectUsername || action.subjectUserId)}</strong>
+                                    <small>${escapeHtml(action.subjectUserId)}</small>
+                                </a>
+                            </td>
+                            <td>${kindMarkup(action.kind)}</td>
+                            <td>${statusMarkup(action)}</td>
+                            <td class="mod-reason">${escapeHtml(action.reason)}</td>
+                            ${showActivity ? `<td>${action.latestActivity
+                                ? `<strong class="activity-label">${escapeHtml(action.latestActivity.label)}</strong><small>${formatDate(action.latestActivity.at, true)} · ${action.activityCount} update${action.activityCount === 1 ? '' : 's'}</small>`
+                                : '<span class="muted-value">Action created</span>'}</td>` : ''}
+                            <td class="nowrap">${formatDate(action.createdAt, true)}</td>
+                            <td>${action.modLogUrl ? `<a class="row-arrow" href="${escapeHtml(action.modLogUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Open Discord log">↗</a>` : ''}</td>
+                        </tr>`).join('')}
+                </tbody>
+            </table>
+        </div>`;
+}
+
+function paginationMarkup(data: Paginated<unknown>): string {
+    const first = data.total ? (data.page - 1) * data.limit + 1 : 0;
+    const last = Math.min(data.total, data.page * data.limit);
+    return `
+        <footer class="table-pagination">
+            <span>${first}–${last} of ${data.total}</span>
+            <div class="pagination-actions">
+                <label>Rows
+                    <select data-pagination-limit>
+                        <option value="10" ${data.limit === 10 ? 'selected' : ''}>10</option>
+                        <option value="25" ${data.limit === 25 ? 'selected' : ''}>25</option>
+                    </select>
+                </label>
+                <button type="button" data-pagination-previous aria-label="Previous page" ${data.page <= 1 ? 'disabled' : ''}>
+                    ${moderatorIcon('chevron-left')}
+                </button>
+                <strong>Page ${data.page} of ${data.pages}</strong>
+                <button type="button" data-pagination-next aria-label="Next page" ${data.page >= data.pages ? 'disabled' : ''}>
+                    ${moderatorIcon('chevron-right')}
+                </button>
+            </div>
+        </footer>`;
+}
+
+function bindPagination(
+    root: HTMLElement,
+    data: Paginated<unknown>,
+    load: (page: number, limit: 10 | 25) => Promise<void>,
+): void {
+    root.querySelector<HTMLSelectElement>('[data-pagination-limit]')?.addEventListener('change', (event) => {
+        const limit = (event.currentTarget as HTMLSelectElement).value === '25' ? 25 : 10;
+        void load(1, limit);
+    });
+    root.querySelector<HTMLButtonElement>('[data-pagination-previous]')?.addEventListener('click', () => {
+        void load(Math.max(1, data.page - 1), data.limit);
+    });
+    root.querySelector<HTMLButtonElement>('[data-pagination-next]')?.addEventListener('click', () => {
+        void load(Math.min(data.pages, data.page + 1), data.limit);
+    });
+}
+
+async function renderModerationDashboard(): Promise<void> {
+    const [user, data] = await Promise.all([
+        loadUser(),
+        fetchJson<{
+            metrics: { totalActions: number; actions30d: number; users30d: number; openAppeals: number };
+            latestActions: ModeratorAction[];
+        }>('/api/moderation/dashboard'),
+    ]);
+    moderationShell(user, 'dashboard', 'Dashboard', 'A live operational overview of community moderation.', `
+        <section class="metric-grid">
+            <article><span>Total actions</span><strong>${data.metrics.totalActions}</strong><small>All recorded time</small></article>
+            <article><span>Last 30 days</span><strong>${data.metrics.actions30d}</strong><small>New actions issued</small></article>
+            <article><span>Users involved</span><strong>${data.metrics.users30d}</strong><small>Unique users · 30 days</small></article>
+            <article class="${data.metrics.openAppeals ? 'attention' : ''}"><span>Open appeals</span><strong>${data.metrics.openAppeals}</strong><small>Awaiting a decision</small></article>
+        </section>
+        <section class="mod-panel">
+            <div class="mod-panel-heading"><div><p class="eyebrow">Live feed</p><h2>Latest actions</h2></div><a href="/moderation/logs">View all logs →</a></div>
+            ${moderatorActionRows(data.latestActions)}
+        </section>
+    `);
+}
+
+function radarBleeps(): string {
+    const positions = Array.from({ length: 12 }, (_, index) => index).sort(() => Math.random() - 0.5).slice(0, 7);
+    return positions.map((position) => `<i class="radar-bleep bleep-position-${position}"></i>`).join('');
+}
+
+function radarTerrain(): string {
+    const contours = Array.from({ length: 18 }, (_, index) => {
+        const baseline = 8 + (index * 84) / 17;
+        const points = Array.from({ length: 9 }, (_, pointIndex) => {
+            const x = pointIndex * 12.5;
+            const y = baseline + Math.sin(pointIndex * 1.35 + index * .7) * 2.5 + (Math.random() - .5) * 3.5;
+            return `${x.toFixed(1)},${y.toFixed(1)}`;
+        });
+        return `<polyline points="${points.join(' ')}" style="--terrain-delay: -${(index * .32).toFixed(2)}s" />`;
+    }).join('');
+    return `
+        <svg class="radar-terrain" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${contours}</svg>
+        <span class="radar-greece" aria-hidden="true">
+            <img src="/assets/athens-radar.svg?v=3" alt="" />
+            <img class="radar-airport-dots" src="/assets/athens-airport-dots.svg?v=1" alt="" />
+        </span>
+    `;
+}
+
+const radarRateFrames = new WeakMap<Animation, number>();
+
+function setRadarPlaybackRate(stage: HTMLElement, rate: number, duration = 650): void {
+    const sweep = stage.querySelector<HTMLElement>('.radar-sweep');
+    const animation = sweep?.getAnimations()[0];
+    if (!animation) return;
+
+    const previousFrame = radarRateFrames.get(animation);
+    if (previousFrame !== undefined) cancelAnimationFrame(previousFrame);
+
+    const startingRate = animation.playbackRate;
+    const startedAt = performance.now();
+    const update = (now: number): void => {
+        const progress = Math.min(1, (now - startedAt) / duration);
+        const eased = progress * progress * (3 - (2 * progress));
+        animation.updatePlaybackRate(startingRate + ((rate - startingRate) * eased));
+        if (progress < 1) {
+            radarRateFrames.set(animation, requestAnimationFrame(update));
+        } else {
+            radarRateFrames.delete(animation);
+        }
+    };
+    radarRateFrames.set(animation, requestAnimationFrame(update));
+}
+
+function radarContacts(users: Array<DiscordMemberProfile & { databaseOnly?: boolean }>): string {
+    const shuffle = (values: number[]) => values.sort(() => Math.random() - 0.5);
+    const positions = [
+        ...shuffle([0, 1]),
+        ...shuffle([2, 3]),
+        ...shuffle([4, 5]),
+        ...shuffle([6, 7, 8]),
+        9,
+    ];
+
+    return users.slice(0, 10).map((result, index) => {
+        const profileName = result.globalName && result.globalName !== result.displayName
+            ? `<span class="radar-contact-profile">${escapeHtml(result.globalName)}</span>`
+            : '';
+        const roles = result.roles.slice(0, 3);
+        const roleList = roles.length
+            ? roles.map((role) => {
+                const color = role.color > 0 && role.color <= 0xFFFFFF
+                    ? `#${role.color.toString(16).padStart(6, '0')}`
+                    : '#747b87';
+                return `<span class="discord-role" style="--role-color: ${color}">${escapeHtml(role.name)}</span>`;
+            }).join('')
+            : '<span class="discord-role empty">No server roles</span>';
+        const databaseWarning = result.databaseOnly
+            ? '<span class="radar-database-warning">Could not find this user on the Discord server, displaying the database record</span>'
+            : '';
+
+        return `
+            <a class="radar-contact radar-contact-position-${positions[index]}" href="/moderation/radar/${encodeURIComponent(result.id)}">
+                <span class="radar-contact-stem" aria-hidden="true"></span>
+                <span class="radar-contact-leader" aria-hidden="true"></span>
+                <span class="radar-contact-dot" aria-hidden="true"></span>
+                <span class="radar-contact-main">
+                    ${result.databaseOnly
+                        ? '<span class="avatar-placeholder database-avatar"><i data-lucide="database"></i></span>'
+                        : result.avatarUrl
+                        ? `<img src="${escapeHtml(result.avatarUrl)}" alt="" />`
+                        : `<span class="avatar-placeholder">${escapeHtml(result.displayName.slice(0, 1))}</span>`}
+                    <span class="radar-contact-names">
+                        <strong>${escapeHtml(result.displayName)}</strong>
+                        ${profileName}
+                        <small>@${escapeHtml(result.username)}</small>
+                        ${databaseWarning}
+                    </span>
+                </span>
+                <span class="radar-contact-detail">
+                    <span class="radar-contact-id"><small>Discord ID</small><code>${escapeHtml(result.id)}</code></span>
+                    <span class="radar-contact-roles">${roleList}</span>
+                </span>
+            </a>`;
+    }).join('');
+}
+
+async function renderUserRadar(): Promise<void> {
+    const user = await loadUser();
+    moderationShell(user, 'radar', 'User Radar', 'Find a Discord member or a historical account record.', `
+        <section class="radar-stage" id="radar-stage">
+            ${radarTerrain()}
+            <div class="radar-orbit" aria-hidden="true">
+                <span class="radar-axis horizontal"></span>
+                <span class="radar-axis vertical"></span>
+                <span class="radar-sweep"></span>
+                <span class="radar-bleeps">${radarBleeps()}</span>
+            </div>
+            <div class="radar-search-card">
+                <h2>Who are you looking for?</h2>
+                <p>Search by Discord username, server display name, or exact user ID.</p>
+                <form class="mod-search-form" id="radar-search">
+                    <input id="radar-query" type="search" minlength="2" maxlength="100" placeholder="Username or 18-digit Discord ID" autocomplete="off" required />
+                    <button class="button" type="submit">Locate</button>
+                </form>
+            </div>
+            <div id="radar-results" class="radar-contacts" aria-live="polite"></div>
+        </section>
+    `);
+    let noLockResetTimer: number | undefined;
+    let noLockHideTimer: number | undefined;
+    document.querySelector<HTMLFormElement>('#radar-search')?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const query = document.querySelector<HTMLInputElement>('#radar-query')!.value.trim();
+        const results = document.querySelector<HTMLElement>('#radar-results')!;
+        const stage = document.querySelector<HTMLElement>('#radar-stage')!;
+        const form = event.currentTarget as HTMLFormElement;
+        const button = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+        const scanStartedAt = performance.now();
+        if (noLockResetTimer !== undefined) window.clearTimeout(noLockResetTimer);
+        if (noLockHideTimer !== undefined) window.clearTimeout(noLockHideTimer);
+        stage.classList.remove('has-results', 'no-lock');
+        stage.classList.add('is-scanning');
+        setRadarPlaybackRate(stage, 7);
+        button.disabled = true;
+        results.innerHTML = '';
+        try {
+            const users = await fetchJson<Array<DiscordMemberProfile & {
+                databaseOnly?: boolean;
+                record?: { actionCount: number; latestActionAt: string | null } | null;
+            }>>(
+                `/api/moderation/users/search?q=${encodeURIComponent(query)}`,
+            );
+            const minimumScanTime = users.length ? 1_400 : 2_200;
+            const remainingScanTime = Math.max(0, minimumScanTime - (performance.now() - scanStartedAt));
+            await new Promise((resolve) => setTimeout(resolve, remainingScanTime));
+            stage.classList.remove('is-scanning');
+            stage.classList.toggle('has-results', users.length > 0);
+            setRadarPlaybackRate(stage, users.length ? 2 : 1, 900);
+            if (users.length) {
+                results.innerHTML = radarContacts(users);
+                renderModeratorIcons(results);
+            } else {
+                stage.classList.add('no-lock');
+                results.innerHTML = `
+                    <div class="radar-no-lock-card" role="status">
+                        <strong>Could not get a lock on this user.</strong>
+                        <small>Check spelling, or use less characters until you find the result you are looking for.</small>
+                    </div>`;
+                noLockResetTimer = window.setTimeout(() => {
+                    stage.classList.remove('no-lock');
+                    results.querySelector('.radar-no-lock-card')?.classList.add('is-hiding');
+                    noLockHideTimer = window.setTimeout(() => {
+                        results.innerHTML = '';
+                    }, 350);
+                }, 4_500);
+            }
+        } catch (error) {
+            stage.classList.remove('is-scanning');
+            setRadarPlaybackRate(stage, 1, 900);
+            results.innerHTML = `<div class="radar-scan-status error-copy">${escapeHtml(error instanceof Error ? error.message : 'Search failed.')}</div>`;
+        } finally {
+            button.disabled = false;
+        }
+    });
+}
+
+function showProfileActionWizard(
+    profile: DiscordMemberProfile,
+    kind: 'warn' | 'timeout' | 'kick' | 'ban',
+    presets: ModerationPreset[],
+    onComplete: () => Promise<void>,
+): void {
+    const actions = {
+        warn: { label: 'Warn', icon: 'triangle-alert', duration: false, durationRequired: false },
+        timeout: { label: 'Mute', icon: 'volume-x', duration: true, durationRequired: true },
+        kick: { label: 'Kick', icon: 'door-open', duration: false, durationRequired: false },
+        ban: { label: 'Ban', icon: 'ban', duration: true, durationRequired: false },
+    } as const;
+    const action = actions[kind];
+    const returnFocus = document.activeElement as HTMLElement | null;
+    const close = () => {
+        document.removeEventListener('keydown', handleKeyDown);
+        modalRoot.innerHTML = '';
+        returnFocus?.focus();
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+        if (event.key !== 'Escape') return;
+        const openExpiration = modalRoot.querySelector<HTMLElement>('#quick-expiration-popover:not([hidden])');
+        if (openExpiration) {
+            openExpiration.hidden = true;
+            modalRoot.querySelector<HTMLElement>('#quick-expiration-picker')?.classList.remove('open');
+            const trigger = modalRoot.querySelector<HTMLButtonElement>('#quick-expiration-trigger');
+            if (trigger) {
+                trigger.ariaExpanded = 'false';
+                trigger.focus();
+            }
+            return;
+        }
+        close();
+    };
+    modalRoot.innerHTML = `
+        <div class="modal-backdrop quick-action-backdrop" role="presentation">
+            <section class="modal quick-action-modal quick-action-${kind}" role="dialog" aria-modal="true" aria-labelledby="quick-action-title" tabindex="-1">
+                <header class="quick-action-header">
+                    <span class="quick-action-icon">${moderatorIcon(action.icon)}</span>
+                    <div><p class="eyebrow">Quick action</p><h2 id="quick-action-title">${action.label} this account</h2></div>
+                    <button class="quick-action-close" type="button" aria-label="Close">${moderatorIcon('x')}</button>
+                </header>
+                <div class="quick-action-steps" aria-label="Action progress">
+                    <span class="active" data-quick-marker="1"><i>1</i>Details</span>
+                    <b></b>
+                    <span data-quick-marker="2"><i>2</i>Review</span>
+                </div>
+                <form id="quick-action-form">
+                    <section class="quick-action-pane" data-quick-step="1">
+                        <div class="quick-action-target">
+                            ${profile.avatarUrl
+                                ? `<img src="${escapeHtml(profile.avatarUrl)}" alt="" />`
+                                : `<span>${escapeHtml(profile.displayName.slice(0, 1))}</span>`}
+                            <div><strong>${escapeHtml(profile.displayName)}</strong><small>@${escapeHtml(profile.username)} · ${escapeHtml(profile.id)}</small></div>
+                        </div>
+                        <div class="quick-action-field quick-action-preset-field">
+                            <span>Preset <small>Optional</small></span>
+                            <div class="preset-combobox">
+                                <div class="preset-search-control">
+                                    ${moderatorIcon('search')}
+                                    <input id="quick-preset-search" type="search" aria-label="Search moderation presets" autocomplete="off" placeholder="Search moderation presets…" />
+                                </div>
+                                <div class="preset-results" id="quick-preset-results" role="listbox" hidden></div>
+                            </div>
+                            <small>${presets.length ? `${presets.length} preset${presets.length === 1 ? '' : 's'} available` : 'No presets have been configured yet.'}</small>
+                        </div>
+                        ${action.duration ? `
+                            <label class="quick-action-field">
+                                <span>Duration ${action.durationRequired ? '' : '<small>Optional</small>'}</span>
+                                <input name="duration" value="${kind === 'timeout' ? '1 hour' : ''}" placeholder="${kind === 'ban' ? 'Leave blank for permanent' : 'Example: 1 hour'}" ${action.durationRequired ? 'required' : ''} autocomplete="off" />
+                                <small>${kind === 'timeout' ? 'How long the Discord mute lasts. Between one minute and 28 days.' : 'How long the Discord ban lasts. Leave blank to make it permanent.'}</small>
+                            </label>` : ''}
+                        <div class="quick-action-field quick-action-expiration-field">
+                            <span>Expiration <small>Optional</small></span>
+                            <div class="expiration-picker" id="quick-expiration-picker">
+                                <input id="quick-action-expiration" name="expiration" type="hidden" />
+                                <div class="expiration-control">
+                                    <button class="expiration-trigger" id="quick-expiration-trigger" type="button" aria-haspopup="dialog"
+                                        aria-expanded="false" aria-label="Choose action record expiration">
+                                        ${moderatorIcon('calendar-days')}
+                                        <span id="quick-expiration-display">Non set</span>
+                                    </button>
+                                    <button class="tool-clear-button" id="quick-clear-expiration" type="button" aria-label="Clear expiration" hidden>
+                                        ${moderatorIcon('x')}
+                                    </button>
+                                </div>
+                                <div class="expiration-popover" id="quick-expiration-popover" role="dialog" aria-label="Choose expiration date and time" hidden>
+                                    <div class="expiration-picker-grid">
+                                        <section class="expiration-date-pane">
+                                            <header>
+                                                <button id="quick-expiration-previous-month" type="button" aria-label="Previous month">${moderatorIcon('chevron-left')}</button>
+                                                <strong id="quick-expiration-month"></strong>
+                                                <button id="quick-expiration-next-month" type="button" aria-label="Next month">${moderatorIcon('chevron-right')}</button>
+                                            </header>
+                                            <div class="expiration-weekdays" aria-hidden="true">
+                                                <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+                                            </div>
+                                            <div class="expiration-days" id="quick-expiration-days"></div>
+                                        </section>
+                                        <div class="expiration-time">
+                                            <span>Time</span>
+                                            <div>
+                                                <input id="quick-expiration-hour" inputmode="numeric" maxlength="2" aria-label="Hour in 24-hour time" />
+                                                <i>:</i>
+                                                <input id="quick-expiration-minute" inputmode="numeric" maxlength="2" aria-label="Minute" />
+                                            </div>
+                                            <small>24-hour</small>
+                                        </div>
+                                    </div>
+                                    <footer>
+                                        <button class="button secondary" id="quick-expiration-cancel" type="button">Cancel</button>
+                                        <button class="button" id="quick-expiration-apply" type="button">Apply</button>
+                                    </footer>
+                                </div>
+                            </div>
+                            <small>When this ATC record expires. This does not change the moderation duration.</small>
+                        </div>
+                        <label class="quick-action-field">
+                            <span>Public reason</span>
+                            <textarea name="reason" minlength="3" maxlength="2000" rows="4" required placeholder="Why is this action being issued?"></textarea>
+                        </label>
+                        <label class="quick-action-field">
+                            <span>Private note <small>Optional</small></span>
+                            <textarea name="privateNote" maxlength="500" rows="2" placeholder="Only visible to moderators"></textarea>
+                        </label>
+                    </section>
+                    <section class="quick-action-pane quick-action-review" data-quick-step="2" hidden>
+                        <div class="quick-review-row"><span>Action</span><strong>${action.label}</strong></div>
+                        <div class="quick-review-row"><span>Account</span><strong>${escapeHtml(profile.displayName)} <small>${escapeHtml(profile.id)}</small></strong></div>
+                        ${action.duration ? '<div class="quick-review-row"><span>Duration</span><strong id="quick-review-duration"></strong></div>' : ''}
+                        <div class="quick-review-row"><span>ATC expiration</span><strong id="quick-review-expiration"></strong></div>
+                        <div class="quick-review-copy"><span>Public reason</span><p id="quick-review-reason"></p></div>
+                        <div class="quick-review-copy" id="quick-review-note-row"><span>Private note</span><p id="quick-review-note"></p></div>
+                    </section>
+                    <footer class="quick-action-footer">
+                        <button class="button secondary" id="quick-action-secondary" type="button">Cancel</button>
+                        <button class="button quick-action-primary" id="quick-action-primary" type="submit">Review action</button>
+                    </footer>
+                </form>
+            </section>
+        </div>`;
+    renderModeratorIcons(modalRoot);
+    const backdrop = modalRoot.querySelector<HTMLElement>('.quick-action-backdrop')!;
+    const form = modalRoot.querySelector<HTMLFormElement>('#quick-action-form')!;
+    const modal = modalRoot.querySelector<HTMLElement>('.quick-action-modal')!;
+    const secondaryButton = modalRoot.querySelector<HTMLButtonElement>('#quick-action-secondary')!;
+    const primaryButton = modalRoot.querySelector<HTMLButtonElement>('#quick-action-primary')!;
+    const durationInput = form.elements.namedItem('duration') as HTMLInputElement | null;
+    const reasonInput = form.elements.namedItem('reason') as HTMLTextAreaElement;
+    const presetSearch = modalRoot.querySelector<HTMLInputElement>('#quick-preset-search')!;
+    const presetResults = modalRoot.querySelector<HTMLElement>('#quick-preset-results')!;
+    const expirationInput = form.elements.namedItem('expiration') as HTMLInputElement;
+    const expirationPicker = modalRoot.querySelector<HTMLElement>('#quick-expiration-picker')!;
+    const expirationTrigger = modalRoot.querySelector<HTMLButtonElement>('#quick-expiration-trigger')!;
+    const expirationDisplay = modalRoot.querySelector<HTMLElement>('#quick-expiration-display')!;
+    const clearExpirationButton = modalRoot.querySelector<HTMLButtonElement>('#quick-clear-expiration')!;
+    const expirationPopover = modalRoot.querySelector<HTMLElement>('#quick-expiration-popover')!;
+    const expirationMonthLabel = modalRoot.querySelector<HTMLElement>('#quick-expiration-month')!;
+    const expirationDays = modalRoot.querySelector<HTMLElement>('#quick-expiration-days')!;
+    const expirationHour = modalRoot.querySelector<HTMLInputElement>('#quick-expiration-hour')!;
+    const expirationMinute = modalRoot.querySelector<HTMLInputElement>('#quick-expiration-minute')!;
+    let reviewing = false;
+    let durationMs = 0;
+    let pickerDraft = new Date();
+    let pickerMonth = new Date(pickerDraft.getFullYear(), pickerDraft.getMonth(), 1);
+    document.addEventListener('keydown', handleKeyDown);
+
+    const formatExpiration = (date: Date) =>
+        new Intl.DateTimeFormat(undefined, {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+        }).format(date);
+    const setExpiration = (timestamp: number | null) => {
+        const validTimestamp = timestamp && timestamp > Date.now() ? timestamp : 0;
+        expirationInput.value = validTimestamp ? localDateTimeValue(validTimestamp) : '';
+        expirationDisplay.textContent = validTimestamp ? formatExpiration(new Date(validTimestamp)) : 'Non set';
+        clearExpirationButton.hidden = !validTimestamp;
+        expirationDays.classList.remove('invalid');
+    };
+    const closeExpirationPicker = () => {
+        expirationPopover.hidden = true;
+        expirationTrigger.ariaExpanded = 'false';
+        expirationPicker.classList.remove('open');
+    };
+    const renderExpirationCalendar = () => {
+        expirationMonthLabel.textContent = new Intl.DateTimeFormat(undefined, {
+            month: 'long',
+            year: 'numeric',
+        }).format(pickerMonth);
+        const start = new Date(pickerMonth);
+        start.setDate(1 - start.getDay());
+        const today = new Date();
+        const buttons: string[] = [];
+        for (let index = 0; index < 42; index += 1) {
+            const date = new Date(start);
+            date.setDate(start.getDate() + index);
+            const isOutside = date.getMonth() !== pickerMonth.getMonth();
+            const isToday =
+                date.getFullYear() === today.getFullYear() &&
+                date.getMonth() === today.getMonth() &&
+                date.getDate() === today.getDate();
+            const isSelected =
+                date.getFullYear() === pickerDraft.getFullYear() &&
+                date.getMonth() === pickerDraft.getMonth() &&
+                date.getDate() === pickerDraft.getDate();
+            buttons.push(`
+                <button type="button" data-picker-date="${date.getFullYear()}-${date.getMonth()}-${date.getDate()}"
+                    class="${isOutside ? 'outside' : ''} ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}"
+                    aria-label="${escapeHtml(new Intl.DateTimeFormat(undefined, { dateStyle: 'full' }).format(date))}"
+                    aria-pressed="${isSelected}">${date.getDate()}</button>`);
+        }
+        expirationDays.innerHTML = buttons.join('');
+    };
+    const openExpirationPicker = () => {
+        const existing = expirationInput.value ? new Date(expirationInput.value) : new Date(Date.now() + 3_600_000);
+        pickerDraft = Number.isNaN(existing.getTime()) ? new Date(Date.now() + 3_600_000) : existing;
+        pickerMonth = new Date(pickerDraft.getFullYear(), pickerDraft.getMonth(), 1);
+        expirationHour.value = String(pickerDraft.getHours()).padStart(2, '0');
+        expirationMinute.value = String(pickerDraft.getMinutes()).padStart(2, '0');
+        renderExpirationCalendar();
+        expirationPopover.hidden = false;
+        expirationTrigger.ariaExpanded = 'true';
+        expirationPicker.classList.add('open');
+    };
+    const renderPresetResults = () => {
+        const query = presetSearch.value.trim().toLocaleLowerCase();
+        const matches = presets.filter((preset) => !query || preset.name.toLocaleLowerCase().includes(query)).slice(0, 8);
+        presetResults.innerHTML = matches.length
+            ? matches.map((preset) => `
+                <button type="button" role="option" data-preset-id="${escapeHtml(preset.id)}">
+                    <span><strong>${escapeHtml(preset.name)}</strong><small>${escapeHtml(preset.reason)}</small></span>
+                    <span>${escapeHtml(formatDuration(preset.durationMs) || 'No duration')}</span>
+                </button>`).join('')
+            : `<p>${presets.length ? 'No matching presets.' : 'No presets configured.'}</p>`;
+        presetResults.hidden = false;
+    };
+
+    presetSearch.addEventListener('focus', renderPresetResults);
+    presetSearch.addEventListener('input', renderPresetResults);
+    presetSearch.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            event.stopPropagation();
+            presetResults.hidden = true;
+            presetSearch.blur();
+        }
+    });
+    presetResults.addEventListener('mousedown', (event) => event.preventDefault());
+    presetResults.addEventListener('click', (event) => {
+        const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-preset-id]');
+        const preset = presets.find((candidate) => candidate.id === button?.dataset.presetId);
+        if (!preset) return;
+        presetSearch.value = preset.name;
+        reasonInput.value = preset.reason;
+        if (durationInput) {
+            durationInput.value = preset.durationMs ? formatNaturalDuration(preset.durationMs) : '';
+            durationInput.setCustomValidity('');
+        }
+        presetResults.hidden = true;
+    });
+    presetSearch.addEventListener('blur', () => window.setTimeout(() => (presetResults.hidden = true)));
+
+    expirationTrigger.addEventListener('click', () => {
+        if (expirationPopover.hidden) openExpirationPicker();
+        else closeExpirationPicker();
+    });
+    clearExpirationButton.addEventListener('click', () => setExpiration(null));
+    modalRoot.querySelector<HTMLButtonElement>('#quick-expiration-previous-month')!.addEventListener('click', () => {
+        pickerMonth = new Date(pickerMonth.getFullYear(), pickerMonth.getMonth() - 1, 1);
+        renderExpirationCalendar();
+    });
+    modalRoot.querySelector<HTMLButtonElement>('#quick-expiration-next-month')!.addEventListener('click', () => {
+        pickerMonth = new Date(pickerMonth.getFullYear(), pickerMonth.getMonth() + 1, 1);
+        renderExpirationCalendar();
+    });
+    expirationDays.addEventListener('click', (event) => {
+        const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-picker-date]');
+        if (!button?.dataset.pickerDate) return;
+        const [year, month, day] = button.dataset.pickerDate.split('-').map(Number);
+        pickerDraft.setFullYear(year!, month!, day!);
+        pickerMonth = new Date(year!, month!, 1);
+        renderExpirationCalendar();
+    });
+    for (const input of [expirationHour, expirationMinute]) {
+        input.addEventListener('input', () => {
+            input.value = input.value.replace(/\D/g, '').slice(0, 2);
+            input.removeAttribute('aria-invalid');
+        });
+    }
+    modalRoot.querySelector<HTMLButtonElement>('#quick-expiration-cancel')!.addEventListener('click', closeExpirationPicker);
+    modalRoot.querySelector<HTMLButtonElement>('#quick-expiration-apply')!.addEventListener('click', () => {
+        const hour = Number(expirationHour.value);
+        const minute = Number(expirationMinute.value);
+        const invalidHour = !Number.isInteger(hour) || hour < 0 || hour > 23;
+        const invalidMinute = !Number.isInteger(minute) || minute < 0 || minute > 59;
+        expirationHour.toggleAttribute('aria-invalid', invalidHour);
+        expirationMinute.toggleAttribute('aria-invalid', invalidMinute);
+        if (invalidHour || invalidMinute) {
+            (invalidHour ? expirationHour : expirationMinute).focus();
+            return;
+        }
+        pickerDraft.setHours(hour, minute, 0, 0);
+        if (pickerDraft.getTime() <= Date.now()) {
+            expirationDays.classList.add('invalid');
+            return;
+        }
+        setExpiration(pickerDraft.getTime());
+        closeExpirationPicker();
+    });
+    modal.addEventListener('pointerdown', (event) => {
+        if (!expirationPopover.hidden && !expirationPicker.contains(event.target as Node)) closeExpirationPicker();
+    });
+
+    const showDetails = () => {
+        reviewing = false;
+        form.querySelector<HTMLElement>('[data-quick-step="1"]')!.hidden = false;
+        form.querySelector<HTMLElement>('[data-quick-step="2"]')!.hidden = true;
+        modalRoot.querySelector<HTMLElement>('[data-quick-marker="1"]')!.className = 'active';
+        modalRoot.querySelector<HTMLElement>('[data-quick-marker="2"]')!.className = '';
+        secondaryButton.textContent = 'Cancel';
+        primaryButton.textContent = 'Review action';
+        modal.scrollTop = 0;
+    };
+    const showReview = () => {
+        const values = Object.fromEntries(new FormData(form).entries()) as Record<string, string>;
+        const durationText = durationInput?.value.trim() || '';
+        durationInput?.setCustomValidity('');
+        durationMs = durationText ? parseNaturalDuration(durationText) || 0 : 0;
+        if (durationInput && durationText && !durationMs) {
+            durationInput.setCustomValidity('Enter a valid duration, such as “1 hour” or “3 days”.');
+            durationInput.reportValidity();
+            return;
+        }
+        if (kind === 'timeout' && (durationMs < 60_000 || durationMs > 2_419_200_000)) {
+            durationInput?.setCustomValidity('Mutes must last between one minute and 28 days.');
+            durationInput?.reportValidity();
+            return;
+        }
+        presetResults.hidden = true;
+        closeExpirationPicker();
+        reviewing = true;
+        form.querySelector<HTMLElement>('[data-quick-step="1"]')!.hidden = true;
+        form.querySelector<HTMLElement>('[data-quick-step="2"]')!.hidden = false;
+        modalRoot.querySelector<HTMLElement>('[data-quick-marker="1"]')!.className = 'complete';
+        modalRoot.querySelector<HTMLElement>('[data-quick-marker="2"]')!.className = 'active';
+        modalRoot.querySelector<HTMLElement>('#quick-review-reason')!.textContent = values.reason || '';
+        modalRoot.querySelector<HTMLElement>('#quick-review-note')!.textContent = values.privateNote || 'None';
+        if (durationInput) {
+            modalRoot.querySelector<HTMLElement>('#quick-review-duration')!.textContent = durationMs
+                ? formatNaturalDuration(durationMs)
+                : 'Permanent';
+        }
+        modalRoot.querySelector<HTMLElement>('#quick-review-expiration')!.textContent = expirationInput.value
+            ? formatExpiration(new Date(expirationInput.value))
+            : 'Not set';
+        secondaryButton.textContent = 'Back';
+        primaryButton.textContent = `Execute ${action.label.toLowerCase()}`;
+        modal.scrollTop = 0;
+    };
+
+    modalRoot.querySelector<HTMLButtonElement>('.quick-action-close')!.addEventListener('click', close);
+    backdrop.addEventListener('click', (event) => {
+        if (event.target === backdrop) close();
+    });
+    durationInput?.addEventListener('input', () => durationInput.setCustomValidity(''));
+    secondaryButton.addEventListener('click', () => reviewing ? showDetails() : close());
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (!reviewing) {
+            if (form.reportValidity()) showReview();
+            return;
+        }
+        const values = Object.fromEntries(new FormData(form).entries()) as Record<string, string>;
+        primaryButton.disabled = true;
+        secondaryButton.disabled = true;
+        primaryButton.textContent = 'Executing…';
+        try {
+            const result = await fetchJson<{ actionId: string }>('/api/moderation/tools/action', {
+                method: 'POST',
+                body: JSON.stringify({
+                    targetUserId: profile.id,
+                    kind,
+                    reason: values.reason,
+                    privateNote: values.privateNote,
+                    durationMs,
+                    expiration: expirationInput.value ? new Date(expirationInput.value).toISOString() : '',
+                }),
+            });
+            close();
+            toast(`Action ${result.actionId} completed.`, 'success');
+            void onComplete();
+        } catch (error) {
+            primaryButton.disabled = false;
+            secondaryButton.disabled = false;
+            primaryButton.textContent = `Execute ${action.label.toLowerCase()}`;
+            toast(error instanceof Error ? error.message : 'The moderation action failed.', 'danger');
+        }
+    });
+    modal.focus();
+}
+
+async function renderRadarProfile(userId: string): Promise<void> {
+    const [user, data, presets] = await Promise.all([
+        loadUser(),
+        fetchJson<{ profile: DiscordMemberProfile; actions: ModeratorAction[] }>(`/api/moderation/users/${encodeURIComponent(userId)}`),
+        fetchJson<ModerationPreset[]>('/api/moderation/tools/presets'),
+    ]);
+    const profile = data.profile;
+    const actions = data.actions;
+    const roleMarkup = profile.roles.length
+        ? profile.roles.map((role) => {
+            const color = role.color > 0 && role.color <= 0xFFFFFF
+                ? `#${role.color.toString(16).padStart(6, '0')}`
+                : '#747b87';
+            return `<span class="discord-role" style="--role-color: ${color}">${escapeHtml(role.name)}</span>`;
+        }).join('')
+        : '<span class="discord-role empty">No server roles</span>';
+    const actionButton = (kind: 'warn' | 'timeout' | 'kick' | 'ban', label: string, icon: string) => `
+        <button class="profile-action-button action-${kind}" type="button" data-profile-action="${kind}">
+            ${moderatorIcon(icon)}<span>${label}</span>
+        </button>`;
+    moderationShell(user, 'radar', profile.displayName, `User Radar · ${profile.id}`, `
+        <a class="back-link" href="/moderation/radar">← New radar search</a>
+        <section class="profile-command-card">
+            <div class="profile-summary-row">
+                <div class="profile-identity">
+                    ${profile.avatarUrl ? `<img src="${escapeHtml(profile.avatarUrl)}" alt="" />` : ''}
+                    <div><p class="eyebrow">${profile.isMember ? 'Current member' : 'Not currently in server'}</p><h2>${escapeHtml(profile.displayName)}</h2><p>@${escapeHtml(profile.username)}</p></div>
+                </div>
+                <div class="profile-action-buttons" aria-label="Moderation actions">
+                    ${actionButton('warn', 'Warn', 'triangle-alert')}
+                    ${actionButton('timeout', 'Mute', 'volume-x')}
+                    ${actionButton('kick', 'Kick', 'door-open')}
+                    ${actionButton('ban', 'Ban', 'ban')}
+                </div>
+            </div>
+            <dl class="profile-facts">
+                <div><dt>Discord ID</dt><dd><code>${escapeHtml(profile.id)}</code></dd></div>
+                <div><dt>Account created</dt><dd>${formatDate(profile.createdAt, true)}</dd></div>
+                <div><dt>Joined server</dt><dd>${profile.joinedAt ? formatDate(profile.joinedAt, true) : 'Not available'}</dd></div>
+                <div><dt>ATC record</dt><dd>${data.actions.length} action${data.actions.length === 1 ? '' : 's'}</dd></div>
+            </dl>
+            <div class="role-cloud">${roleMarkup}</div>
+        </section>
+        <section class="mod-panel profile-actions-panel">
+            <div class="mod-panel-heading"><div><h2>Actions on Account</h2></div><span id="profile-actions-count"></span></div>
+            <div class="profile-actions-filter">
+                ${moderatorIcon('search')}
+                <input id="profile-actions-query" type="search" placeholder="Filter by action ID, type, status, or reason" autocomplete="off" />
+            </div>
+            <div id="profile-actions-results"></div>
+        </section>
+    `);
+    for (const button of document.querySelectorAll<HTMLButtonElement>('[data-profile-action]')) {
+        button.addEventListener('click', () => {
+            const kind = button.dataset.profileAction as 'warn' | 'timeout' | 'kick' | 'ban';
+            showProfileActionWizard(profile, kind, presets, () => renderRadarProfile(profile.id));
+        });
+    }
+    const queryInput = document.querySelector<HTMLInputElement>('#profile-actions-query')!;
+    const results = document.querySelector<HTMLElement>('#profile-actions-results')!;
+    const count = document.querySelector<HTMLElement>('#profile-actions-count')!;
+    let page = 1;
+    const renderActions = () => {
+        const query = queryInput.value.trim().toLocaleLowerCase();
+        const filtered = actions.filter((action) => !query || [
+            action.actionId,
+            action.kind,
+            action.kind === 'timeout' ? 'mute' : '',
+            actionStatus(action),
+            action.reason,
+        ].some((value) => value.toLocaleLowerCase().includes(query)));
+        const pages = Math.max(1, Math.ceil(filtered.length / 10));
+        page = Math.min(page, pages);
+        const first = filtered.length ? (page - 1) * 10 + 1 : 0;
+        const last = Math.min(filtered.length, page * 10);
+        count.textContent = `${filtered.length} action${filtered.length === 1 ? '' : 's'}`;
+        results.innerHTML = `
+            ${moderatorActionRows(filtered.slice(first ? first - 1 : 0, last))}
+            ${filtered.length ? `
+                <footer class="table-pagination">
+                    <span>${first}–${last} of ${filtered.length}</span>
+                    <div class="pagination-actions">
+                        <button type="button" data-profile-previous aria-label="Previous page" ${page <= 1 ? 'disabled' : ''}>${moderatorIcon('chevron-left')}</button>
+                        <strong>Page ${page} of ${pages}</strong>
+                        <button type="button" data-profile-next aria-label="Next page" ${page >= pages ? 'disabled' : ''}>${moderatorIcon('chevron-right')}</button>
+                    </div>
+                </footer>` : ''}`;
+        results.querySelector<HTMLButtonElement>('[data-profile-previous]')?.addEventListener('click', () => {
+            page = Math.max(1, page - 1);
+            renderActions();
+        });
+        results.querySelector<HTMLButtonElement>('[data-profile-next]')?.addEventListener('click', () => {
+            page = Math.min(pages, page + 1);
+            renderActions();
+        });
+        renderModeratorIcons(results);
+    };
+    queryInput.addEventListener('input', () => {
+        page = 1;
+        renderActions();
+    });
+    renderActions();
+}
+
+async function renderModerationLogs(): Promise<void> {
+    const user = await loadUser();
+    moderationShell(user, 'logs', 'Mod Logs', 'An audit trail of moderator activity across every recorded action.', `
+        <section class="mod-panel" id="moderation-log-results">
+            <div class="loading-inline"><span class="spinner"></span>Loading moderator activity…</div>
+        </section>
+    `);
+    const load = async (page = 1, limit: 10 | 25 = 10) => {
+        const target = document.querySelector<HTMLElement>('#moderation-log-results')!;
+        target.innerHTML = `<div class="loading-inline"><span class="spinner"></span>Loading moderator activity…</div>`;
+        try {
+            const data = await fetchJson<Paginated<ModerationAuditEntry>>(
+                `/api/moderation/logs?page=${page}&limit=${limit}`,
+            );
+            target.innerHTML = `
+                <div class="mod-panel-heading">
+                    <div><p class="eyebrow">Moderator audit</p><h2>Recorded activity</h2></div>
+                    <span>${data.total} event${data.total === 1 ? '' : 's'}</span>
+                </div>
+                ${
+                    data.items.length
+                        ? `<div class="mod-table-wrap">
+                            <table class="mod-table audit-table">
+                                <thead><tr><th>Moderator</th><th>Activity</th><th>Target</th><th>Action</th><th>Details</th><th>Time</th></tr></thead>
+                                <tbody>${data.items.map((entry) => `
+                                    <tr>
+                                        <td>
+                                            ${entry.moderatorUserId
+                                                ? `<a class="subject-link" href="/moderation/radar/${encodeURIComponent(entry.moderatorUserId)}"><strong>${escapeHtml(entry.moderatorDisplayName || entry.moderatorUsername || entry.moderatorUserId)}</strong><small>${escapeHtml(entry.moderatorUserId)}</small></a>`
+                                                : '<span class="muted-value">Automated system</span>'}
+                                        </td>
+                                        <td><strong class="audit-activity">${escapeHtml(entry.activity)}</strong><small>${kindMarkup(entry.actionKind)}</small></td>
+                                        <td><a class="subject-link" href="/moderation/radar/${encodeURIComponent(entry.subjectUserId)}"><strong>${escapeHtml(entry.subjectDisplayName || entry.subjectUsername || entry.subjectUserId)}</strong><small>${escapeHtml(entry.subjectUserId)}</small></a></td>
+                                        <td><a class="action-link" href="/moderation/actions/${encodeURIComponent(entry.actionId)}">${escapeHtml(entry.actionId)}</a></td>
+                                        <td class="mod-reason">${escapeHtml(entry.details)}</td>
+                                        <td class="nowrap">${formatDate(entry.createdAt, true)}</td>
+                                    </tr>`).join('')}</tbody>
+                            </table>
+                        </div>`
+                        : '<div class="mod-empty">No moderator activity has been recorded.</div>'
+                }
+                ${paginationMarkup(data)}`;
+            bindPagination(target, data, load);
+            renderModeratorIcons(target);
+        } catch (error) {
+            target.innerHTML = `<div class="mod-empty error-copy">${escapeHtml(error instanceof Error ? error.message : 'Could not load moderator activity.')}</div>`;
+        }
+    };
+    await load();
+}
+
+async function renderActionsDatabase(): Promise<void> {
+    const user = await loadUser();
+    moderationShell(user, 'actions', 'Actions DB', 'Search every moderation action by ID, user, or reason.', `
+        <section class="database-search">
+            <form class="mod-search-form" id="actions-search">
+                <input id="actions-query" type="search" placeholder="Action ID, user ID, username, or reason" autocomplete="off" />
+                <button class="button" type="submit">Search database</button>
+            </form>
+        </section>
+        <section class="mod-panel" id="actions-results"><div class="loading-inline"><span class="spinner"></span>Loading actions…</div></section>
+    `);
+    const load = async (page = 1, limit: 10 | 25 = 10) => {
+        const query = document.querySelector<HTMLInputElement>('#actions-query')!.value.trim();
+        const target = document.querySelector<HTMLElement>('#actions-results')!;
+        target.innerHTML = `<div class="loading-inline"><span class="spinner"></span>Querying actions…</div>`;
+        try {
+            const data = await fetchJson<Paginated<ModeratorAction>>(
+                `/api/moderation/actions?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`,
+            );
+            target.innerHTML = `
+                <div class="mod-panel-heading"><div><p class="eyebrow">Database results</p><h2>Actions</h2></div><span>${data.total} found</span></div>
+                ${moderatorActionRows(data.items)}
+                ${paginationMarkup(data)}`;
+            bindPagination(target, data, load);
+            renderModeratorIcons(target);
+        } catch (error) {
+            target.innerHTML = `<div class="mod-empty error-copy">${escapeHtml(error instanceof Error ? error.message : 'Search failed.')}</div>`;
+        }
+    };
+    document.querySelector<HTMLFormElement>('#actions-search')?.addEventListener('submit', (event) => {
+        event.preventDefault();
+        void load(1, 10);
+    });
+    await load();
+}
+
+async function renderModeratorAction(actionId: string): Promise<void> {
+    const [user, data] = await Promise.all([
+        loadUser(),
+        fetchJson<{
+            action: ModeratorAction;
+            audits: Array<{ id: string; label: string; oldValue: string | null; newValue: string | null; rationale: string; moderatorUserId: string; createdAt: string }>;
+            appeals: Array<{ id: string; status: AppealStatus; submittedAt: string; reviewStartedAt: string | null; decidedAt: string | null }>;
+        }>(`/api/moderation/actions/${encodeURIComponent(actionId)}`),
+    ]);
+    const action = data.action;
+    const appealActivity = data.appeals.flatMap((appeal) => [
+        { label: 'Appeal submitted', at: appeal.submittedAt, detail: `Appeal ${appeal.id}` },
+        ...(appeal.reviewStartedAt
+            ? [{ label: 'Appeal entered review', at: appeal.reviewStartedAt, detail: `Appeal ${appeal.id}` }]
+            : []),
+        ...(appeal.decidedAt
+            ? [{
+                  label: appeal.status === 'approved' ? 'Appeal approved' : 'Appeal denied',
+                  at: appeal.decidedAt,
+                  detail: `Appeal ${appeal.id}`,
+              }]
+            : []),
+    ]);
+    const activity = [
+        ...data.audits.map((audit) => ({
+            label: audit.label,
+            at: audit.createdAt,
+            detail: `${audit.rationale} · Moderator ${audit.moderatorUserId}`,
+        })),
+        ...appealActivity,
+    ].sort((left, right) => new Date(right.at).getTime() - new Date(left.at).getTime());
+    moderationShell(user, 'actions', `Action ${action.actionId}`, `${action.subjectDisplayName || action.subjectUsername || action.subjectUserId} · ${action.kind}`, `
+        <a class="back-link" href="/moderation/actions">← Actions database</a>
+        <section class="action-inspector-grid">
+            <article class="mod-panel inspector-summary">
+                <div class="mod-panel-heading"><div><p class="eyebrow">Action record</p><h2>${kindMarkup(action.kind)} ${statusMarkup(action)}</h2></div>${action.modLogUrl ? `<a href="${escapeHtml(action.modLogUrl)}" target="_blank" rel="noopener noreferrer">Discord log ↗</a>` : ''}</div>
+                <dl class="profile-facts">
+                    <div><dt>Subject</dt><dd><a href="/moderation/radar/${encodeURIComponent(action.subjectUserId)}">${escapeHtml(action.subjectDisplayName || action.subjectUsername || action.subjectUserId)}</a></dd></div>
+                    <div><dt>Issued</dt><dd>${formatDate(action.createdAt, true)}</dd></div>
+                    <div><dt>Expires</dt><dd>${action.expiresAt ? formatDate(action.expiresAt, true) : 'Never'}</dd></div>
+                    <div><dt>Appeals</dt><dd>${data.appeals.length}</dd></div>
+                </dl>
+                <div class="inspector-reason"><span>Reason</span><p>${escapeHtml(action.reason)}</p></div>
+            </article>
+            <article class="mod-panel activity-timeline">
+                <div class="mod-panel-heading"><div><p class="eyebrow">Thread activity</p><h2>Case timeline</h2></div></div>
+                <div class="timeline-list">
+                    <div class="timeline-item created"><i></i><div><strong>Action created</strong><small>${formatDate(action.createdAt, true)}</small></div></div>
+                    ${activity.map((item) => `<div class="timeline-item"><i></i><div><strong>${escapeHtml(item.label)}</strong><small>${formatDate(item.at, true)}</small><p>${escapeHtml(item.detail)}</p></div></div>`).join('')}
+                </div>
+            </article>
+        </section>
+    `);
+}
+
+function toolCard(id: string, title: string, eyebrow: string, body: string): string {
+    return `<article class="tool-card tool-panel" data-tool-panel="${escapeHtml(id)}" ${id === 'send' ? '' : 'hidden'}>
+        <p class="eyebrow">${escapeHtml(eyebrow)}</p><h2>${escapeHtml(title)}</h2>${body}
+    </article>`;
+}
+
+function localDateTimeValue(timestamp: number): string {
+    const date = new Date(timestamp);
+    const part = (value: number) => String(value).padStart(2, '0');
+    return `${date.getFullYear()}-${part(date.getMonth() + 1)}-${part(date.getDate())}T${part(date.getHours())}:${part(date.getMinutes())}:${part(date.getSeconds())}`;
+}
+
+function parseDiscordMessageUrl(value: string): { channelId: string; messageId: string } | null {
+    const match = /^https?:\/\/(?:www\.)?(?:discord\.com|discordapp\.com|ptb\.discord\.com|canary\.discord\.com)\/channels\/\d{17,20}\/(\d{17,20})\/(\d{17,20})\/?(?:[?#].*)?$/i.exec(value.trim());
+    return match?.[1] && match[2] ? { channelId: match[1], messageId: match[2] } : null;
+}
+
+const defaultEmbedColor = '#07a7b9';
+const embedColorPalette = [
+    '#07a7b9', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#ef476f',
+    '#f97316', '#eab308', '#22c55e', '#14b8a6', '#64748b', '#111827',
+];
+
+function embedFieldMarkup(): string {
+    return `<div class="embed-field-row" data-embed-field-row>
+        <span class="embed-field-number" data-field-number></span>
+        <div class="embed-field-row-inputs">
+            <label>Name<input data-field-key="name" maxlength="256" placeholder="Field name" /></label>
+            <label>Value<textarea data-field-key="value" maxlength="1024" rows="2" placeholder="Field value"></textarea></label>
+        </div>
+        <label class="embed-inline-toggle"><input type="checkbox" data-field-key="inline" /> <span>Inline</span></label>
+        <button class="embed-remove-button embed-remove-field" type="button" data-remove-field aria-label="Remove field">${moderatorIcon('x')}</button>
+    </div>`;
+}
+
+function embedCardMarkup(index: number): string {
+    return `<article class="embed-card" data-embed-card>
+        <header class="embed-card-header">
+            <div class="embed-card-heading">
+                <span class="embed-card-index" data-embed-index>${String(index + 1).padStart(2, '0')}</span>
+                <div><strong data-embed-label>Embed ${index + 1}</strong><small>Rich message block</small></div>
+            </div>
+            <button class="embed-remove-button" type="button" data-remove-embed aria-label="Remove embed">${moderatorIcon('x')}<span>Remove</span></button>
+        </header>
+        <div class="embed-card-body">
+            <div class="embed-color-field">
+                <div><span class="embed-control-label">Accent color</span><small>Optional sidebar color</small></div>
+                <div class="embed-color-controls">
+                    <button class="embed-color-swatch" type="button" data-toggle-color-picker aria-haspopup="dialog" aria-expanded="false" aria-label="Choose embed accent color">
+                        <span class="embed-color-swatch-dot" data-embed-color-swatch></span><span data-embed-color-value>${defaultEmbedColor}</span><span class="embed-color-caret">⌄</span>
+                    </button>
+                    <button class="embed-clear-color" type="button" data-clear-embed-color>None</button>
+                </div>
+                <div class="embed-color-popover" data-embed-color-popover role="dialog" aria-label="Embed color picker" hidden>
+                    <strong>Choose a color</strong>
+                    <div class="embed-color-palette">
+                        ${embedColorPalette.map((color) => `<button type="button" data-color-value="${color}" style="--picker-color: ${color}" aria-label="Use ${color}"><span></span></button>`).join('')}
+                    </div>
+                    <label>Hex<input class="embed-color-text" data-embed-field="color" type="text" value="${defaultEmbedColor}" maxlength="7" placeholder="#07a7b9" spellcheck="false" /></label>
+                </div>
+            </div>
+            <div class="embed-grid-two">
+                <label>Title<input data-embed-field="title" maxlength="256" placeholder="Optional title" /></label>
+                <label>Title URL<input data-embed-field="url" type="url" maxlength="2048" placeholder="https://…" /></label>
+            </div>
+            <label>Description<textarea data-embed-field="description" maxlength="4096" rows="4" placeholder="Write the main embed copy…"></textarea></label>
+
+            <details class="embed-disclosure" open>
+                <summary><span><strong>Fields</strong><small>Structured name/value rows</small></span><em data-field-count>0 / 25</em></summary>
+                <div class="embed-fields-list" data-embed-fields><p class="embed-fields-empty" data-fields-empty>No fields added yet.</p></div>
+                <button class="button secondary embed-add-field" type="button" data-add-field>+ Add field</button>
+            </details>
+
+            <details class="embed-disclosure">
+                <summary><span><strong>Author</strong><small>Attribution line above the title</small></span></summary>
+                <div class="embed-grid-two">
+                    <label>Name<input data-embed-field="author.name" maxlength="256" placeholder="Author name" /></label>
+                    <label>Profile URL<input data-embed-field="author.url" type="url" maxlength="2048" placeholder="https://…" /></label>
+                    <label>Icon URL<input data-embed-field="author.icon_url" type="url" maxlength="2048" placeholder="https://…" /></label>
+                </div>
+            </details>
+
+            <details class="embed-disclosure">
+                <summary><span><strong>Media & timestamp</strong><small>Images, thumbnails, and time context</small></span></summary>
+                <div class="embed-grid-two">
+                    <label>Thumbnail URL<input data-embed-field="thumbnail.url" type="url" maxlength="2048" placeholder="https://…" /></label>
+                    <label>Image URL<input data-embed-field="image.url" type="url" maxlength="2048" placeholder="https://…" /></label>
+                    <label>Timestamp
+                        <div class="embed-date-picker" data-embed-date-picker>
+                            <input data-embed-field="timestamp" type="hidden" />
+                            <button class="embed-date-trigger" type="button" data-toggle-date-picker aria-haspopup="dialog" aria-expanded="false">
+                                ${moderatorIcon('calendar-days')}<span data-embed-date-value>Not set</span>
+                            </button>
+                            <div class="embed-date-popover" data-embed-date-popover role="dialog" aria-label="Embed timestamp picker" hidden>
+                                <div class="embed-date-calendar">
+                                    <header><button type="button" data-date-previous aria-label="Previous month">${moderatorIcon('chevron-left')}</button><strong data-date-month></strong><button type="button" data-date-next aria-label="Next month">${moderatorIcon('chevron-right')}</button></header>
+                                    <div class="embed-date-weekdays"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
+                                    <div class="embed-date-days" data-date-days></div>
+                                </div>
+                                <div class="embed-date-time">
+                                    <span>Time</span>
+                                    <div><input type="number" min="0" max="23" data-date-hour aria-label="Hour" /><i>:</i><input type="number" min="0" max="59" data-date-minute aria-label="Minute" /></div>
+                                </div>
+                                <footer><button class="button secondary" type="button" data-clear-date>Clear</button><button class="button" type="button" data-apply-date>Apply</button></footer>
+                            </div>
+                        </div>
+                    </label>
+                </div>
+            </details>
+
+            <details class="embed-disclosure">
+                <summary><span><strong>Footer</strong><small>Small closing note and icon</small></span></summary>
+                <div class="embed-grid-two">
+                    <label>Text<input data-embed-field="footer.text" maxlength="2048" placeholder="Footer text" /></label>
+                    <label>Icon URL<input data-embed-field="footer.icon_url" type="url" maxlength="2048" placeholder="https://…" /></label>
+                </div>
+            </details>
+        </div>
+    </article>`;
+}
+
+function embedBuilderMarkup(): string {
+    return `<fieldset class="embed-builder" data-embed-builder>
+        <div class="embed-builder-header">
+            <div><p class="eyebrow">Embed generator</p><h3>Rich message blocks</h3><p>Compose up to 10 Discord embeds with the full layout toolkit.</p></div>
+            <button class="button secondary embed-add-button" type="button" data-add-embed>+ Add embed</button>
+        </div>
+        <div class="embed-builder-meta"><span data-embed-count>0 / 10 embeds</span><small>Discord limit · 6,000 combined characters</small></div>
+        <div class="embed-list" data-embed-list><p class="embed-list-empty" data-embed-list-empty>No embeds added yet. Use “Add embed” to start building.</p></div>
+        <p class="embed-builder-hint">Blank cards are ignored. Content can be sent on its own, or alongside any number of embeds.</p>
+    </fieldset>`;
+}
+
+function embedListEmptyMarkup(): string {
+    return '<p class="embed-list-empty" data-embed-list-empty>No embeds added yet. Use “Add embed” to start building.</p>';
+}
+
+function inputValue(root: HTMLElement, key: string): string {
+    return root.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[data-embed-field="${key}"]`)?.value.trim() || '';
+}
+
+function normalizeEmbedColor(value: string): string {
+    if (!value) return '';
+    const normalized = value.startsWith('#') ? value : `#${value}`;
+    return /^#[\da-f]{6}$/i.test(normalized) ? normalized.toLowerCase() : normalized;
+}
+
+function colorHex(value: string | number | undefined): string {
+    if (typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 0xffffff) {
+        return `#${value.toString(16).padStart(6, '0')}`;
+    }
+    const normalized = normalizeEmbedColor(typeof value === 'string' ? value : '');
+    return /^#[\da-f]{6}$/i.test(normalized) ? normalized : defaultEmbedColor;
+}
+
+function serializeModerationEmbeds(builder: HTMLElement): ModerationEmbed[] {
+    return [...builder.querySelectorAll<HTMLElement>('[data-embed-card]')].flatMap((card, embedIndex) => {
+        const title = inputValue(card, 'title');
+        const url = inputValue(card, 'url');
+        const description = inputValue(card, 'description');
+        const color = normalizeEmbedColor(inputValue(card, 'color'));
+        const timestampInput = inputValue(card, 'timestamp');
+        const authorName = inputValue(card, 'author.name');
+        const authorUrl = inputValue(card, 'author.url');
+        const authorIcon = inputValue(card, 'author.icon_url');
+        const footerText = inputValue(card, 'footer.text');
+        const footerIcon = inputValue(card, 'footer.icon_url');
+        const thumbnailUrl = inputValue(card, 'thumbnail.url');
+        const imageUrl = inputValue(card, 'image.url');
+        const fieldValues = [...card.querySelectorAll<HTMLElement>('[data-embed-field-row]')].flatMap((row, fieldIndex) => {
+            const name = row.querySelector<HTMLInputElement>('[data-field-key="name"]')?.value.trim() || '';
+            const value = row.querySelector<HTMLTextAreaElement>('[data-field-key="value"]')?.value.trim() || '';
+            if (!name && !value) return [];
+            if (!name || !value) throw new Error(`Embed ${embedIndex + 1} field ${fieldIndex + 1} needs both a name and a value.`);
+            return [{
+                name,
+                value,
+                inline: Boolean(row.querySelector<HTMLInputElement>('[data-field-key="inline"]')?.checked),
+            }];
+        });
+        if (fieldValues.length > 25) throw new Error(`Embed ${embedIndex + 1} can contain up to 25 fields.`);
+        if (color && !/^#[\da-f]{6}$/i.test(color)) throw new Error(`Embed ${embedIndex + 1} accent color must be a six-digit hex value.`);
+
+        let timestamp = '';
+        if (timestampInput) {
+            const parsed = new Date(timestampInput);
+            if (!Number.isFinite(parsed.getTime())) throw new Error(`Embed ${embedIndex + 1} timestamp is invalid.`);
+            timestamp = parsed.toISOString();
+        }
+        const author = authorName
+            ? { name: authorName, ...(authorUrl ? { url: authorUrl } : {}), ...(authorIcon ? { icon_url: authorIcon } : {}) }
+            : authorUrl || authorIcon
+                ? (() => { throw new Error(`Embed ${embedIndex + 1} author name is required.`); })()
+                : undefined;
+        const footer = footerText
+            ? { text: footerText, ...(footerIcon ? { icon_url: footerIcon } : {}) }
+            : footerIcon
+                ? (() => { throw new Error(`Embed ${embedIndex + 1} footer text is required.`); })()
+                : undefined;
+        const hasContent = Boolean(title || description || fieldValues.length || author || footer || thumbnailUrl || imageUrl);
+        const hasOptionalInput = Boolean(url || timestamp || authorUrl || authorIcon || footerIcon || thumbnailUrl || imageUrl || fieldValues.length);
+        if (!hasContent && hasOptionalInput) {
+            throw new Error(`Embed ${embedIndex + 1} needs a title, description, field, author, footer, image, or thumbnail.`);
+        }
+        if (!hasContent) return [];
+        return [{
+            ...(title ? { title } : {}),
+            ...(url ? { url } : {}),
+            ...(description ? { description } : {}),
+            ...(color ? { color } : {}),
+            ...(timestamp ? { timestamp } : {}),
+            ...(author ? { author } : {}),
+            ...(footer ? { footer } : {}),
+            ...(thumbnailUrl ? { thumbnail: { url: thumbnailUrl } } : {}),
+            ...(imageUrl ? { image: { url: imageUrl } } : {}),
+            ...(fieldValues.length ? { fields: fieldValues } : {}),
+        }];
+    });
+}
+
+function setupEmbedBuilder(form: HTMLFormElement | null): EmbedBuilderController | null {
+    const builder = form?.querySelector<HTMLElement>('[data-embed-builder]');
+    const list = builder?.querySelector<HTMLElement>('[data-embed-list]');
+    if (!builder || !list) return null;
+
+    const closeColorPopovers = () => {
+        for (const popover of builder.querySelectorAll<HTMLElement>('[data-embed-color-popover]')) {
+            popover.hidden = true;
+            popover.closest<HTMLElement>('.embed-color-field')?.classList.remove('color-open');
+        }
+        for (const trigger of builder.querySelectorAll<HTMLButtonElement>('[data-toggle-color-picker]')) {
+            trigger.setAttribute('aria-expanded', 'false');
+        }
+    };
+    const closeDatePickers = () => {
+        for (const popover of builder.querySelectorAll<HTMLElement>('[data-embed-date-popover]')) {
+            popover.hidden = true;
+            popover.closest<HTMLElement>('[data-embed-date-picker]')?.classList.remove('date-open');
+        }
+        for (const trigger of builder.querySelectorAll<HTMLButtonElement>('[data-toggle-date-picker]')) {
+            trigger.setAttribute('aria-expanded', 'false');
+        }
+    };
+    const formatTimestamp = (timestamp: string) => {
+        const date = new Date(timestamp);
+        return Number.isFinite(date.getTime())
+            ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date)
+            : 'Not set';
+    };
+    const syncColorPicker = (card: HTMLElement) => {
+        const input = card.querySelector<HTMLInputElement>('[data-embed-field="color"]');
+        const swatch = card.querySelector<HTMLElement>('[data-embed-color-swatch]');
+        const value = card.querySelector<HTMLElement>('[data-embed-color-value]');
+        const normalized = normalizeEmbedColor(input?.value.trim() || '');
+        const valid = /^#[\da-f]{6}$/i.test(normalized);
+        swatch?.style.setProperty('--embed-color', valid ? normalized : defaultEmbedColor);
+        swatch?.classList.toggle('empty', !valid);
+        if (value) value.textContent = valid ? normalized : input?.value ? 'Invalid' : 'None';
+        if (swatch) swatch.setAttribute('aria-label', valid ? `Embed color ${normalized}` : 'No embed accent color');
+    };
+    const syncDatePicker = (card: HTMLElement) => {
+        const input = card.querySelector<HTMLInputElement>('[data-embed-field="timestamp"]');
+        const display = card.querySelector<HTMLElement>('[data-embed-date-value]');
+        if (display) display.textContent = input?.value ? formatTimestamp(input.value) : 'Not set';
+    };
+    const draftForPicker = (picker: HTMLElement): Date => {
+        const draft = picker.dataset.draftTimestamp ? new Date(picker.dataset.draftTimestamp) : new Date();
+        return Number.isFinite(draft.getTime()) ? draft : new Date();
+    };
+    const monthForPicker = (picker: HTMLElement): Date => {
+        const year = Number(picker.dataset.dateYear);
+        const month = Number(picker.dataset.dateMonth);
+        return Number.isInteger(year) && Number.isInteger(month) ? new Date(year, month, 1) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    };
+    const renderDatePicker = (picker: HTMLElement, draft: Date, month: Date) => {
+        const monthLabel = picker.querySelector<HTMLElement>('[data-date-month]');
+        const days = picker.querySelector<HTMLElement>('[data-date-days]');
+        if (!monthLabel || !days) return;
+        picker.dataset.dateYear = String(month.getFullYear());
+        picker.dataset.dateMonth = String(month.getMonth());
+        monthLabel.textContent = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' }).format(month);
+        const start = new Date(month.getFullYear(), month.getMonth(), 1);
+        start.setDate(1 - start.getDay());
+        const today = new Date();
+        const buttons: string[] = [];
+        for (let index = 0; index < 42; index += 1) {
+            const date = new Date(start);
+            date.setDate(start.getDate() + index);
+            const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+            const outside = date.getMonth() !== month.getMonth();
+            const todayClass = date.toDateString() === today.toDateString();
+            const selected = date.toDateString() === draft.toDateString();
+            buttons.push(`<button type="button" data-date-value="${value}" class="${outside ? 'outside ' : ''}${todayClass ? 'today ' : ''}${selected ? 'selected' : ''}" aria-label="${escapeHtml(new Intl.DateTimeFormat(undefined, { dateStyle: 'full' }).format(date))}" aria-pressed="${selected}">${date.getDate()}</button>`);
+        }
+        days.innerHTML = buttons.join('');
+    };
+    const openDatePicker = (card: HTMLElement) => {
+        const picker = card.querySelector<HTMLElement>('[data-embed-date-picker]');
+        const input = card.querySelector<HTMLInputElement>('[data-embed-field="timestamp"]');
+        if (!picker || !input) return;
+        closeDatePickers();
+        closeColorPopovers();
+        const existing = input.value ? new Date(input.value) : new Date();
+        const draft = Number.isFinite(existing.getTime()) ? existing : new Date();
+        picker.dataset.draftTimestamp = draft.toISOString();
+        const hour = picker.querySelector<HTMLInputElement>('[data-date-hour]');
+        const minute = picker.querySelector<HTMLInputElement>('[data-date-minute]');
+        if (hour) hour.value = String(draft.getHours()).padStart(2, '0');
+        if (minute) minute.value = String(draft.getMinutes()).padStart(2, '0');
+        renderDatePicker(picker, draft, new Date(draft.getFullYear(), draft.getMonth(), 1));
+        picker.querySelector<HTMLElement>('[data-embed-date-popover]')!.hidden = false;
+        picker.classList.add('date-open');
+        picker.querySelector<HTMLButtonElement>('[data-toggle-date-picker]')!.setAttribute('aria-expanded', 'true');
+    };
+    const updateBuilder = () => {
+        const cards = [...list.querySelectorAll<HTMLElement>('[data-embed-card]')];
+        const count = builder.querySelector<HTMLElement>('[data-embed-count]');
+        const addEmbed = builder.querySelector<HTMLButtonElement>('[data-add-embed]');
+        if (count) count.textContent = `${cards.length} / 10 embeds`;
+        if (addEmbed) addEmbed.disabled = cards.length >= 10;
+        for (const [index, card] of cards.entries()) {
+            card.querySelector<HTMLElement>('[data-embed-index]')!.textContent = String(index + 1).padStart(2, '0');
+            card.querySelector<HTMLElement>('[data-embed-label]')!.textContent = `Embed ${index + 1}`;
+            const fieldRows = card.querySelectorAll('[data-embed-field-row]');
+            const fieldCount = card.querySelector<HTMLElement>('[data-field-count]');
+            const addField = card.querySelector<HTMLButtonElement>('[data-add-field]');
+            const empty = card.querySelector<HTMLElement>('[data-fields-empty]');
+            if (fieldCount) fieldCount.textContent = `${fieldRows.length} / 25`;
+            if (addField) addField.disabled = fieldRows.length >= 25;
+            if (empty) empty.hidden = fieldRows.length > 0;
+            [...fieldRows].forEach((row, fieldIndex) => {
+                row.querySelector<HTMLElement>('[data-field-number]')!.textContent = String(fieldIndex + 1).padStart(2, '0');
+            });
+            syncColorPicker(card);
+            syncDatePicker(card);
+        }
+    };
+    const load = (embeds: ModerationEmbed[]) => {
+        list.innerHTML = embeds.length ? embeds.map((_, index) => embedCardMarkup(index)).join('') : embedListEmptyMarkup();
+        const cards = [...list.querySelectorAll<HTMLElement>('[data-embed-card]')];
+        embeds.forEach((embed, index) => {
+            const card = cards[index];
+            if (!card) return;
+            const embedTimestamp = embed.timestamp ? new Date(embed.timestamp) : null;
+            const values: Array<[string, string]> = [
+                ['title', embed.title || ''],
+                ['url', embed.url || ''],
+                ['description', embed.description || ''],
+                ['color', embed.color === undefined ? '' : colorHex(embed.color)],
+                ['timestamp', embedTimestamp && Number.isFinite(embedTimestamp.getTime()) ? embedTimestamp.toISOString() : ''],
+                ['author.name', embed.author?.name || ''],
+                ['author.url', embed.author?.url || ''],
+                ['author.icon_url', embed.author?.icon_url || ''],
+                ['footer.text', embed.footer?.text || ''],
+                ['footer.icon_url', embed.footer?.icon_url || ''],
+                ['thumbnail.url', embed.thumbnail?.url || ''],
+                ['image.url', embed.image?.url || ''],
+            ];
+            for (const [key, value] of values) {
+                const field = card.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[data-embed-field="${key}"]`);
+                if (field) field.value = value;
+            }
+            const fields = card.querySelector<HTMLElement>('[data-embed-fields]');
+            if (fields && embed.fields?.length) {
+                fields.innerHTML = embed.fields.map(() => embedFieldMarkup()).join('');
+                [...fields.querySelectorAll<HTMLElement>('[data-embed-field-row]')].forEach((row, fieldIndex) => {
+                    const field = embed.fields?.[fieldIndex];
+                    if (!field) return;
+                    row.querySelector<HTMLInputElement>('[data-field-key="name"]')!.value = field.name;
+                    row.querySelector<HTMLTextAreaElement>('[data-field-key="value"]')!.value = field.value;
+                    row.querySelector<HTMLInputElement>('[data-field-key="inline"]')!.checked = field.inline;
+                });
+            }
+        });
+        updateBuilder();
+        renderModeratorIcons(builder);
+    };
+    builder.addEventListener('click', (event) => {
+        const target = event.target as HTMLElement;
+        const addEmbed = target.closest<HTMLButtonElement>('[data-add-embed]');
+        if (addEmbed && list.querySelectorAll('[data-embed-card]').length < 10) {
+            list.querySelector<HTMLElement>('[data-embed-list-empty]')?.remove();
+            list.insertAdjacentHTML('beforeend', embedCardMarkup(list.querySelectorAll('[data-embed-card]').length));
+            updateBuilder();
+            renderModeratorIcons(builder);
+            return;
+        }
+        const removeEmbed = target.closest<HTMLButtonElement>('[data-remove-embed]');
+        if (removeEmbed) {
+            removeEmbed.closest<HTMLElement>('[data-embed-card]')?.remove();
+            if (!list.querySelector('[data-embed-card]')) list.innerHTML = embedListEmptyMarkup();
+            updateBuilder();
+            return;
+        }
+        const toggleColor = target.closest<HTMLButtonElement>('[data-toggle-color-picker]');
+        if (toggleColor) {
+            const field = toggleColor.closest<HTMLElement>('.embed-color-field');
+            const popover = field?.querySelector<HTMLElement>('[data-embed-color-popover]');
+            if (!field || !popover) return;
+            const open = popover.hidden;
+            closeColorPopovers();
+            if (open) {
+                popover.hidden = false;
+                field.classList.add('color-open');
+                toggleColor.setAttribute('aria-expanded', 'true');
+                field.querySelector<HTMLInputElement>('[data-embed-field="color"]')?.focus();
+            }
+            return;
+        }
+        const paletteColor = target.closest<HTMLButtonElement>('[data-color-value]');
+        if (paletteColor?.dataset.colorValue) {
+            const card = paletteColor.closest<HTMLElement>('[data-embed-card]');
+            const color = card?.querySelector<HTMLInputElement>('[data-embed-field="color"]');
+            if (color) color.value = paletteColor.dataset.colorValue;
+            if (card) syncColorPicker(card);
+            closeColorPopovers();
+            return;
+        }
+        const clearColor = target.closest<HTMLButtonElement>('[data-clear-embed-color]');
+        if (clearColor) {
+            const card = clearColor.closest<HTMLElement>('[data-embed-card]');
+            const color = card?.querySelector<HTMLInputElement>('[data-embed-field="color"]');
+            if (color) color.value = '';
+            if (card) syncColorPicker(card);
+            closeColorPopovers();
+            return;
+        }
+        const toggleDate = target.closest<HTMLButtonElement>('[data-toggle-date-picker]');
+        if (toggleDate) {
+            const card = toggleDate.closest<HTMLElement>('[data-embed-card]');
+            const picker = card?.querySelector<HTMLElement>('[data-embed-date-picker]');
+            const popover = picker?.querySelector<HTMLElement>('[data-embed-date-popover]');
+            if (card && popover?.hidden) openDatePicker(card);
+            else if (picker) closeDatePickers();
+            return;
+        }
+        const previousMonth = target.closest<HTMLButtonElement>('[data-date-previous]');
+        const nextMonth = target.closest<HTMLButtonElement>('[data-date-next]');
+        if (previousMonth || nextMonth) {
+            const picker = (previousMonth || nextMonth)?.closest<HTMLElement>('[data-embed-date-picker]');
+            if (!picker) return;
+            const month = monthForPicker(picker);
+            month.setMonth(month.getMonth() + (previousMonth ? -1 : 1));
+            renderDatePicker(picker, draftForPicker(picker), month);
+            return;
+        }
+        const day = target.closest<HTMLButtonElement>('[data-date-value]');
+        if (day?.dataset.dateValue) {
+            const picker = day.closest<HTMLElement>('[data-embed-date-picker]');
+            if (!picker) return;
+            const [year, month, date] = day.dataset.dateValue.split('-').map(Number);
+            const draft = draftForPicker(picker);
+            draft.setFullYear(year!, month! - 1, date);
+            picker.dataset.draftTimestamp = draft.toISOString();
+            renderDatePicker(picker, draft, new Date(year!, month! - 1, 1));
+            return;
+        }
+        const clearDate = target.closest<HTMLButtonElement>('[data-clear-date]');
+        if (clearDate) {
+            const card = clearDate.closest<HTMLElement>('[data-embed-card]');
+            const input = card?.querySelector<HTMLInputElement>('[data-embed-field="timestamp"]');
+            if (input) input.value = '';
+            if (card) syncDatePicker(card);
+            closeDatePickers();
+            return;
+        }
+        const applyDate = target.closest<HTMLButtonElement>('[data-apply-date]');
+        if (applyDate) {
+            const picker = applyDate.closest<HTMLElement>('[data-embed-date-picker]');
+            const card = applyDate.closest<HTMLElement>('[data-embed-card]');
+            if (!picker || !card) return;
+            const hour = Number(picker.querySelector<HTMLInputElement>('[data-date-hour]')?.value);
+            const minute = Number(picker.querySelector<HTMLInputElement>('[data-date-minute]')?.value);
+            const invalidHour = !Number.isInteger(hour) || hour < 0 || hour > 23;
+            const invalidMinute = !Number.isInteger(minute) || minute < 0 || minute > 59;
+            picker.querySelector<HTMLInputElement>('[data-date-hour]')?.toggleAttribute('aria-invalid', invalidHour);
+            picker.querySelector<HTMLInputElement>('[data-date-minute]')?.toggleAttribute('aria-invalid', invalidMinute);
+            if (invalidHour || invalidMinute) return;
+            const draft = draftForPicker(picker);
+            draft.setHours(hour, minute, 0, 0);
+            card.querySelector<HTMLInputElement>('[data-embed-field="timestamp"]')!.value = draft.toISOString();
+            syncDatePicker(card);
+            closeDatePickers();
+            return;
+        }
+        const addField = target.closest<HTMLButtonElement>('[data-add-field]');
+        if (addField) {
+            const card = addField.closest<HTMLElement>('[data-embed-card]');
+            const fields = card?.querySelector<HTMLElement>('[data-embed-fields]');
+            if (card && fields && fields.querySelectorAll('[data-embed-field-row]').length < 25) {
+                fields.insertAdjacentHTML('beforeend', embedFieldMarkup());
+                updateBuilder();
+                renderModeratorIcons(builder);
+            }
+            return;
+        }
+        const removeField = target.closest<HTMLButtonElement>('[data-remove-field]');
+        if (removeField) {
+            removeField.closest<HTMLElement>('[data-embed-field-row]')?.remove();
+            updateBuilder();
+        }
+    });
+    builder.addEventListener('input', (event) => {
+        const target = event.target as HTMLInputElement;
+        const card = target.closest<HTMLElement>('[data-embed-card]');
+        if (card && target.matches('[data-embed-field="color"]')) syncColorPicker(card);
+    });
+    document.addEventListener('pointerdown', (event) => {
+        const target = event.target as Node | null;
+        if (!target || !builder.contains(target)) {
+            closeColorPopovers();
+            closeDatePickers();
+            return;
+        }
+        const element = target as HTMLElement;
+        if (!element.closest('[data-embed-color-popover], [data-toggle-color-picker]')) closeColorPopovers();
+        if (!element.closest('[data-embed-date-popover], [data-toggle-date-picker]')) closeDatePickers();
+    });
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            closeColorPopovers();
+            closeDatePickers();
+        }
+    });
+    load([]);
+    return {
+        serialize: () => serializeModerationEmbeds(builder),
+        reset: () => load([]),
+        load,
+    };
+}
+
+async function renderModerationTools(): Promise<void> {
+    const user = await loadUser();
+    if (!user.access.management) {
+        location.replace('/moderation');
+        return;
+    }
+    const channels = user.access.messageTools
+        ? await fetchJson<ManagementChannel[]>('/api/moderation/tools/channels')
+        : [];
+    moderationShell(user, 'tools', 'Management Tools', 'Send and edit bot messages without leaving ATC.', `
+        <div class="tool-layout">
+            <nav class="tool-tabs" aria-label="Management tools">
+                <button class="active" type="button" data-tool-tab="send" aria-selected="true">${moderatorIcon('send')}<span>Send bot message</span></button>
+                <button type="button" data-tool-tab="edit" aria-selected="false">${moderatorIcon('pencil-line')}<span>Edit bot message</span></button>
+            </nav>
+            <div class="tool-panels">
+            ${toolCard('send', 'Send bot message', 'Management / Developer', `
+                ${user.access.messageTools ? `<form class="tool-form" id="message-tool">
+                    <div class="tool-field channel-field">
+                        <label for="send-channel-trigger">Destination channel</label>
+                        <div class="channel-picker" id="send-channel-picker">
+                            <input id="send-channel-id" name="channelId" type="hidden" />
+                            <button class="channel-picker-trigger" id="send-channel-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="send-channel-options" aria-required="true">
+                                <span class="channel-picker-value"><span class="channel-picker-hash" aria-hidden="true">#</span><span id="send-channel-name">Choose a channel</span></span>
+                                ${moderatorIcon('chevron-down')}
+                            </button>
+                            <div class="channel-picker-menu" id="send-channel-menu" hidden>
+                                <div class="channel-picker-search">
+                                    ${moderatorIcon('search')}
+                                    <input id="send-channel-search" type="search" placeholder="Search channels…" autocomplete="off" aria-label="Search channels" />
+                                </div>
+                                <div class="channel-picker-options" id="send-channel-options" role="listbox" aria-label="Server channels"></div>
+                            </div>
+                        </div>
+                        <small>Choose a server channel. Channels are grouped by category.</small>
+                    </div>
+                    <label>Plain content<textarea name="content" maxlength="2000"></textarea></label>
+                    ${embedBuilderMarkup()}
+                    <button class="button" type="submit">Send message</button>
+                </form>` : '<p class="locked-tool">Your role can view this tool, but only management and developers can use it.</p>'}`)}
+            ${toolCard('edit', 'Edit bot message', 'Management / Developer', `
+                ${user.access.messageTools ? `<form class="tool-form" id="message-edit-tool">
+                    <label>Message URL<input name="messageUrl" type="url" placeholder="https://discord.com/channels/..." required /></label>
+                    <button class="button secondary" id="fetch-message" type="button">Fetch message</button>
+                    <fieldset class="message-edit-fields" data-message-edit-fields disabled>
+                        <label>Plain content<textarea name="content" maxlength="2000"></textarea></label>
+                        ${embedBuilderMarkup()}
+                    </fieldset>
+                    <button class="button" type="submit" disabled>Save changes</button>
+                </form>` : '<p class="locked-tool">Management or developer access is required.</p>'}`)}
+            </div>
+        </div>
+    `);
+    const tabs = [...document.querySelectorAll<HTMLButtonElement>('[data-tool-tab]')];
+    const panels = [...document.querySelectorAll<HTMLElement>('[data-tool-panel]')];
+    for (const tab of tabs) {
+        tab.addEventListener('click', () => {
+            const selected = tab.dataset.toolTab;
+            for (const candidate of tabs) {
+                const active = candidate === tab;
+                candidate.classList.toggle('active', active);
+                candidate.setAttribute('aria-selected', String(active));
+            }
+            for (const panel of panels) panel.hidden = panel.dataset.toolPanel !== selected;
+        });
+    }
+    let resetChannelPicker: () => void = () => {};
+    let resetSendEmbedBuilder: () => void = () => {};
+    let resetEditEmbedBuilder: () => void = () => {};
+    let resetMessageFetchState: () => void = () => {};
+    const bindTool = (
+        selector: string,
+        url: string,
+        transform?: (data: Record<string, string>, form: HTMLFormElement) => Record<string, unknown>,
+    ) => {
+        document.querySelector<HTMLFormElement>(selector)?.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const form = event.currentTarget as HTMLFormElement;
+            const button = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+            const values = Object.fromEntries(new FormData(form).entries()) as Record<string, string>;
+            button.disabled = true;
+            try {
+                const payload = transform ? transform(values, form) : values;
+                const result = await fetchJson<{ url?: string; actionId?: string }>(url, { method: 'POST', body: JSON.stringify(payload) });
+                toast(
+                    result.url ? `Done: ${result.url}` : result.actionId ? `Action ${result.actionId} completed.` : 'Operation completed.',
+                    'success',
+                );
+                form.reset();
+                if (form.id === 'message-tool') {
+                    resetChannelPicker();
+                    resetSendEmbedBuilder();
+                }
+                if (form.id === 'message-edit-tool') {
+                    resetEditEmbedBuilder();
+                    form.querySelector<HTMLFieldSetElement>('[data-message-edit-fields]')!.disabled = true;
+                    resetMessageFetchState();
+                    form.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled = true;
+                }
+            } catch (error) {
+                toast(error instanceof Error ? error.message : 'Operation failed.', 'danger');
+            } finally {
+                button.disabled = false;
+            }
+        });
+    };
+
+    const channelPicker = document.querySelector<HTMLElement>('#send-channel-picker');
+    const channelPickerTrigger = document.querySelector<HTMLButtonElement>('#send-channel-trigger');
+    const channelPickerMenu = document.querySelector<HTMLElement>('#send-channel-menu');
+    const channelPickerSearch = document.querySelector<HTMLInputElement>('#send-channel-search');
+    const channelPickerOptions = document.querySelector<HTMLElement>('#send-channel-options');
+    const channelPickerId = document.querySelector<HTMLInputElement>('#send-channel-id');
+    const channelPickerName = document.querySelector<HTMLElement>('#send-channel-name');
+
+    if (
+        channelPicker &&
+        channelPickerTrigger &&
+        channelPickerMenu &&
+        channelPickerSearch &&
+        channelPickerOptions &&
+        channelPickerId &&
+        channelPickerName
+    ) {
+        const closeChannelPicker = () => {
+            channelPickerMenu.hidden = true;
+            channelPickerTrigger.setAttribute('aria-expanded', 'false');
+            channelPicker.classList.remove('open');
+        };
+        const setChannelPickerOpen = (open: boolean) => {
+            channelPickerMenu.hidden = !open;
+            channelPickerTrigger.setAttribute('aria-expanded', String(open));
+            channelPicker.classList.toggle('open', open);
+            if (open) channelPickerSearch.focus();
+        };
+        const renderChannelOptions = () => {
+            const query = channelPickerSearch.value.trim().toLocaleLowerCase();
+            const groups = new Map<string, ManagementChannel[]>();
+            for (const channel of channels) {
+                const category = channel.category || 'Uncategorized';
+                if (query && !`${channel.name} ${category}`.toLocaleLowerCase().includes(query)) continue;
+                const group = groups.get(category) || [];
+                group.push(channel);
+                groups.set(category, group);
+            }
+            channelPickerOptions.innerHTML = groups.size
+                ? [...groups.entries()].map(([category, entries]) => `
+                    <section class="channel-picker-group">
+                        <p class="channel-picker-category">${escapeHtml(category)}</p>
+                        <div class="channel-picker-group-options">
+                            ${entries.map((channel) => `
+                                <button class="channel-picker-option" type="button" role="option" data-channel-id="${escapeHtml(channel.id)}" data-channel-name="${escapeHtml(channel.name)}" aria-selected="${channel.id === channelPickerId.value}">
+                                    <span class="channel-option-hash" aria-hidden="true">#</span>
+                                    <span class="channel-option-name">${escapeHtml(channel.name)}</span>
+                                    <span class="channel-option-check">${moderatorIcon('check')}</span>
+                                </button>`).join('')}
+                        </div>
+                    </section>`).join('')
+                : '<p class="channel-picker-empty">No matching channels.</p>';
+            renderModeratorIcons(channelPickerOptions);
+        };
+        resetChannelPicker = () => {
+            channelPickerId.value = '';
+            channelPickerName.textContent = 'Choose a channel';
+            channelPickerSearch.value = '';
+            channelPickerTrigger.classList.remove('invalid');
+            channelPickerTrigger.setAttribute('aria-invalid', 'false');
+            closeChannelPicker();
+            renderChannelOptions();
+        };
+        renderChannelOptions();
+        channelPickerTrigger.addEventListener('click', () => setChannelPickerOpen(channelPickerMenu.hidden));
+        channelPickerSearch.addEventListener('input', renderChannelOptions);
+        channelPickerOptions.addEventListener('click', (event) => {
+            const option = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-channel-id]');
+            if (!option?.dataset.channelId || !option.dataset.channelName) return;
+            channelPickerId.value = option.dataset.channelId;
+            channelPickerName.textContent = option.dataset.channelName;
+            channelPickerTrigger.classList.remove('invalid');
+            channelPickerTrigger.setAttribute('aria-invalid', 'false');
+            closeChannelPicker();
+            channelPickerTrigger.focus();
+        });
+        document.addEventListener('pointerdown', (event) => {
+            if (!channelPicker.contains(event.target as Node)) closeChannelPicker();
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && !channelPickerMenu.hidden) {
+                closeChannelPicker();
+                channelPickerTrigger.focus();
+            }
+        });
+    }
+
+    const sendEmbedBuilder = setupEmbedBuilder(document.querySelector<HTMLFormElement>('#message-tool'));
+    const editEmbedBuilder = setupEmbedBuilder(document.querySelector<HTMLFormElement>('#message-edit-tool'));
+    resetSendEmbedBuilder = () => sendEmbedBuilder?.reset();
+    resetEditEmbedBuilder = () => editEmbedBuilder?.reset();
+
+    bindTool('#message-tool', '/api/moderation/tools/message', (values) => {
+        if (!values.channelId) {
+            channelPicker?.classList.add('invalid');
+            channelPickerTrigger?.classList.add('invalid');
+            channelPickerTrigger?.setAttribute('aria-invalid', 'true');
+            channelPickerTrigger?.focus();
+            throw new Error('Choose a destination channel before sending.');
+        }
+        return { ...values, embeds: sendEmbedBuilder?.serialize() || [] };
+    });
+    bindTool('#message-edit-tool', '/api/moderation/tools/message-edit', (values) => {
+        const target = parseDiscordMessageUrl(values.messageUrl || '');
+        if (!target) throw new Error('Enter a valid Discord message URL.');
+        return { ...values, ...target, embeds: editEmbedBuilder?.serialize() || [] };
+    });
+
+    const messageEditForm = document.querySelector<HTMLFormElement>('#message-edit-tool');
+    const messageUrl = messageEditForm?.elements.namedItem('messageUrl') as HTMLInputElement | null;
+    const fetchMessageButton = messageEditForm?.querySelector<HTMLButtonElement>('#fetch-message');
+    let loadedMessageUrl = '';
+    const syncMessageFetchState = () => {
+        if (!messageUrl || !fetchMessageButton) return;
+        const hasNewUrl = !loadedMessageUrl || messageUrl.value !== loadedMessageUrl;
+        fetchMessageButton.disabled = !hasNewUrl;
+        fetchMessageButton.textContent = hasNewUrl ? 'Fetch message' : 'Message loaded · change URL';
+    };
+    resetMessageFetchState = () => {
+        loadedMessageUrl = '';
+        if (messageUrl) {
+            messageUrl.readOnly = false;
+            messageUrl.setCustomValidity('');
+        }
+        syncMessageFetchState();
+    };
+    messageUrl?.addEventListener('input', () => {
+        messageUrl.setCustomValidity('');
+        syncMessageFetchState();
+    });
+
+    fetchMessageButton?.addEventListener('click', async (event) => {
+        const button = event.currentTarget as HTMLButtonElement;
+        const form = button.closest<HTMLFormElement>('form')!;
+        if (!form.reportValidity()) return;
+        const input = form.elements.namedItem('messageUrl') as HTMLInputElement;
+        const target = parseDiscordMessageUrl(input.value);
+        input.setCustomValidity(target ? '' : 'Enter a valid Discord message URL.');
+        if (!target || !form.reportValidity()) return;
+        button.disabled = true;
+        button.textContent = 'Fetching…';
+        try {
+            const message = await fetchJson<{ content: string; embeds: ModerationEmbed[] }>(
+                '/api/moderation/tools/message-get',
+                {
+                    method: 'POST',
+                    body: JSON.stringify(target),
+                },
+            );
+            form.querySelector<HTMLFieldSetElement>('[data-message-edit-fields]')!.disabled = false;
+            (form.elements.namedItem('content') as HTMLTextAreaElement).value = message.content;
+            editEmbedBuilder?.load(message.embeds || []);
+            loadedMessageUrl = input.value;
+            input.readOnly = false;
+            syncMessageFetchState();
+            form.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled = false;
+        } catch (error) {
+            button.disabled = false;
+            button.textContent = 'Fetch message';
+            toast(error instanceof Error ? error.message : 'Could not fetch the message.', 'danger');
+        }
+    });
+
+}
+
+async function renderBotSettings(): Promise<void> {
+    const user = await loadUser();
+    if (!user.access.management) {
+        location.replace('/moderation');
+        return;
+    }
+    const data = await fetchJson<{ settings: ManagedBotSetting[] }>('/api/moderation/settings');
+    const weatherSetting = data.settings.find((setting) => setting.key === 'weather.avwx_api_key');
+    if (!weatherSetting) throw new Error('Weather settings are unavailable.');
+
+    const renderSettingStatus = (setting: ManagedBotSetting) => {
+        const status = setting.configured
+            ? `<span class="settings-status configured">Configured${setting.maskedValue ? ` · ${escapeHtml(setting.maskedValue)}` : ''}</span>`
+            : '<span class="settings-status">Not configured</span>';
+        const updated = setting.updatedAt ? `Last updated ${formatDate(setting.updatedAt, true)}` : 'No saved value yet';
+        return { status, updated };
+    };
+    const initialStatus = renderSettingStatus(weatherSetting);
+    moderationShell(user, 'settings', 'Bot Settings', 'Manage runtime integrations and advanced bot configuration.', `
+        <div class="settings-page">
+            <section class="settings-intro">
+                <div class="settings-intro-mark">${moderatorIcon('settings')}</div>
+                <div>
+                    <p class="eyebrow">Management only</p>
+                    <h2>Runtime configuration, kept out of deployment files.</h2>
+                    <p>Credentials saved here are scoped to this Discord server. Secret values are masked after saving and are never sent back to the browser.</p>
+                </div>
+            </section>
+            <form class="settings-form" id="bot-settings-form">
+                <article class="settings-card">
+                    <header class="settings-card-header">
+                        <span class="settings-card-icon">${moderatorIcon('key-round')}</span>
+                        <div>
+                            <p class="eyebrow">${escapeHtml(weatherSetting.category)}</p>
+                            <h2>Weather integrations</h2>
+                            <p>Connect the bot to aviation weather services used by its Discord commands.</p>
+                        </div>
+                    </header>
+                    <div class="settings-row">
+                        <div class="settings-copy">
+                            <strong>${escapeHtml(weatherSetting.label)}</strong>
+                            <p>${escapeHtml(weatherSetting.description)}</p>
+                            <small>${escapeHtml(weatherSetting.help)}</small>
+                        </div>
+                        <div class="settings-control">
+                            <label>Secret value
+                                <input name="${escapeHtml(weatherSetting.key)}" type="password" autocomplete="new-password" placeholder="Paste a new API key" maxlength="512" />
+                            </label>
+                            <div class="settings-control-meta">
+                                <span data-setting-status>${initialStatus.status}</span>
+                                <span data-setting-updated>${initialStatus.updated}</span>
+                            </div>
+                            <label class="settings-clear"><input name="clear-${escapeHtml(weatherSetting.key)}" type="checkbox" /> Remove saved key</label>
+                        </div>
+                    </div>
+                </article>
+                <aside class="settings-note">
+                    <span>${moderatorIcon('triangle-alert')}</span>
+                    <div><strong>Handle credentials carefully</strong><p>Only management members can view this page or change these values. Rotate an exposed key with its provider before saving the replacement here.</p></div>
+                </aside>
+                <footer class="settings-footer">
+                    <span>Changes take effect the next time the related command runs.</span>
+                    <button class="button" type="submit">Save settings</button>
+                </footer>
+            </form>
+        </div>
+    `);
+
+    const form = document.querySelector<HTMLFormElement>('#bot-settings-form');
+    const input = form?.elements.namedItem(weatherSetting.key) as HTMLInputElement | null;
+    const clear = form?.elements.namedItem(`clear-${weatherSetting.key}`) as HTMLInputElement | null;
+    if (!form || !input || !clear) return;
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const button = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+        button.disabled = true;
+        try {
+            const result = await fetchJson<{ settings: ManagedBotSetting[] }>('/api/moderation/settings', {
+                method: 'POST',
+                body: JSON.stringify({
+                    settings: {
+                        [weatherSetting.key]: {
+                            value: input.value,
+                            clear: clear.checked,
+                        },
+                    },
+                }),
+            });
+            const updatedSetting = result.settings.find((setting) => setting.key === weatherSetting.key) || weatherSetting;
+            const status = renderSettingStatus(updatedSetting);
+            form.querySelector<HTMLElement>('[data-setting-status]')!.innerHTML = status.status;
+            form.querySelector<HTMLElement>('[data-setting-updated]')!.textContent = status.updated;
+            if (input) input.value = '';
+            if (clear) clear.checked = false;
+            toast('Bot settings saved.', 'success');
+        } catch (error) {
+            toast(error instanceof Error ? error.message : 'Could not save bot settings.', 'danger');
+        } finally {
+            button.disabled = false;
         }
     });
 }
 
 async function renderRoute(): Promise<void> {
+    const moderatorRoute = location.pathname.startsWith('/moderation');
+    document.body.classList.toggle('moderation-mode', moderatorRoute);
+    document.body.classList.toggle('radar-mode', location.pathname === '/moderation/radar');
     try {
         const informationPages: Record<string, string> = {
             '/privacy-policy': 'Privacy Policy',
@@ -1091,6 +3187,40 @@ async function renderRoute(): Promise<void> {
         }
         if (location.pathname === '/my-history' || location.pathname === '/') {
             await renderHistory();
+            return;
+        }
+        if (location.pathname === '/moderation') {
+            await renderModerationDashboard();
+            return;
+        }
+        if (location.pathname === '/moderation/radar') {
+            await renderUserRadar();
+            return;
+        }
+        if (location.pathname === '/moderation/logs') {
+            await renderModerationLogs();
+            return;
+        }
+        if (location.pathname === '/moderation/actions') {
+            await renderActionsDatabase();
+            return;
+        }
+        const moderatorActionMatch = location.pathname.match(/^\/moderation\/actions\/([^/]+)\/?$/);
+        if (moderatorActionMatch?.[1]) {
+            await renderModeratorAction(decodeURIComponent(moderatorActionMatch[1]));
+            return;
+        }
+        if (location.pathname === '/moderation/tools') {
+            await renderModerationTools();
+            return;
+        }
+        if (location.pathname === '/moderation/settings') {
+            await renderBotSettings();
+            return;
+        }
+        const radarMatch = location.pathname.match(/^\/moderation\/radar\/(\d{17,20})\/?$/);
+        if (radarMatch?.[1]) {
+            await renderRadarProfile(radarMatch[1]);
             return;
         }
         const actionAppealMatch = location.pathname.match(/^\/action\/([^/]+)\/appeal\/([^/]+)\/?$/);

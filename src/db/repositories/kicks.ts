@@ -34,6 +34,7 @@ export async function createKick(input: {
     moderatorSnapshotId: string | null;
     reason: string;
     privateNote?: string | null;
+    recordExpiresAt?: Date | null;
     linked?: LinkedMessage | null;
     isAutomated?: boolean;
     source?: string;
@@ -48,6 +49,7 @@ export async function createKick(input: {
             moderatorSnapshotId: input.moderatorSnapshotId,
             reason: input.reason,
             privateNote: input.privateNote ?? null,
+            recordExpiresAt: input.recordExpiresAt ?? null,
             linkedMessageId: input.linked?.linkedMessageId ?? null,
             linkedChannelId: input.linked?.linkedChannelId ?? null,
             linkedMessageUrl: input.linked?.linkedMessageUrl ?? null,

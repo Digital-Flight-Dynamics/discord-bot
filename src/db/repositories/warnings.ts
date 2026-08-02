@@ -37,6 +37,7 @@ export async function createWarning(input: {
     reason: string;
     privateNote?: string | null;
     expiresAt?: Date | null;
+    recordExpiresAt?: Date | null;
     linked?: LinkedMessage | null;
     legacyMongoId?: string | null;
     pendingActionId?: string;
@@ -50,6 +51,7 @@ export async function createWarning(input: {
             reason: input.reason,
             privateNote: input.privateNote ?? null,
             expiresAt: input.expiresAt ?? null,
+            recordExpiresAt: input.recordExpiresAt ?? null,
             linkedMessageId: input.linked?.linkedMessageId ?? null,
             linkedChannelId: input.linked?.linkedChannelId ?? null,
             linkedMessageUrl: input.linked?.linkedMessageUrl ?? null,
@@ -78,7 +80,7 @@ function activeWarningConditions(now = new Date()): SQL {
     return and(
         isNull(warnings.removedAt),
         isNull(warnings.resolutionStatus),
-        or(isNull(warnings.expiresAt), gt(warnings.expiresAt, now)),
+        or(isNull(warnings.recordExpiresAt), gt(warnings.recordExpiresAt, now)),
     )!;
 }
 

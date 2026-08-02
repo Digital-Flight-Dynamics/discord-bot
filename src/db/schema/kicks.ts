@@ -15,6 +15,7 @@ export const kicks = pgTable('kicks', {
     linkedChannelId: text('linked_channel_id'),
     linkedMessageUrl: text('linked_message_url'),
     linkedMessageDeleted: boolean('linked_message_deleted').notNull().default(false),
+    recordExpiresAt: timestamp('record_expires_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     isAutomated: boolean('is_automated').notNull().default(false),
     source: text('source').notNull().default('bot'),

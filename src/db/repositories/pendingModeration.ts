@@ -16,6 +16,7 @@ export async function createPendingModeration(input: {
     durationMs?: number | null;
     durationToken?: string | null;
     expiresAt?: Date | null;
+    recordExpiresAt?: Date | null;
     deleteMessageSeconds?: number | null;
     banType?: string | null;
     linkedMessageId?: string | null;
@@ -36,6 +37,7 @@ export async function createPendingModeration(input: {
             durationMs: input.durationMs ?? null,
             durationToken: input.durationToken ?? null,
             expiresAt: input.expiresAt ?? null,
+            recordExpiresAt: input.recordExpiresAt ?? null,
             deleteMessageSeconds: input.deleteMessageSeconds ?? null,
             banType: input.banType ?? null,
             linkedMessageId: input.linkedMessageId ?? null,
