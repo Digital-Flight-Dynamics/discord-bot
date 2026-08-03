@@ -1,11 +1,11 @@
+import { CommandCategories, CommandDefinition, createErrorEmbed } from '../definitions';
 import { createEmbed } from '../../lib/embed';
-import { CommandCategories, type CommandDefinition, createErrorEmbed } from '../definitions';
 
 export const whois: CommandDefinition = {
     names: ['whois', 'userinfo'],
     description: 'Displays information about the given user. `Arguments: <id>`',
     category: CommandCategories.MODERATION,
-    permissions: ['ManageNicknames'],
+    requiredRoleGroup: 'moderation',
     execute: async (message, args) => {
         const invalidEmbed = createErrorEmbed('Please provide a valid user/id for someone in this server');
 
@@ -26,13 +26,13 @@ export const whois: CommandDefinition = {
             return;
         }
 
-        const joined = member.joinedAt.toString().split(' ');
+        const joined = (member.joinedAt || new Date(0)).toString().split(' ');
         const registered = member.user.createdAt.toString().split(' ');
 
         const embed = createEmbed({
-            author: { name: member.user.tag, iconURL: member.user.avatarURL() },
+            author: { name: member.user.tag, iconURL: member.user.avatarURL() || undefined },
             description: `<@${id}>`,
-            thumbnail: { url: member.user.avatarURL() },
+            thumbnail: { url: member.user.avatarURL() || '' },
             fields: [
                 {
                     name: 'Registered',

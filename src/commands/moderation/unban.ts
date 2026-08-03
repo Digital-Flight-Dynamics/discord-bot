@@ -1,43 +1,77 @@
-import { createEmbed } from '../../lib/embed';
-import { CommandCategories, type CommandDefinition, createErrorEmbed } from '../definitions';
+import { CommandCategories, CommandDefinition, createErrorEmbed } from '../definitions';
+import { createEmbed, EmbedColors } from '../../lib/embed';
+import { captureIdentitySnapshot } from '../../db/repositories/snapshots';
+import { liftBansForUser, listActiveBansForUser } from '../../db/repositories/bans';
+import { parseUserId } from '../../lib/moderation';
+import { discordAuditReason } from '../../lib/moderationFormat';
 
 export const unban: CommandDefinition = {
     names: ['unban'],
     description: 'Unbans the mentioned user. `Arguments: <id>`',
     category: CommandCategories.MODERATION,
-    permissions: ['BanMembers'],
+    requiredRoleGroup: 'moderation',
     execute: async (message, args) => {
-        const invalidEmbed = createErrorEmbed('This user is not banned, or you provided an invalid id');
-
-        let id = args[0];
+        const id = parseUserId(args[0]);
         if (!id) {
-            await message.channel.send({ embeds: [createErrorEmbed('Please provide a valid user/id')] }).catch(console.error);
+            await message.reply({ embeds: [createErrorEmbed('Please provide a valid user/id')] }).catch(console.error);
             return;
         }
 
-        // in case of a mention
-        if (id.startsWith('<@') && id.endsWith('>')) {
-            id = id.slice(2, -1);
-        }
-
-        // fetch ban to get reason or see if the user is even banned
-        const ban = await message.guild.bans.fetch(id).catch(console.error);
+        const ban = await message.guild.bans.fetch(id).catch(() => null);
         if (!ban) {
-            await message.channel.send({ embeds: [invalidEmbed] }).catch(console.error);
+            await message.reply({ embeds: [createErrorEmbed('This user is not banned, or you provided an invalid id')] }).catch(console.error);
             return;
         }
 
-        const reason = ban.reason || 'None';
+        const activeRecords = await listActiveBansForUser(message.guild.id, id).catch(() => []);
+        const actionId = activeRecords[0]?.actionId || activeRecords[0]?.id || 'Unknown';
+        try {
+            await message.guild.members.unban(
+                id,
+                discordAuditReason(actionId, message.author.username, message.author.id, 'Manual unban'),
+            );
+        } catch (err) {
+            console.error('[ERROR] Manual unban failed:', err);
+            await message
+                .reply({
+                    embeds: [createErrorEmbed('Discord could not unban this user. No database records were changed.')],
+                })
+                .catch(console.error);
+            return;
+        }
 
-        // attempt unban
-        await message.guild.members.unban(id).catch(console.error);
-
-        const embed = createEmbed({
-            title: 'Unbanned User',
-            description: `<@${id}> has been unbanned.`,
-            fields: [{ name: 'Ban Reason', value: reason }],
-        });
-
-        await message.channel.send({ embeds: [embed] }).catch(console.error);
+        try {
+            const moderatorSnap = await captureIdentitySnapshot({ member: message.member, user: message.author });
+            const lifted = await liftBansForUser({
+                guildId: message.guild.id,
+                discordUserId: id,
+                liftedByModeratorSnapshotId: moderatorSnap.id,
+                liftReason: 'manual',
+            });
+            await message.reply({
+                embeds: [
+                    createEmbed({
+                        color: EmbedColors.SUCCESS,
+                        title: 'Unbanned User',
+                        description: `<@${id}> has been unbanned.`,
+                        fields: [
+                            { name: 'Ban Reason', value: ban.reason || 'None' },
+                            { name: 'Records lifted', value: `${lifted.length}` },
+                        ],
+                    }),
+                ],
+            }).catch(console.error);
+        } catch (err) {
+            console.error('[ERROR] Manual unban database update failed:', err);
+            await message.reply({
+                embeds: [
+                    createEmbed({
+                        color: EmbedColors.WARNING,
+                        title: 'Unbanned User',
+                        description: `<@${id}> has been unbanned, but their database records need reconciliation.`,
+                    }),
+                ],
+            }).catch(console.error);
+        }
     },
 };

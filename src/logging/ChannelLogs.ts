@@ -1,10 +1,23 @@
-import { ChannelType, type GuildChannel, type TextChannel } from 'discord.js';
+import { ChannelType, TextChannel } from 'discord.js';
 import { createEmbed } from '../lib/embed';
-import { Colors, getLogChannel, type LogDefinition } from '.';
+import { Colors, LogDefinition, getLogChannel } from '.';
+import { channels } from '../config';
+import { isUnsetSnowflake } from '../config/channelNames';
 
-export const channelCreate: LogDefinition = {
+/** Skip logs for the member-count channel (rename spam every few seconds). */
+function isMemberCountChannel(channel: { id: string; name: string }): boolean {
+    if (!isUnsetSnowflake(channels.memberCounter) && channel.id === channels.memberCounter) {
+        return true;
+    }
+    const n = channel.name.toLowerCase();
+    return n === 'member-count' || n.includes('member count');
+}
+
+export const channelCreate: LogDefinition<'channelCreate'> = {
     event: 'channelCreate',
-    execute: async (channel: GuildChannel) => {
+    execute: async (channel) => {
+        if (isMemberCountChannel(channel)) return;
+
         const logChannel = getLogChannel(channel);
         if (!logChannel) return;
 
@@ -24,9 +37,12 @@ export const channelCreate: LogDefinition = {
     },
 };
 
-export const channelDelete: LogDefinition = {
+export const channelDelete: LogDefinition<'channelDelete'> = {
     event: 'channelDelete',
-    execute: async (channel: GuildChannel) => {
+    execute: async (channel) => {
+        if (channel.isDMBased()) return;
+        if (isMemberCountChannel(channel)) return;
+
         const logChannel = getLogChannel(channel);
         if (!logChannel) return;
 
@@ -44,10 +60,12 @@ export const channelDelete: LogDefinition = {
     },
 };
 
-export const channelUpdate: LogDefinition = {
+export const channelUpdate: LogDefinition<'channelUpdate'> = {
     event: 'channelUpdate',
-    execute: async (oldChannel: GuildChannel, newChannel: GuildChannel) => {
-        if (oldChannel.name.includes('Member Count:')) return; // Ignore membercount channel name change
+    execute: async (oldChannel, newChannel) => {
+        if (oldChannel.isDMBased() || newChannel.isDMBased()) return;
+        // Ignore automated member-counter renames (and any other touch of that channel)
+        if (isMemberCountChannel(oldChannel) || isMemberCountChannel(newChannel)) return;
 
         const logChannel = getLogChannel(oldChannel);
         if (!logChannel) return;

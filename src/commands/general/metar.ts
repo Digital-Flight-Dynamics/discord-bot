@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { CommandCategories, CommandDefinition, createErrorEmbed } from '../definitions';
+import { getAvwxApiKey } from '../../db/repositories/botSettings';
 import { createEmbed } from '../../lib/embed';
-import { CommandCategories, type CommandDefinition, createErrorEmbed } from '../definitions';
 
 export const metar: CommandDefinition = {
     names: ['metar'],
@@ -14,19 +15,27 @@ export const metar: CommandDefinition = {
             return;
         }
 
+        const avwxApiKey = await getAvwxApiKey(message.guild.id);
+        if (!avwxApiKey) {
+            await message.channel
+                .send({ embeds: [createErrorEmbed('The weather API is not configured. Ask management to add it in Bot Settings.')] })
+                .catch(console.error);
+            return;
+        }
+
         const degToDir = (deg: number) => {
             const index = Math.round((deg % 360) / 22.5);
             const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW', 'N'];
             return dirs[index];
         };
 
-        let embed: ReturnType<typeof createEmbed> | undefined;
+        let embed = undefined;
         let shouldReturn = false;
 
         await axios
             .get(`https://avwx.rest/api/metar/${icao}`, {
                 headers: {
-                    Authorization: `BEARER ${process.env.AVWX_KEY}`,
+                    Authorization: `BEARER ${avwxApiKey}`,
                 },
             })
             .then(async (response) => {
@@ -107,9 +116,7 @@ export const metar: CommandDefinition = {
                 shouldReturn = true;
             });
 
-        if (shouldReturn) return;
-
-        if (!embed) return;
+        if (shouldReturn || !embed) return;
 
         await message.channel.send({ embeds: [embed] }).catch(console.error);
     },

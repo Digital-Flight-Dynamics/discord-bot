@@ -1,6 +1,10 @@
 import Discord from 'discord.js';
-import { color } from '../constants';
-import type { UtilDefinition } from '.';
+import { color } from '../index';
+import { UtilDefinition } from '.';
+import { captureIdentitySnapshot } from '../db/repositories/snapshots';
+import { createKick, deleteKickById } from '../db/repositories/kicks';
+import { discordAuditReason } from '../lib/moderationFormat';
+import { hasRoleAccess } from '../lib/moderationAccess';
 
 const BLACKLIST = [
     'csgo',
@@ -20,13 +24,23 @@ const BLACKLIST = [
     'first',
 ];
 
-export const autoKick: UtilDefinition = {
+export const autoKick: UtilDefinition<'messageCreate'> = {
     event: 'messageCreate',
     execute: async (message: Discord.Message) => {
-        if (message.channel.type === Discord.ChannelType.DM) return;
-        if (!(message.content.includes('@everyone') && !message.member.permissions.has(Discord.PermissionFlagsBits.MentionEveryone))) return;
+        if (message.channel.type === Discord.ChannelType.DM || !message.guild || !message.member) return;
+        if (!(message.content.includes('@everyone') && !hasRoleAccess(message.member, 'moderation'))) return;
 
         const member = message.guild.members.cache.get(message.author.id);
+        if (!member) return;
+
+        const linked = message.guildId
+            ? {
+                  linkedMessageId: message.id,
+                  linkedChannelId: message.channelId,
+                  linkedMessageUrl: `https://discord.com/channels/${message.guildId}/${message.channelId}/${message.id}`,
+                  linkedMessageDeleted: true,
+              }
+            : null;
 
         await message.delete().catch(console.error);
 
@@ -46,7 +60,32 @@ export const autoKick: UtilDefinition = {
         }
         if (!shouldKick) return;
 
-        await member.user.send({ embeds: [dmEmbed] }).catch(console.error);
-        await member.kick().catch(console.error);
+        try {
+            const subjectSnap = await captureIdentitySnapshot({ member, user: member.user });
+            const row = await createKick({
+                guildId: message.guild.id,
+                subjectSnapshotId: subjectSnap.id,
+                moderatorSnapshotId: null,
+                reason: 'Kicked as a precaution - potential scam',
+                linked,
+                isAutomated: true,
+            });
+            await member.user.send({ embeds: [dmEmbed] }).catch(console.error);
+            try {
+                await member.kick(
+                    discordAuditReason(
+                        row.actionId || row.id,
+                        message.client.user.username,
+                        message.client.user.id,
+                        'Kicked as a precaution - potential scam',
+                    ),
+                );
+            } catch (err) {
+                await deleteKickById(row.id).catch(console.error);
+                throw err;
+            }
+        } catch (err) {
+            console.error('autoKick failed:', err);
+        }
     },
 };

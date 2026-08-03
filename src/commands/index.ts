@@ -1,38 +1,41 @@
-import { cabin } from './a350x/cabin';
-import { faq } from './a350x/faq';
-import { installer } from './a350x/installer';
-import { liveries } from './a350x/liveries';
-import { marketplace } from './a350x/marketplace';
-import { simbrief } from './a350x/simbrief';
-import { tools } from './a350x/tools';
-import { variants } from './a350x/variants';
 import { when } from './a350x/when';
-import type { CommandDefinition } from './definitions';
-import { whoosh } from './fun/whoosh';
+import { marketplace } from './a350x/marketplace';
+import { faq } from './a350x/faq';
 import { help } from './general/help';
+import { ping } from './general/ping';
 import { metar } from './general/metar';
 import { taf } from './general/taf';
-import { ban } from './moderation/ban';
-import { banscam } from './moderation/banscam';
-import { dm } from './moderation/dm';
+import { whoosh } from './fun/whoosh';
 import { info } from './moderation/info';
-import { kick } from './moderation/kick';
-import { purge } from './moderation/purge';
-import { reactionroles } from './moderation/reactionroles';
-import { removewarning } from './moderation/removewarning';
 import { rules } from './moderation/rules';
-import { timeout } from './moderation/timeout';
+import { reactionroles } from './moderation/reactionroles';
+import { purge } from './moderation/purge';
 import { unban } from './moderation/unban';
-import { warn } from './moderation/warn';
-import { warnings } from './moderation/warnings';
+import { dm } from './moderation/dm';
 import { whois } from './moderation/whois';
+import { warnings } from './moderation/warnings';
+import { removewarning } from './moderation/removewarning';
+import { background } from './moderation/background';
 import { msfs } from './support/msfs';
+import { cabin } from './a350x/cabin';
+import { variants } from './a350x/variants';
+import { simbrief } from './a350x/simbrief';
+import { liveries } from './a350x/liveries';
+import { tools } from './a350x/tools';
+import { installer } from './a350x/installer';
+import { devchannels } from './dev/devchannels';
+
+import type { CommandDefinition } from './definitions';
+
+export { CommandCategories, createErrorEmbed } from './definitions';
+export type { CommandDefinition } from './definitions';
 
 export const commands: CommandDefinition[] = [
     when,
     marketplace,
     faq,
     help,
+    ping,
     metar,
     taf,
     whoosh,
@@ -40,21 +43,18 @@ export const commands: CommandDefinition[] = [
     rules,
     reactionroles,
     purge,
-    ban,
-    banscam,
     unban,
-    kick,
     dm,
     whois,
-    warn,
     warnings,
     removewarning,
+    background,
     msfs,
     cabin,
     variants,
     simbrief,
     liveries,
-    timeout,
     tools,
     installer,
+    devchannels,
 ];

@@ -1,23 +1,49 @@
-import type { ClientEvents, TextChannel } from 'discord.js';
-import { guildBanAdd, guildBanRemove } from './BanLogs';
+import { ClientEvents, Guild, TextChannel } from 'discord.js';
 import { channelCreate, channelDelete, channelUpdate } from './ChannelLogs';
 import { emojiCreate, emojiDelete, emojiUpdate } from './EmojiLogs';
 import { messageDelete, messageDeleteBulk, messageUpdate } from './MessageLogs';
+import { guildBanAdd, guildBanRemove } from './BanLogs';
 import { roleCreate, roleDelete, roleUpdate } from './RoleLogs';
 
+import { EmbedColors } from '../lib/embed';
+import { channels } from '../config';
+
+/** Log embed colors aligned with the global palette. */
 export enum Colors {
-    RED = 0xdd4400,
-    ORANGE = 0xff8800,
-    GREEN = 0x00bb00,
+    RED = EmbedColors.FAILURE,
+    ORANGE = EmbedColors.WARNING,
+    GREEN = EmbedColors.SUCCESS,
+    BLUE = EmbedColors.DFD_BLUE,
+    DARK = EmbedColors.PENDING,
 }
 
-export interface LogDefinition {
-    event: keyof ClientEvents;
-    execute: (...args: any[]) => void;
-}
+type EventHandler<Event extends keyof ClientEvents> = (...args: ClientEvents[Event]) => void | Promise<void>;
 
-export const getLogChannel = (guildProperty: any) => {
-    return guildProperty.guild.channels.cache.find((c) => c.name === 'logs') as TextChannel;
+export type LogDefinition<Event extends keyof ClientEvents = keyof ClientEvents> = {
+    event: Event;
+    execute: EventHandler<Event>;
+};
+
+/** Audit log channel (messages, roles, channels, Discord ban events). */
+export const getLogChannel = (guildProperty: { guild: Guild | null }) => {
+    const guild = guildProperty.guild;
+    if (!guild) return undefined;
+    return (
+        (guild.channels.cache.get(channels.logs) as TextChannel | undefined) ||
+        (guild.channels.cache.find(
+            (c: { name: string }) => c.name === 'audit-logs' || c.name === 'logs',
+        ) as TextChannel | undefined)
+    );
+};
+
+/** Punishment / case log channel (warns, kicks, bans, timeouts). */
+export const getModLogChannel = (guildProperty: { guild: Guild | null }) => {
+    const guild = guildProperty.guild;
+    if (!guild) return undefined;
+    return (
+        (guild.channels.cache.get(channels.modLogs) as TextChannel | undefined) ||
+        (guild.channels.cache.find((c: { name: string }) => c.name === 'mod-logs') as TextChannel | undefined)
+    );
 };
 
 export const snakeToNorm = (str: string) => {
@@ -28,7 +54,7 @@ export const snakeToNorm = (str: string) => {
         .join(' ');
 };
 
-export default [
+const logDefinitions = [
     channelCreate,
     channelDelete,
     channelUpdate,
@@ -44,3 +70,5 @@ export default [
     roleDelete,
     roleUpdate,
 ];
+
+export default logDefinitions;

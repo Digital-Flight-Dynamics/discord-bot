@@ -1,8 +1,8 @@
-import type { Role } from 'discord.js';
 import { createEmbed } from '../lib/embed';
-import { Colors, getLogChannel, type LogDefinition, snakeToNorm } from '.';
+import { Colors, LogDefinition, getLogChannel, snakeToNorm } from '.';
+import { Role } from 'discord.js';
 
-export const roleCreate: LogDefinition = {
+export const roleCreate: LogDefinition<'roleCreate'> = {
     event: 'roleCreate',
     execute: async (role: Role) => {
         const logChannel = getLogChannel(role);
@@ -24,7 +24,7 @@ export const roleCreate: LogDefinition = {
     },
 };
 
-export const roleDelete: LogDefinition = {
+export const roleDelete: LogDefinition<'roleDelete'> = {
     event: 'roleDelete',
     execute: async (role: Role) => {
         const logChannel = getLogChannel(role);
@@ -44,7 +44,7 @@ export const roleDelete: LogDefinition = {
     },
 };
 
-export const roleUpdate: LogDefinition = {
+export const roleUpdate: LogDefinition<'roleUpdate'> = {
     event: 'roleUpdate',
     execute: async (oldRole: Role, newRole: Role) => {
         const logChannel = getLogChannel(oldRole);
@@ -91,8 +91,8 @@ export const roleUpdate: LogDefinition = {
 
             await logChannel.send({ embeds: [embed] }).catch(console.error);
         }
-        oldRole.permissions.toArray().forEach(async (perm) => {
-            if (newRole.permissions.has(perm)) return;
+        for (const perm of oldRole.permissions.toArray()) {
+            if (newRole.permissions.has(perm)) continue;
 
             const embed = createEmbed(
                 {
@@ -105,9 +105,9 @@ export const roleUpdate: LogDefinition = {
             );
 
             await logChannel.send({ embeds: [embed] }).catch(console.error);
-        });
-        newRole.permissions.toArray().forEach(async (perm) => {
-            if (oldRole.permissions.has(perm)) return;
+        }
+        for (const perm of newRole.permissions.toArray()) {
+            if (oldRole.permissions.has(perm)) continue;
 
             const embed = createEmbed(
                 {
@@ -120,6 +120,6 @@ export const roleUpdate: LogDefinition = {
             );
 
             await logChannel.send({ embeds: [embed] }).catch(console.error);
-        });
+        }
     },
 };

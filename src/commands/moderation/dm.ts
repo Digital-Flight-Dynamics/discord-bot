@@ -1,11 +1,11 @@
+import { CommandCategories, CommandDefinition, createErrorEmbed } from '../definitions';
 import { createEmbed } from '../../lib/embed';
-import { CommandCategories, type CommandDefinition, createErrorEmbed } from '../definitions';
 
 export const dm: CommandDefinition = {
     names: ['dm'],
     description: 'Sends a DM to the mentioned user. `Arguments: <id> <message>`',
     category: CommandCategories.MODERATION,
-    permissions: ['ManageMessages'],
+    requiredRoleGroup: 'moderation',
     execute: async (message, args) => {
         const invalidEmbed = createErrorEmbed('Please provide a valid user/id');
 

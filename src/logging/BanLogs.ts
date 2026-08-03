@@ -1,8 +1,8 @@
-import type { GuildBan } from 'discord.js';
+import { GuildBan } from 'discord.js';
 import { createEmbed } from '../lib/embed';
-import { Colors, getLogChannel, type LogDefinition } from '.';
+import { Colors, LogDefinition, getLogChannel } from '.';
 
-export const guildBanAdd: LogDefinition = {
+export const guildBanAdd: LogDefinition<'guildBanAdd'> = {
     event: 'guildBanAdd',
     execute: async (ban: GuildBan) => {
         const logChannel = getLogChannel(ban);
@@ -14,7 +14,7 @@ export const guildBanAdd: LogDefinition = {
                 title: 'User Banned',
                 description: `**Reason:** ${ban.reason}`,
                 footer: { text: `User ID: ${ban.user.id}` },
-                author: { name: ban.user.tag, iconURL: ban.user.avatarURL() },
+                author: { name: ban.user.tag, iconURL: ban.user.avatarURL() || undefined },
             },
             true,
         );
@@ -23,7 +23,7 @@ export const guildBanAdd: LogDefinition = {
     },
 };
 
-export const guildBanRemove: LogDefinition = {
+export const guildBanRemove: LogDefinition<'guildBanRemove'> = {
     event: 'guildBanRemove',
     execute: async (ban: GuildBan) => {
         const logChannel = getLogChannel(ban);
@@ -35,7 +35,7 @@ export const guildBanRemove: LogDefinition = {
                 title: 'User Unbanned',
                 description: `**Reason:** ${ban.reason}`,
                 footer: { text: `User ID: ${ban.user.id}` },
-                author: { name: ban.user.tag, iconURL: ban.user.avatarURL() },
+                author: { name: ban.user.tag, iconURL: ban.user.avatarURL() || undefined },
             },
             true,
         );

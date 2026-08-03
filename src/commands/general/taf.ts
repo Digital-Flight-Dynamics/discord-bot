@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { CommandCategories, CommandDefinition, createErrorEmbed } from '../definitions';
+import { getAvwxApiKey } from '../../db/repositories/botSettings';
 import { createEmbed } from '../../lib/embed';
-import { CommandCategories, type CommandDefinition, createErrorEmbed } from '../definitions';
 
 export const taf: CommandDefinition = {
     names: ['taf'],
@@ -14,13 +15,21 @@ export const taf: CommandDefinition = {
             return;
         }
 
-        let embed: ReturnType<typeof createEmbed> | undefined;
+        const avwxApiKey = await getAvwxApiKey(message.guild.id);
+        if (!avwxApiKey) {
+            await message.channel
+                .send({ embeds: [createErrorEmbed('The weather API is not configured. Ask management to add it in Bot Settings.')] })
+                .catch(console.error);
+            return;
+        }
+
+        let embed = undefined;
         let shouldReturn = false;
 
         await axios
             .get(`https://avwx.rest/api/taf/${icao}`, {
                 headers: {
-                    Authorization: `BEARER ${process.env.AVWX_KEY}`,
+                    Authorization: `BEARER ${avwxApiKey}`,
                 },
             })
             .then(async (response) => {
@@ -56,9 +65,7 @@ export const taf: CommandDefinition = {
                 shouldReturn = true;
             });
 
-        if (shouldReturn) return;
-
-        if (!embed) return;
+        if (shouldReturn || !embed) return;
 
         await message.channel.send({ embeds: [embed] }).catch(console.error);
     },

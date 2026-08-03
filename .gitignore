@@ -1,4 +1,8 @@
 node_modules
+.codegraph/
 .env
 out
 .eslintcache
+
+# Local workspace constants (copy from dev.example.ts)
+src/config/dev.ts

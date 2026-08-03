@@ -1,10 +1,10 @@
 import Discord from 'discord.js';
-import type { UtilDefinition } from '.';
+import { UtilDefinition } from '.';
 
-export const cryptoScamDelete: UtilDefinition = {
+export const cryptoScamDelete: UtilDefinition<'messageCreate'> = {
     event: 'messageCreate',
     execute: async (message: Discord.Message) => {
-        if (message.channel.type === Discord.ChannelType.DM) return;
+        if (message.channel.type === Discord.ChannelType.DM || !message.guild) return;
         const content = message.content.toLowerCase();
 
         // basic filter
@@ -20,7 +20,8 @@ export const cryptoScamDelete: UtilDefinition = {
             content.includes('direct message')
         ) {
             // 1 hour timeout & delete message
-            message.guild.members.cache.get(message.author.id).timeout(3600000).catch(console.error);
+            const member = message.guild.members.cache.get(message.author.id);
+            if (member) await member.timeout(3600000).catch(console.error);
             await message.delete().catch(console.error);
         }
     },

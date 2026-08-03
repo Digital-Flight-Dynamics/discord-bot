@@ -1,17 +1,24 @@
-import type { GuildMember } from 'discord.js';
+import { TextChannel } from 'discord.js';
+import { channels, roles } from '../config';
+import type { UtilDefinition } from '.';
 
-export const joinMessages = {
+export const joinMessages: UtilDefinition<'guildMemberAdd'> = {
     event: 'guildMemberAdd',
-    execute: async (member: GuildMember) => {
-        const memberRole = member.guild.roles.cache.find((r) => r.name === 'Member');
-        const arrivals = member.guild.channels.cache.find((c) => c.name === 'arrivals');
+    execute: async (member) => {
+        const memberRole =
+            (roles.member && (await member.guild.roles.fetch(roles.member).catch(() => null))) ||
+            member.guild.roles.cache.find((r) => r.name === 'Member');
+
+        const arrivals =
+            (member.guild.channels.cache.get(channels.memberArrivals) as TextChannel | undefined) ||
+            (member.guild.channels.cache.find((c) => c.name === 'arrivals') as TextChannel | undefined);
 
         if (!arrivals) {
-            console.error('Error: Failed to find channel #arrivals');
+            console.error('Error: Failed to find arrivals channel');
             return;
         }
         if (!memberRole) {
-            console.error('Error: Failed to find role "Member"');
+            console.error('Error: Failed to find Member role');
             return;
         }
 
@@ -21,13 +28,15 @@ export const joinMessages = {
         await member.roles.add(memberRole);
     },
 };
-export const leaveMessages = {
+export const leaveMessages: UtilDefinition<'guildMemberRemove'> = {
     event: 'guildMemberRemove',
-    execute: async (member: GuildMember) => {
-        const leaves = member.guild.channels.cache.find((c) => c.name === 'leaves');
+    execute: async (member) => {
+        const leaves =
+            (member.guild.channels.cache.get(channels.memberDepartures) as TextChannel | undefined) ||
+            (member.guild.channels.cache.find((c) => c.name === 'leaves') as TextChannel | undefined);
 
         if (!leaves) {
-            console.error('Error: Failed to find channel #leaves');
+            console.error('Error: Failed to find leaves channel');
             return;
         }
 

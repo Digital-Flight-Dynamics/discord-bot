@@ -1,14 +1,14 @@
-import type Discord from 'discord.js';
+import Discord from 'discord.js';
+import { CommandCategories, CommandDefinition, createErrorEmbed } from '../definitions';
 import { createEmbed } from '../../lib/embed';
-import { CommandCategories, type CommandDefinition, createErrorEmbed } from '../definitions';
 
 export const purge: CommandDefinition = {
     names: ['purge', 'clear'],
     description: 'Clears the desired amount of messages. `Arguments: <amount>`',
     category: CommandCategories.MODERATION,
-    permissions: ['ManageMessages'],
+    requiredRoleGroup: 'moderation',
     execute: async (message, args) => {
-        const amount = parseInt(args[0], 10);
+        const amount = parseInt(args[0]);
 
         if (!amount || Number.isNaN(amount)) {
             await message.channel

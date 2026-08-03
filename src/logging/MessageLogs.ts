@@ -1,12 +1,12 @@
-import type { Collection, GuildChannel, Message, Snowflake } from 'discord.js';
 import { createEmbed } from '../lib/embed';
-import { Colors, getLogChannel, type LogDefinition } from '.';
+import { Colors, LogDefinition, getLogChannel } from '.';
+import { channels } from '../config';
 
-const CHANNEL_BLACKLIST = ['908006127118204939'];
+const CHANNEL_BLACKLIST = [channels.management];
 
-export const messageDelete: LogDefinition = {
+export const messageDelete: LogDefinition<'messageDelete'> = {
     event: 'messageDelete',
-    execute: async (message: Message) => {
+    execute: async (message) => {
         if (!message.author || message.channel.isDMBased()) return;
 
         if (CHANNEL_BLACKLIST.includes(message.channel.id)) return;
@@ -20,7 +20,7 @@ export const messageDelete: LogDefinition = {
                 title: `Message deleted in #${message.channel.name}`,
                 description: `**Content:** ${message.content}`,
                 footer: { text: `User ID: ${message.author.id}` },
-                author: { name: message.author.tag, iconURL: message.author.avatarURL() },
+                author: { name: message.author.tag, iconURL: message.author.avatarURL() || undefined },
             },
             true,
         );
@@ -29,14 +29,15 @@ export const messageDelete: LogDefinition = {
     },
 };
 
-export const messageDeleteBulk: LogDefinition = {
+export const messageDeleteBulk: LogDefinition<'messageDeleteBulk'> = {
     event: 'messageDeleteBulk',
-    execute: async (messages: Collection<Snowflake, Message>) => {
-        const channel = messages.at(0).channel as GuildChannel;
+    execute: async (messages, channel) => {
+        const first = messages.at(0);
+        if (!first) return;
         const logChannel = getLogChannel(channel);
         if (!logChannel) return;
 
-        const desc = [];
+        const desc: string[] = [];
 
         messages.forEach((message) => {
             desc.push(`[${message.author ? message.author.tag : 'unknown_user'}]: ${message.content}`);
@@ -56,16 +57,17 @@ export const messageDeleteBulk: LogDefinition = {
     },
 };
 
-export const messageUpdate: LogDefinition = {
+export const messageUpdate: LogDefinition<'messageUpdate'> = {
     event: 'messageUpdate',
-    execute: async (oldMsg: Message, newMsg: Message) => {
+    execute: async (oldMsg, newMsg) => {
         if (!oldMsg.author || oldMsg.author.bot || oldMsg.channel.isDMBased()) return;
         if (CHANNEL_BLACKLIST.includes(oldMsg.channel.id)) return;
 
         const logChannel = getLogChannel(oldMsg);
         if (!logChannel) return;
 
-        if (oldMsg.content === newMsg.content) return; // We do not want to log down messages just cuz the embed updated (we don't log the embed so it doesn't matter)
+        // Embed-only updates do not need a text-content audit entry.
+        if (oldMsg.content === newMsg.content) return;
 
         const embed = createEmbed(
             {
@@ -73,7 +75,7 @@ export const messageUpdate: LogDefinition = {
                 title: `Message edited in #${oldMsg.channel.name}`,
                 description: `**Before:** ${oldMsg.content}\n**+After:** ${newMsg.content}`,
                 footer: { text: `User ID: ${oldMsg.author.id}` },
-                author: { name: oldMsg.author.tag, iconURL: oldMsg.author.avatarURL() },
+                author: { name: oldMsg.author.tag, iconURL: oldMsg.author.avatarURL() || undefined },
             },
             true,
         );

@@ -1,7 +1,16 @@
-import type { APIEmbedField } from 'discord.js';
-import { createEmbed } from '../../lib/embed';
-import { commands } from '..';
+import { APIEmbedField, Message } from 'discord.js';
 import { CommandCategories, type CommandDefinition } from '../definitions';
+import { commands } from '../index';
+import { createEmbed } from '../../lib/embed';
+import { hasRoleAccess } from '../../lib/moderationAccess';
+
+function canSeeCommand(message: Message<true>, command: CommandDefinition): boolean {
+    if (command.silentGuard?.(message)) return false;
+    if (command.allowOwnerDuringBootstrap && message.author.id === message.guild.ownerId) return true;
+    if (command.requiredRoleGroup) return hasRoleAccess(message.member || null, command.requiredRoleGroup);
+    if (!command.permissions) return true;
+    return Boolean(message.member?.permissions.has(command.permissions));
+}
 
 export const help: CommandDefinition = {
     names: ['help'],
@@ -11,15 +20,23 @@ export const help: CommandDefinition = {
         let category = args.join(' ');
 
         if (!category) {
+            const categoryFields = [
+                { name: 'A350X', value: 'Commands related to the A350X project' },
+                { name: 'General', value: 'Generic commands that can be used by anyone' },
+                { name: 'Fun', value: 'Commands that exist just for fun' },
+                { name: 'Moderation', value: 'Commands used by staff' },
+                { name: 'Support', value: 'Commands used for support purposes' },
+            ].filter((field) =>
+                commands.some(
+                    (command) =>
+                        command.category.toUpperCase() === field.name.toUpperCase() &&
+                        canSeeCommand(message, command),
+                ),
+            );
+
             const rootEmbed = createEmbed({
                 title: 'Command Categories',
-                fields: [
-                    { name: 'A350X', value: 'Commands related to the A350X project' },
-                    { name: 'General', value: 'Generic commands that can be used by anyone' },
-                    { name: 'Fun', value: 'Commands that exist just for fun' },
-                    { name: 'Moderation', value: 'Commands used by staff' },
-                    { name: 'Support', value: 'Commands used for support purposes' },
-                ],
+                fields: categoryFields,
             });
             await message.channel.send({ embeds: [rootEmbed] }).catch(console.error);
 
@@ -28,11 +45,11 @@ export const help: CommandDefinition = {
 
         category = category.toUpperCase();
 
-        let embedTitle: string;
+        let embedTitle = category;
 
         const cmds: CommandDefinition[] = [];
         for (const command of commands) {
-            if (command.category.toUpperCase() === category) {
+            if (command.category.toUpperCase() === category && canSeeCommand(message, command)) {
                 cmds.push(command);
                 embedTitle = `${command.category}`;
             }
@@ -42,10 +59,10 @@ export const help: CommandDefinition = {
 
         const fields: APIEmbedField[] = [];
         for (const cmd of cmds) {
-            if (!cmd.permissions) fields.push({ name: `.${cmd.names.join(' | .')}`, value: `${cmd.description}` });
+            if (!cmd.permissions && !cmd.requiredRoleGroup) fields.push({ name: `.${cmd.names.join(' | .')}`, value: `${cmd.description}` });
             else
                 fields.push({
-                    name: `.${cmd.names.join(' | .')}\n\`Required Permissions: ${cmd.permissions.join(', ')}\``,
+                    name: `.${cmd.names.join(' | .')}\n\`Required role: ${cmd.requiredRoleGroup || cmd.permissions?.join(', ')}\``,
                     value: `${cmd.description}`,
                 });
         }

@@ -1,5 +1,11 @@
+.git
+.codegraph
 node_modules
-.env
 out
+.env*
+!.env.example
+src/config/dev.ts
+*.log
 .eslintcache
-package-lock.json
+code_review_report.md
+webui

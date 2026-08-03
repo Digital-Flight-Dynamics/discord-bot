@@ -1,14 +1,25 @@
 {
-    "compilerOptions": {
-        "allowSyntheticDefaultImports": true,
-        "lib": ["ES2020"],
-        "target": "es5",
-        "outDir": "out",
-        "moduleResolution": "node",
-        "esModuleInterop": true,
-        "experimentalDecorators": false,
-        "resolveJsonModule": true,
-        "skipLibCheck": true
-    },
-    "exclude": ["node_modules", "out"]
+  "compilerOptions": {
+    "allowSyntheticDefaultImports": true,
+    "lib": [
+      "ES2020"
+    ],
+    "target": "ES2019",
+    "module": "commonjs",
+    "outDir": "out",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "experimentalDecorators": false,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true
+  },
+  "include": [
+    "src/**/*.ts",
+    "scripts/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "out"
+  ]
 }

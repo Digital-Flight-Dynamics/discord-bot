@@ -1,22 +1,32 @@
-import type { Client, GuildMember } from 'discord.js';
-import type { UtilDefinition } from './index';
+import { Client, GuildMember } from 'discord.js';
+import { UtilDefinition } from './index';
+import { config, roles } from '../config';
 
-const DEFAULT_ROLE_ID = '808792283515191326';
-
-export const autoroleOnBoot: UtilDefinition = {
-    event: 'ready',
+export const autoroleOnBoot: UtilDefinition<'clientReady'> = {
+    event: 'clientReady',
     execute: async (client: Client) => {
-        const guild = client.guilds.cache.first();
-        if (!guild) return;
+        try {
+            const guild =
+                client.guilds.cache.get(config.guildId || '') ||
+                (config.guildId ? await client.guilds.fetch(config.guildId).catch(() => null) : null);
+            if (!guild) return;
 
-        const members = await guild.members.fetch();
-        const role = await guild.roles.fetch(DEFAULT_ROLE_ID);
-        if (!role) return;
-
-        members.forEach(async (member: GuildMember) => {
-            if (member.roles.cache.size === 1 && !member.user.bot) {
-                await member.roles.add(role).catch(console.error);
+            if (!roles.member) {
+                console.error('Error: config.roles.member is not set');
+                return;
             }
-        });
+
+            const members = await guild.members.fetch();
+            const role = await guild.roles.fetch(roles.member);
+            if (!role) return;
+
+            for (const member of members.values() as Iterable<GuildMember>) {
+                if (member.roles.cache.size === 1 && !member.user.bot) {
+                    await member.roles.add(role).catch(console.error);
+                }
+            }
+        } catch (error) {
+            console.error('[ERROR] Autorole startup failed:', error);
+        }
     },
 };

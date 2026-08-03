@@ -1,11 +1,11 @@
+import { CommandCategories, CommandDefinition } from '../definitions';
 import { createEmbed } from '../../lib/embed';
-import { CommandCategories, type CommandDefinition } from '../definitions';
 
 export const variants: CommandDefinition = {
     names: ['variants'],
     description: 'Provides info on what variants will be developed',
     category: CommandCategories.A350X,
-    execute: async (message, args) => {
+    execute: async (message) => {
         const embed = createEmbed({
             title: 'What variants will be developed?',
             description:

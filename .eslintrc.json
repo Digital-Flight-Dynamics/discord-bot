@@ -1,0 +1,18 @@
+{
+    "root": true,
+    "parser": "@typescript-eslint/parser",
+    "plugins": ["@typescript-eslint"],
+    "extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended"],
+    "rules": {
+        "import/no-unresolved": "off",
+        "no-undef": "off",
+        "no-nested-ternary": "error",
+        "linebreak-style": "off",
+        "global-require": "off",
+        "import/no-dynamic-require": "off",
+        "no-console": "off",
+        "operator-linebreak": "off",
+        "object-shorthand": "warn",
+        "max-len": ["warn", { "code": 152 }]
+    }
+}
