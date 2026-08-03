@@ -34,7 +34,6 @@ bun run dev          # also ensures Postgres schema from drizzle/*.sql on boot
 | `CONSTANTS_FILE` | no | Workspace constants module name (see below). Dev script defaults to `dev`. |
 | `HEALTH_PORT` | no | Health HTTP port (default `3000`) |
 | `INTERNAL_API_HOST` | no | Bind address for health/events (default `0.0.0.0`; keep the port private) |
-| `AVWX_KEY` | no | One-time migration source for METAR/TAF; remove it after the bot imports it into ATC → Bot Settings |
 | `NODE_ENV` | no | Must not be `production` for destructive dev setup commands |
 
 Persistence is **PostgreSQL only** (Drizzle). On boot the bot runs SQL schema ensure from `drizzle/*.sql` (idempotent DDL). You can also run `bun run db:migrate` manually.
