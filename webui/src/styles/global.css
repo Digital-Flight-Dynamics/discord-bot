@@ -953,6 +953,14 @@ h3 {
 .custom-select-menu button[aria-selected="true"] svg {
     opacity: 1;
 }
+.appeals-status-filter .custom-select-trigger { justify-content: flex-start; text-align: left; }
+.appeals-status-filter .custom-select-trigger > .appeal-status-option-icon { width: 15px; height: 15px; flex: 0 0 15px; margin-right: 8px; }
+.appeals-status-filter .custom-select-trigger > svg:not(.appeal-status-option-icon) { margin-left: auto; }
+.appeals-status-filter .custom-select-menu button { justify-content: flex-start; text-align: left; }
+.appeals-status-filter .custom-select-menu button > span { flex: 1; text-align: left; }
+.appeals-status-filter .custom-select-menu button > .appeal-status-option-icon,
+.appeals-status-filter .custom-select-menu button > .appeal-status-option-icon[aria-hidden="true"] { width: 15px; height: 15px; flex: 0 0 15px; margin-right: 8px; opacity: 1 !important; }
+.appeals-status-filter .custom-select-menu button > svg:not(.appeal-status-option-icon) { margin-left: auto; }
 
 .field textarea:focus,
 .field input:focus {
@@ -2050,6 +2058,7 @@ body.radar-mode .moderation-topbar {
 }
 .radar-search-card p { color: var(--muted); font-size: 12px; }
 .mod-search-form { display: flex; gap: 10px; }
+.mod-search-form .appeals-status-filter { width: 190px; flex: 0 0 190px; }
 .mod-search-form input, .tool-form input, .tool-form textarea, .tool-form select {
     width: 100%;
     border: 1px solid var(--line-bright);
@@ -3310,6 +3319,7 @@ body.radar-mode .moderation-topbar {
     .embed-inline-toggle { grid-column: 2; }
     .embed-remove-field { grid-column: 3; grid-row: 1; }
     .mod-search-form { display: grid; }
+    .mod-search-form .appeals-status-filter { width: 100%; }
     .radar-contact { transform: translateY(-10px) scale(.34); }
     .radar-contact:nth-child(1) { left: 2%; }
     .radar-contact:nth-child(2) { left: 34%; }

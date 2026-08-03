@@ -535,7 +535,7 @@ export async function searchModerationAppeals(query = '', status = '', page = 1,
     const normalizedStatus = ['submitted', 'review', 'approved', 'denied'].includes(status) ? status : '';
     const offset = (page - 1) * limit;
     const where = `a.guild_id = $1 AND a.action_id IS NOT NULL
-        AND ($2 = '' OR ap.id ILIKE $3 OR a.action_id ILIKE $3 OR a.username ILIKE $3 OR a.display_name ILIKE $3 OR a.discord_user_id = $2)
+        AND ($2 = '' OR ap.id::text ILIKE $3 OR a.action_id ILIKE $3 OR a.username ILIKE $3 OR a.display_name ILIKE $3 OR a.discord_user_id = $2)
         AND ($4 = '' OR ap.status = $4)`;
     const select = `${actionsCte}
         SELECT ap.id, ap.status, ap.submitted_at, ap.review_started_at, ap.decided_at,
