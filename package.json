@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "build": "tsc",
-    "dev": "CONSTANTS_FILE=dev bun --watch src/index.ts",
+    "dev": "bun scripts/dev-all.ts",
     "start": "bun out/src/index.js",
     "lint": "eslint --cache **/*.ts",
     "test": "bun test",

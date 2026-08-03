@@ -182,7 +182,7 @@ Deletes **every** channel in the guild **except** the channel where you ran the 
 
 | Script | Purpose |
 |--------|---------|
-| `bun run dev` | Bun watch mode, `CONSTANTS_FILE=dev` |
+| `bun run dev` | Bun watch mode for both the bot and Web UI, `CONSTANTS_FILE=dev` |
 | `bun run build` | `tsc` → `out/` |
 | `bun start` | Run compiled bot (connects to Postgres + ensures schema) |
 | `bun run db:migrate` | Apply SQL files in `drizzle/` (same schema ensure, manual) |
