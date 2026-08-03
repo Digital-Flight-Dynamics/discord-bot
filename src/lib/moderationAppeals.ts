@@ -72,9 +72,7 @@ export async function handleAtcDiscordEvent(client: Client, event: AtcInternalEv
                 {
                     color: presentation.color,
                     description: `${presentation.description} [View on ATC](${url})`,
-                    footer: { text: `ATC event · ${event.id}` },
                 },
-                true,
             ),
         ],
     });

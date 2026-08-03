@@ -2541,6 +2541,9 @@ body.radar-mode .moderation-topbar {
 .edit-inject-button { align-self: start; margin: 4px 0 10px; padding: 0; border: 0; color: var(--muted); background: transparent; cursor: pointer; font-size: 10px; line-height: 1.4; text-decoration: underline; text-underline-offset: 3px; transition: color .15s ease; }
 .edit-inject-button:hover, .edit-inject-button:focus-visible { color: var(--blue-bright); }
 .edit-step-help { margin: 8px 0 0; color: var(--muted); font-size: 11px; }
+.quick-revoke-field { display: grid; gap: 6px; margin-top: 14px; color: var(--muted); font-size: 11px; }
+.quick-revoke-field small { color: var(--faint); font-size: 10px; }
+.quick-revoke-field textarea { width: 100%; padding: 10px; border: 1px solid var(--line-bright); border-radius: 8px; outline: none; color: var(--ink); background: #11151c; font: inherit; resize: vertical; }
 .edit-notification-options { display: grid; gap: 8px; margin-top: 18px; }
 .edit-notification-options .selected { border-color: rgba(88, 166, 255, .6); color: var(--blue-bright); background: rgba(88, 166, 255, .12); }
 .edit-review { display: grid; gap: 12px; margin: 18px 0; }

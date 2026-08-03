@@ -351,6 +351,19 @@ const app = new Elysia()
             return json({ error: errorMessage(error) }, 400);
         }
     })
+    .put('/api/moderation/actions/:actionId/revoke', async ({ request, params, body }) => {
+        const auth = await moderatorAuthenticated(request);
+        if (!auth.session) return auth.response;
+        const input = body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
+        const reason = typeof input.reason === 'string' ? input.reason.trim() : '';
+        const publicNote = typeof input.publicNote === 'string' ? input.publicNote.trim() : null;
+        if (!reason) return json({ error: 'A reason is required to revoke an action.' }, 400);
+        try {
+            return json(await callBotAtc({ operation: 'moderation.revoke', actorUserId: auth.session.user.id, actionId: params.actionId, reason, publicNote }));
+        } catch (error) {
+            return json({ error: errorMessage(error) }, 400);
+        }
+    })
     .get('/api/moderation/tools/member/:userId', async ({ request, params }) => {
         const auth = await moderatorAuthenticated(request);
         if (!auth.session) return auth.response;

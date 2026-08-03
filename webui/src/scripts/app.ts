@@ -491,10 +491,12 @@ function revokedCard(action: PublicAction): string {
     `;
 }
 
-async function renderAction(actionId: string): Promise<void> {
+async function renderAction(actionId: string, prefetchedAction?: PublicAction, prefetchedUser?: User): Promise<void> {
     const [user, action] = await Promise.all([
-        loadUser(),
-        fetchJson<PublicAction>(`/api/actions/${encodeURIComponent(actionId)}`),
+        prefetchedUser ? Promise.resolve(prefetchedUser) : loadUser(),
+        prefetchedAction
+            ? Promise.resolve(prefetchedAction)
+            : fetchJson<PublicAction>(`/api/actions/${encodeURIComponent(actionId)}`),
     ]);
     const status = actionStatus(action);
     const appeals = action.appeals ?? (action.appealId && action.appealStatus && action.appealSubmittedAt
@@ -651,7 +653,7 @@ function radioOptions(name: string, options: readonly FormOption[], draft: Appea
 }
 
 function textareaField(id: string, label: string, draft: AppealDraft, options: { min?: number; optional?: boolean } = {}): string {
-    const minimum = options.min ?? 20;
+    const minimum = options.min ?? (options.optional ? 0 : 20);
     return `
         <div class="field">
             <label for="${id}">${escapeHtml(label)}${options.optional ? ' <span class="optional">(optional)</span>' : ''}</label>
@@ -2339,7 +2341,7 @@ async function renderModeratorAction(actionId: string): Promise<void> {
         <section class="mod-panel action-quick-actions">
             <button type="button" class="button secondary quick-action-edit" data-action-scroll="action-record">Edit Data</button>
             <button type="button" class="button secondary quick-action-note" data-quick-private-note>Quick Private Note</button>
-            <button type="button" class="button secondary quick-action-revoke" data-action-scroll="action-record">Revoke</button>
+            <button type="button" class="button secondary quick-action-revoke" data-quick-revoke>Revoke</button>
             <a class="button secondary quick-action-appeals" href="/moderation/actions/${encodeURIComponent(action.actionId)}/appeals">Appeals</a>
         </section>
         <section class="action-inspector-grid">
@@ -2392,6 +2394,28 @@ async function renderModeratorAction(actionId: string): Promise<void> {
                 await renderModeratorAction(actionId);
             } catch (error) {
                 toast(error instanceof Error ? error.message : 'Could not save the private note.', 'danger');
+                button.disabled = false;
+            }
+        });
+    });
+    document.querySelector<HTMLButtonElement>('[data-quick-revoke]')?.addEventListener('click', () => {
+        const close = () => { modalRoot.innerHTML = ''; };
+        modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal action-edit-modal quick-revoke-modal" role="dialog" aria-modal="true" aria-labelledby="quick-revoke-title"><button class="modal-close" type="button" aria-label="Close">${moderatorIcon('x')}</button><p class="eyebrow">Quick action</p><h2 id="quick-revoke-title">Revoke action <span class="required-mark" aria-hidden="true">*</span></h2><p class="edit-step-help">This removes the action from effect and records the decision.</p><label class="quick-revoke-field"><span>Reason <span class="required-mark" aria-hidden="true">*</span></span><textarea id="quick-revoke-reason" rows="4" required autofocus></textarea></label><label class="quick-revoke-field"><span>Public note <small>Optional</small></span><textarea id="quick-revoke-note" rows="3"></textarea></label><footer><button type="button" class="button secondary" data-revoke-cancel>Cancel</button><button type="button" class="button quick-revoke-confirm" data-revoke-save>Revoke action</button></footer></section></div>`;
+        renderModeratorIcons(modalRoot);
+        modalRoot.querySelectorAll<HTMLButtonElement>('.modal-close, [data-revoke-cancel]').forEach((button) => button.addEventListener('click', close));
+        modalRoot.querySelector<HTMLButtonElement>('[data-revoke-save]')?.addEventListener('click', async (event) => {
+            const button = event.currentTarget as HTMLButtonElement;
+            const reason = modalRoot.querySelector<HTMLTextAreaElement>('#quick-revoke-reason')?.value.trim() || '';
+            const publicNote = modalRoot.querySelector<HTMLTextAreaElement>('#quick-revoke-note')?.value.trim() || '';
+            if (!reason) return;
+            button.disabled = true;
+            try {
+                await fetchJson(`/api/moderation/actions/${encodeURIComponent(action.actionId)}/revoke`, { method: 'PUT', body: JSON.stringify({ reason, publicNote }) });
+                close();
+                toast('Action revoked.', 'success');
+                await renderModeratorAction(actionId);
+            } catch (error) {
+                toast(error instanceof Error ? error.message : 'Could not revoke the action.', 'danger');
                 button.disabled = false;
             }
         });
@@ -3468,11 +3492,22 @@ async function renderRoute(): Promise<void> {
         const actionMatch = location.pathname.match(/^\/action\/([^/]+)\/?$/);
         if (actionMatch?.[1]) {
             const viewer = await loadUser();
+            const actionId = decodeURIComponent(actionMatch[1]);
             if (viewer.access.moderator) {
-                location.replace(`/moderation/actions/${encodeURIComponent(decodeURIComponent(actionMatch[1]))}`);
+                const response = await fetch(`/api/actions/${encodeURIComponent(actionId)}`);
+                if (response.status === 404) {
+                    location.replace(`/moderation/actions/${encodeURIComponent(actionId)}`);
+                    return;
+                }
+                if (!response.ok) {
+                    const data = (await response.json()) as { error?: string };
+                    throw new Error(data.error || 'The request could not be completed.');
+                }
+                const action = (await response.json()) as PublicAction;
+                await renderAction(actionId, action, viewer);
                 return;
             }
-            await renderAction(decodeURIComponent(actionMatch[1]));
+            await renderAction(actionId, undefined, viewer);
             return;
         }
         app.innerHTML = `<div class="error-state"><p class="eyebrow">404</p><h1>Route not found</h1><a class="button" href="/my-history">Return to your history</a></div>`;

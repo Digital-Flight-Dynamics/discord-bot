@@ -285,6 +285,58 @@ async function handleActionResolution(interaction: ChatInputCommandInteraction):
     }
 }
 
+export async function executeAtcActionRevoke(
+    client: Client,
+    input: { actorUserId: string; actionId: string; reason: string; publicNote: string | null },
+): Promise<{ links: string; userNotUnbanned: boolean }> {
+    const guild = config.guildId ? client.guilds.cache.get(config.guildId) || (await client.guilds.fetch(config.guildId).catch(() => null)) : null;
+    if (!guild) throw new Error('The configured guild is unavailable.');
+    const moderator = await client.users.fetch(input.actorUserId);
+    const moderatorMember = await guild.members.fetch(input.actorUserId).catch(() => null);
+    if (!hasRoleAccess(moderatorMember, 'moderation')) throw new Error('Moderator access is required.');
+    const actionId = normalizeActionId(input.actionId);
+    const loaded = await loadAction(guild.id, actionId);
+    if (!loaded) throw new Error('Action ID not found.');
+    if (loaded.record.resolutionStatus) {
+        throw new Error(`This action has already been resolved as ${titleCase(String(loaded.record.resolutionStatus))}.`);
+    }
+    const moderatorSnap = await captureIdentitySnapshot({ member: moderatorMember || undefined, user: moderator, discordUserId: moderator.id });
+    const { audit, userNotUnbanned } = await commitActionResolutionAndAudit({
+        guild,
+        moderator,
+        loaded,
+        status: 'revoked',
+        reason: input.reason.trim(),
+        publicNote: input.publicNote?.trim() || null,
+        moderatorSnapshotId: moderatorSnap.id,
+        moderatorUserId: moderator.id,
+        label: 'Action Revoked',
+        appealId: null,
+    });
+    const notificationResult = await editResolutionDm(client, loaded, 'revoked', input.publicNote?.trim() || null);
+    await updateModerationActionAuditMetadata(audit.id, {
+        resolutionStatus: 'revoked',
+        publicNote: input.publicNote?.trim() || null,
+        notificationMode: 'silent-edit',
+        notificationStatus: notificationResult.status,
+        notificationDetail: notificationResult.detail ?? null,
+        userNotUnbanned,
+    });
+    await refreshModLogAudit(client, guild, loaded, 'revoked');
+    await postThreadResolutionEmbed(
+        client,
+        guild,
+        loaded,
+        moderator,
+        'revoked',
+        input.reason.trim(),
+        input.publicNote?.trim() || null,
+        notificationResult,
+        userNotUnbanned,
+    );
+    return { links: await updateActionLinks(guild.id, loaded), userNotUnbanned };
+}
+
 async function handleAppealLifecycle(
     interaction: ChatInputCommandInteraction,
     operation: 'review-appeal' | 'deny-appeal',
