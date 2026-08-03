@@ -58,7 +58,7 @@ export async function closeDatabase(): Promise<void> {
 
 /**
  * Ensure Postgres schema from SQL files under ./drizzle (idempotent DDL).
- * Not Mongo→Postgres data import — only structural migrations.
+ * Structural migrations only.
  */
 export async function runMigrations(): Promise<void> {
     const fs = await import('fs');

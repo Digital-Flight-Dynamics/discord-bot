@@ -189,7 +189,6 @@ Deletes **every** channel in the guild **except** the channel where you ran the 
 | `bun run db:migrate` | Apply SQL files in `drizzle/` (same schema ensure, manual) |
 | `bun run db:generate` | Generate migrations from schema |
 
-> `scripts/migrate-mongo-warnings.ts` remains for a possible one-shot historical import later; it is not wired into Bun scripts or boot (Postgres only at runtime).
 
 ## Health check
 

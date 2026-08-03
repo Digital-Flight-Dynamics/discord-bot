@@ -39,7 +39,6 @@ export async function createWarning(input: {
     expiresAt?: Date | null;
     recordExpiresAt?: Date | null;
     linked?: LinkedMessage | null;
-    legacyMongoId?: string | null;
     pendingActionId?: string;
 }): Promise<Warning> {
     const db = getDb();
@@ -56,7 +55,6 @@ export async function createWarning(input: {
             linkedChannelId: input.linked?.linkedChannelId ?? null,
             linkedMessageUrl: input.linked?.linkedMessageUrl ?? null,
             linkedMessageDeleted: input.linked?.linkedMessageDeleted ?? false,
-            legacyMongoId: input.legacyMongoId ?? null,
         }).returning();
 
         const actionId = await allocateActionId(
@@ -119,10 +117,9 @@ export async function listAllWarnings(guildId: string, discordUserId: string): P
 }
 
 /**
- * Resolve a warning by its public Action ID, UUID, or legacy Mongo id,
- * always scoped to `guildId` so IDs cannot be used to reach another guild's data.
+ * Resolve a warning by its public Action ID or UUID, always scoped to `guildId`.
  */
-export async function findWarningByIdOrLegacy(id: string, guildId: string): Promise<WarningWithSnapshots | null> {
+export async function findWarningById(id: string, guildId: string): Promise<WarningWithSnapshots | null> {
     const db = getDb();
 
     if (!UUID_RE.test(id)) {
@@ -141,7 +138,7 @@ export async function findWarningByIdOrLegacy(id: string, guildId: string): Prom
     const rows = await db
         .select()
         .from(warnings)
-        .where(and(eq(warnings.guildId, guildId), or(eq(warnings.id, id), eq(warnings.legacyMongoId, id))))
+        .where(and(eq(warnings.guildId, guildId), eq(warnings.id, id)))
         .limit(1);
     if (rows.length === 0) return null;
     const hydrated = await hydrateWarnings(rows);
@@ -153,7 +150,7 @@ export async function softRemoveWarning(
     guildId: string,
     removedByModeratorSnapshotId: string | null,
 ): Promise<Warning | null> {
-    const existing = await findWarningByIdOrLegacy(id, guildId);
+    const existing = await findWarningById(id, guildId);
     if (!existing) return null;
     if (existing.removedAt) return existing;
 

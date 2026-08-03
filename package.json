@@ -36,7 +36,6 @@
     "@typescript-eslint/parser": "^8.65.0",
     "drizzle-kit": "^0.31.10",
     "eslint": "^8.57.1",
-    "mongodb": "^7.5.0",
     "typescript": "^5.9.3"
   }
 }

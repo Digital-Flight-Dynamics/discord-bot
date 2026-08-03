@@ -26,7 +26,6 @@ export const warnings = pgTable('warnings', {
     resolvedByModeratorSnapshotId: uuid('resolved_by_moderator_snapshot_id').references(() => identitySnapshots.id),
     resolutionReason: text('resolution_reason'),
     resolutionPublicNote: text('resolution_public_note'),
-    legacyMongoId: text('legacy_mongo_id').unique(),
 });
 
 export type Warning = typeof warnings.$inferSelect;

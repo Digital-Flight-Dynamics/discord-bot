@@ -29,9 +29,7 @@ CREATE TABLE IF NOT EXISTS "warnings" (
 	"resolved_at" timestamp with time zone,
 	"resolved_by_moderator_snapshot_id" uuid,
 	"resolution_reason" text,
-	"resolution_public_note" text,
-	"legacy_mongo_id" text,
-	CONSTRAINT "warnings_legacy_mongo_id_unique" UNIQUE("legacy_mongo_id")
+	"resolution_public_note" text
 );
 
 CREATE TABLE IF NOT EXISTS "kicks" (
@@ -383,3 +381,12 @@ ALTER TABLE "bans" ADD CONSTRAINT "bans_resolution_status_check" CHECK (resoluti
 ALTER TABLE "timeouts" ADD CONSTRAINT "timeouts_resolution_status_check" CHECK (resolution_status IS NULL OR resolution_status IN ('revoked','appeal-approved'));
 ALTER TABLE "timeouts" ADD CONSTRAINT "timeouts_duration_max_check" CHECK (duration_ms > 0 AND duration_ms <= 2419200000);
 ALTER TABLE "pending_moderation_actions" ADD CONSTRAINT "pending_moderation_actions_timeout_max_check" CHECK (action_type <> 'timeout' OR duration_ms IS NULL OR (duration_ms > 0 AND duration_ms <= 2419200000));
+
+CREATE TABLE IF NOT EXISTS "bot_settings" (
+	"guild_id" text NOT NULL,
+	"setting_key" text NOT NULL,
+	"setting_value" text NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_by_discord_user_id" text,
+	CONSTRAINT "bot_settings_pkey" PRIMARY KEY ("guild_id", "setting_key")
+);

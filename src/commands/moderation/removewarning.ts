@@ -1,12 +1,12 @@
 import { CommandCategories, CommandDefinition, createErrorEmbed } from '../definitions';
 import { createEmbed, EmbedColors } from '../../lib/embed';
 import { captureIdentitySnapshot, formatSnapshotLabel } from '../../db/repositories/snapshots';
-import { findWarningByIdOrLegacy, softRemoveWarning } from '../../db/repositories/warnings';
+import { findWarningById, softRemoveWarning } from '../../db/repositories/warnings';
 import { moderationTextForEmbed } from '../../lib/moderationLimits';
 
 export const removewarning: CommandDefinition = {
     names: ['removewarning', 'rmwarn', 'deletewarning', 'delwarn'],
-    description: 'Soft-removes a warning by Action ID, UUID, or legacy Mongo id. `Arguments: <id>`',
+    description: 'Soft-removes a warning by Action ID or UUID. `Arguments: <id>`',
     category: CommandCategories.MODERATION,
     requiredRoleGroup: 'moderation',
     execute: async (message, args) => {
@@ -17,7 +17,7 @@ export const removewarning: CommandDefinition = {
         }
 
         try {
-            const existing = await findWarningByIdOrLegacy(id, message.guild.id);
+            const existing = await findWarningById(id, message.guild.id);
             if (!existing) {
                 await message.channel.send({ embeds: [createErrorEmbed('Invalid ID')] }).catch(console.error);
                 return;
