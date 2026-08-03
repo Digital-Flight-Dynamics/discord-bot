@@ -141,7 +141,27 @@ const behaviorFields: Record<string, string[]> = {
 const commonFields = ['ageConfirmation', 'behavior', 'moderatorStopCount', 'moderatorReaction', 'reportedBefore', 'behaviorChange'];
 
 export function appealAnswerEntries(answers: AppealAnswers): Array<{ id: string; label: string; value: string }> {
-    return Object.entries(answers).map(([id, value]) => ({
+    const behavior = answers.behavior || '';
+    const detailFields = behavior === 'piracy'
+        ? ['piracyReason', 'piracyReasonOther', 'piratedSimVersion', 'purchasedValidCopy', 'piracyDetails', 'piracyMotivation']
+        : behavior === 'compromised'
+          ? ['accountSecured', 'compromisedActions']
+          : behaviorFields[behavior] || [];
+    const orderedIds = [
+        'ageConfirmation',
+        'behavior',
+        ...detailFields,
+        'moderatorStopCount',
+        'moderatorReaction',
+        'reportedBefore',
+        'behaviorChange',
+        'additionalNotes',
+        'evidenceLinks',
+    ];
+    const order = new Map(orderedIds.map((id, index) => [id, index]));
+    return Object.entries(answers)
+        .sort(([left], [right]) => (order.get(left) ?? Number.MAX_SAFE_INTEGER) - (order.get(right) ?? Number.MAX_SAFE_INTEGER))
+        .map(([id, value]) => ({
         id,
         label: APPEAL_ANSWER_LABELS[id] || id,
         value: VALUE_LABELS[id]?.[value] || value,

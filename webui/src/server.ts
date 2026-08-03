@@ -19,6 +19,7 @@ import {
     findAppealForUser,
     findAppealWindow,
     getModerationAction,
+    getAppealDetail,
     getModerationDashboard,
     listAppealsForUserAction,
     listManagedBotSettings,
@@ -28,6 +29,7 @@ import {
     listModerationLogs,
     prepareAppealWindow,
     searchModerationActions,
+    searchModerationAppeals,
     searchModerationUsers,
     submitAppeal,
     updateManagedBotSettings,
@@ -308,6 +310,19 @@ const app = new Elysia()
         const { page, limit } = pagination(request);
         return json(await searchModerationActions(query, page, limit));
     })
+    .get('/api/moderation/appeals', async ({ request }) => {
+        const auth = await moderatorAuthenticated(request);
+        if (!auth.session) return auth.response;
+        const params = new URL(request.url).searchParams;
+        const { page, limit } = pagination(request);
+        return json(await searchModerationAppeals(params.get('q') || '', params.get('status') || '', page, limit));
+    })
+    .get('/api/moderation/appeals/:appealId', async ({ request, params }) => {
+        const auth = await moderatorAuthenticated(request);
+        if (!auth.session) return auth.response;
+        const result = await getAppealDetail(params.appealId);
+        return result ? json(result) : json({ error: 'Appeal not found.' }, 404);
+    })
     .get('/api/moderation/actions/:actionId', async ({ request, params }) => {
         const auth = await moderatorAuthenticated(request);
         if (!auth.session) return auth.response;
@@ -363,6 +378,37 @@ const app = new Elysia()
         } catch (error) {
             return json({ error: errorMessage(error) }, 400);
         }
+    })
+    .put('/api/moderation/appeals/:appealId/review', async ({ request, params, body }) => {
+        const auth = await moderatorAuthenticated(request);
+        if (!auth.session) return auth.response;
+        const input = body && typeof body === 'object' ? body as Record<string, unknown> : {};
+        const actionId = typeof input.actionId === 'string' ? input.actionId.trim() : '';
+        if (!actionId) return json({ error: 'An action ID is required.' }, 400);
+        try { return json(await callBotAtc({ operation: 'appeal.review', actorUserId: auth.session.user.id, actionId, appealId: params.appealId })); }
+        catch (error) { return json({ error: errorMessage(error) }, 400); }
+    })
+    .put('/api/moderation/appeals/:appealId/deny', async ({ request, params, body }) => {
+        const auth = await moderatorAuthenticated(request);
+        if (!auth.session) return auth.response;
+        const input = body && typeof body === 'object' ? body as Record<string, unknown> : {};
+        const actionId = typeof input.actionId === 'string' ? input.actionId.trim() : '';
+        const reason = typeof input.reason === 'string' ? input.reason.trim() : '';
+        const publicNote = typeof input.publicNote === 'string' ? input.publicNote.trim() : null;
+        if (!actionId || !reason) return json({ error: 'An action ID and reason are required.' }, 400);
+        try { return json(await callBotAtc({ operation: 'appeal.deny', actorUserId: auth.session.user.id, actionId, appealId: params.appealId, reason, publicNote })); }
+        catch (error) { return json({ error: errorMessage(error) }, 400); }
+    })
+    .put('/api/moderation/appeals/:appealId/approve', async ({ request, params, body }) => {
+        const auth = await moderatorAuthenticated(request);
+        if (!auth.session) return auth.response;
+        const input = body && typeof body === 'object' ? body as Record<string, unknown> : {};
+        const actionId = typeof input.actionId === 'string' ? input.actionId.trim() : '';
+        const reason = typeof input.reason === 'string' ? input.reason.trim() : '';
+        const publicNote = typeof input.publicNote === 'string' ? input.publicNote.trim() : null;
+        if (!actionId || !reason) return json({ error: 'An action ID and reason are required.' }, 400);
+        try { return json(await callBotAtc({ operation: 'appeal.approve', actorUserId: auth.session.user.id, actionId, appealId: params.appealId, reason, publicNote })); }
+        catch (error) { return json({ error: errorMessage(error) }, 400); }
     })
     .get('/api/moderation/tools/member/:userId', async ({ request, params }) => {
         const auth = await moderatorAuthenticated(request);

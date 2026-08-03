@@ -1270,6 +1270,12 @@ type ModeratorAction = PublicAction & {
     latestActivity: { label: string; at: string } | null;
 };
 
+type ModeratorAppeal = {
+    id: string; actionId: string; kind: PublicAction['kind']; status: AppealStatus;
+    submittedAt: string; reviewStartedAt: string | null; decidedAt: string | null;
+    subjectUserId: string; subjectUsername: string | null; subjectDisplayName: string | null;
+};
+
 type Paginated<T> = {
     items: T[];
     total: number;
@@ -1297,13 +1303,7 @@ function moderationSidebar(active: string, showManagementTools: boolean): string
     const items: Array<[string, string, string, string]> = [
         ['dashboard', '/moderation', 'Dashboard', 'layout-dashboard'],
         ['radar', '/moderation/radar', 'User Radar', 'radar'],
-        ['logs', '/moderation/logs', 'Mod Logs', 'clipboard-list'],
-        ['actions', '/moderation/actions', 'Actions DB', 'database'],
     ];
-    if (showManagementTools) {
-        items.push(['tools', '/moderation/tools', 'Management Tools', 'wrench']);
-        items.push(['settings', '/moderation/settings', 'Bot Settings', 'settings']);
-    }
     return `
         <aside class="moderation-sidebar">
             <a class="moderation-brand" href="/moderation">
@@ -1315,6 +1315,18 @@ function moderationSidebar(active: string, showManagementTools: boolean): string
                     <a class="${active === id ? 'active' : ''}" href="${href}">
                         <span class="nav-symbol">${moderatorIcon(icon)}</span><span>${label}</span>
                     </a>`).join('')}
+                <details class="nav-group" ${active === 'actions' || active === 'appeals' ? 'open' : ''}>
+                    <summary><span class="nav-symbol">${moderatorIcon('database')}</span><span>Cases</span><span class="nav-chevron">${moderatorIcon('chevron-down')}</span></summary>
+                    <a class="nav-sub-link ${active === 'actions' ? 'active' : ''}" href="/moderation/actions">Actions</a>
+                    <a class="nav-sub-link ${active === 'appeals' ? 'active' : ''}" href="/moderation/appeals">Appeals</a>
+                </details>
+                <a class="${active === 'logs' ? 'active' : ''}" href="/moderation/logs">
+                    <span class="nav-symbol">${moderatorIcon('clipboard-list')}</span><span>Mod Logs</span>
+                </a>
+                ${showManagementTools ? `
+                    <a class="${active === 'tools' ? 'active' : ''}" href="/moderation/tools"><span class="nav-symbol">${moderatorIcon('wrench')}</span><span>Management Tools</span></a>
+                    <a class="${active === 'settings' ? 'active' : ''}" href="/moderation/settings"><span class="nav-symbol">${moderatorIcon('settings')}</span><span>Bot Settings</span></a>
+                ` : ''}
             </nav>
         </aside>
     `;
@@ -2232,6 +2244,107 @@ async function renderActionsDatabase(): Promise<void> {
     await load();
 }
 
+async function openAppealDetailModal(appealId: string, onUpdated: () => void): Promise<void> {
+    modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal action-edit-modal appeal-detail-modal" role="dialog" aria-modal="true"><button class="modal-close" type="button" aria-label="Close">${moderatorIcon('x')}</button><div class="loading-inline"><span class="spinner"></span>Loading appeal…</div></section></div>`;
+    renderModeratorIcons(modalRoot);
+    const close = () => { modalRoot.innerHTML = ''; };
+    modalRoot.querySelector('.modal-close')?.addEventListener('click', close);
+    try {
+        const appeal = await fetchJson<{ id: string; status: AppealStatus; submittedAt: string; reviewStartedAt: string | null; decidedAt: string | null; answers: Record<string, string>; discordUserId: string; actionId: string; kind: PublicAction['kind']; subjectUsername: string | null; subjectDisplayName: string | null }>(`/api/moderation/appeals/${encodeURIComponent(appealId)}`);
+        const profile = await fetchJson<DiscordMemberProfile>(`/api/moderation/tools/member/${encodeURIComponent(appeal.discordUserId)}`).catch(() => null);
+        const subject = profile?.displayName || appeal.subjectDisplayName || appeal.subjectUsername || appeal.discordUserId;
+        const canDecide = appeal.status === 'submitted' || appeal.status === 'review';
+        const canReview = appeal.status === 'submitted';
+        const answers = appealAnswerEntries(appeal.answers || {}).map((answer) => `<dt>${escapeHtml(answer.label)}</dt><dd>${escapeHtml(answer.value)}</dd>`).join('');
+        const section = modalRoot.querySelector<HTMLElement>('.appeal-detail-modal')!;
+        section.innerHTML = `<button class="modal-close" type="button" aria-label="Close">${moderatorIcon('x')}</button><p class="eyebrow">Appeal detail</p><h2><code>${escapeHtml(appeal.id)}</code></h2><p><strong>${escapeHtml(subject)}</strong> · ${kindMarkup(appeal.kind)} · ${appealStatusMarkup(appeal.status)}</p><p class="edit-step-help">Action <a href="/moderation/actions/${encodeURIComponent(appeal.actionId)}">${escapeHtml(appeal.actionId)}</a><br>Submitted ${formatDate(appeal.submittedAt, true)}${appeal.reviewStartedAt ? ` · Review ${formatDate(appeal.reviewStartedAt, true)}` : ''}${appeal.decidedAt ? ` · Decided ${formatDate(appeal.decidedAt, true)}` : ''}</p><dl class="appeal-answers">${answers || '<dd>No answers recorded.</dd>'}</dl>${canDecide ? '<label class="quick-revoke-field"><span>Reason <span class="required-mark">*</span></span><textarea id="appeal-reason" rows="3"></textarea></label><label class="quick-revoke-field"><span>Public note <small>Optional</small></span><textarea id="appeal-note" rows="2"></textarea></label>' : ''}<footer>${canReview ? '<button type="button" class="button secondary" data-appeal-review>Start Review</button>' : ''}${canDecide ? '<button type="button" class="button appeal-approve-button" data-appeal-approve>Approve</button><button type="button" class="button appeal-deny-button" data-appeal-deny>Deny</button>' : ''}</footer>`;
+        renderModeratorIcons(modalRoot);
+        section.querySelector('.modal-close')?.addEventListener('click', close);
+        const act = async (operation: 'review' | 'approve' | 'deny', button: HTMLButtonElement) => {
+            const reason = section.querySelector<HTMLTextAreaElement>('#appeal-reason')?.value.trim() || '';
+            const publicNote = section.querySelector<HTMLTextAreaElement>('#appeal-note')?.value.trim() || '';
+            if (operation !== 'review' && !reason) { toast('A reason is required.', 'danger'); return; }
+            button.disabled = true;
+            try { await fetchJson(`/api/moderation/appeals/${encodeURIComponent(appeal.id)}/${operation}`, { method: 'PUT', body: JSON.stringify({ actionId: appeal.actionId, reason, publicNote }) }); close(); toast(`Appeal ${operation === 'review' ? 'review started' : operation + 'd'}.`, 'success'); onUpdated(); }
+            catch (error) { toast(error instanceof Error ? error.message : 'Appeal action failed.', 'danger'); button.disabled = false; }
+        };
+        section.querySelector<HTMLButtonElement>('[data-appeal-review]')?.addEventListener('click', (e) => void act('review', e.currentTarget as HTMLButtonElement));
+        section.querySelector<HTMLButtonElement>('[data-appeal-approve]')?.addEventListener('click', (e) => void act('approve', e.currentTarget as HTMLButtonElement));
+        section.querySelector<HTMLButtonElement>('[data-appeal-deny]')?.addEventListener('click', (e) => void act('deny', e.currentTarget as HTMLButtonElement));
+    } catch (error) { modalRoot.querySelector<HTMLElement>('.appeal-detail-modal')!.innerHTML = `<button class="modal-close" type="button">${moderatorIcon('x')}</button><div class="mod-empty error-copy">${escapeHtml(error instanceof Error ? error.message : 'Could not load appeal.')}</div>`; modalRoot.querySelector('.modal-close')?.addEventListener('click', close); }
+}
+
+async function renderAppealsDatabase(): Promise<void> {
+    const user = await loadUser();
+    moderationShell(user, 'appeals', 'Appeals DB', 'Search and manage every submitted appeal.', `<section class="database-search"><form class="mod-search-form" id="appeals-search"><input id="appeals-query" type="search" placeholder="Appeal ID, action ID, or subject" autocomplete="off" /><select id="appeals-status"><option value="">All statuses</option><option value="submitted">Submitted</option><option value="review">Under Review</option><option value="approved">Approved</option><option value="denied">Denied</option></select><button class="button" type="submit">Search database</button></form></section><section class="mod-panel" id="appeals-results"><div class="loading-inline"><span class="spinner"></span>Loading appeals…</div></section>`);
+    const load = async (page = 1, limit: 10 | 25 = 10) => {
+        const query = document.querySelector<HTMLInputElement>('#appeals-query')!.value.trim();
+        const status = document.querySelector<HTMLSelectElement>('#appeals-status')!.value;
+        const target = document.querySelector<HTMLElement>('#appeals-results')!;
+        try {
+            const data = await fetchJson<Paginated<ModeratorAppeal>>(`/api/moderation/appeals?q=${encodeURIComponent(query)}&status=${encodeURIComponent(status)}&page=${page}&limit=${limit}`);
+            target.innerHTML = `<div class="mod-panel-heading"><div><p class="eyebrow">Database results</p><h2>Appeals</h2></div><span>${data.total} found</span></div>${data.items.length ? `<div class="mod-table-wrap"><table class="mod-table"><thead><tr><th>Appeal</th><th>Action</th><th>Subject</th><th>Kind</th><th>Status</th><th>Submitted</th><th></th></tr></thead><tbody>${data.items.map((a) => `<tr data-appeal-detail="${escapeHtml(a.id)}"><td><code>${escapeHtml(a.id)}</code></td><td>${escapeHtml(a.actionId)}</td><td>${escapeHtml(a.subjectDisplayName || a.subjectUsername || a.subjectUserId)}</td><td>${kindMarkup(a.kind)}</td><td>${appealStatusMarkup(a.status)}</td><td>${formatDate(a.submittedAt, true)}</td><td><span class="row-arrow appeal-view-label" title="View appeal details">${moderatorIcon('eye')}<span class="sr-only">View appeal</span></span></td></tr>`).join('')}</tbody></table></div>` : '<div class="mod-empty">No matching appeals.</div>'}${paginationMarkup(data)}`;
+            bindPagination(target, data, load); renderModeratorIcons(target);
+            target.querySelectorAll<HTMLElement>('[data-appeal-detail]').forEach((row) => row.addEventListener('click', () => { location.href = `/appeals/${encodeURIComponent(row.dataset.appealDetail!)}`; }));
+        } catch (error) { target.innerHTML = `<div class="mod-empty error-copy">${escapeHtml(error instanceof Error ? error.message : 'Search failed.')}</div>`; }
+    };
+    document.querySelector<HTMLFormElement>('#appeals-search')?.addEventListener('submit', (event) => { event.preventDefault(); void load(); });
+    await load();
+}
+
+async function renderModeratorAppealPage(appealId: string): Promise<void> {
+    const [user, appeal] = await Promise.all([
+        loadUser(),
+        fetchJson<{ id: string; status: AppealStatus; submittedAt: string; reviewStartedAt: string | null; decidedAt: string | null; answers: Record<string, string>; discordUserId: string; actionId: string; kind: PublicAction['kind']; subjectUsername: string | null; subjectDisplayName: string | null }>(`/api/moderation/appeals/${encodeURIComponent(appealId)}`),
+    ]);
+    const profile = await fetchJson<DiscordMemberProfile>(`/api/moderation/tools/member/${encodeURIComponent(appeal.discordUserId)}`).catch(() => null);
+    const subject = profile?.displayName || appeal.subjectDisplayName || appeal.subjectUsername || appeal.discordUserId;
+    const answers = appealAnswerEntries(appeal.answers || {}).map((answer) => `<div class="appeal-answer-card"><dt>${escapeHtml(answer.label)}</dt><dd>${escapeHtml(answer.value)}</dd></div>`).join('');
+    const open = appeal.status === 'submitted' || appeal.status === 'review';
+    const review = appeal.status === 'submitted';
+    moderationShell(user, 'appeals', 'Appeal details', `Appeal ID: ${appeal.id}`, `
+        <article class="mod-panel action-user-card">
+            <div class="action-user-layout">
+                <a class="action-user-avatar action-user-avatar-link" href="/moderation/radar/${encodeURIComponent(appeal.discordUserId)}" aria-label="Open user radar profile">
+                    ${profile?.avatarUrl ? `<img src="${escapeHtml(profile.avatarUrl)}" alt="" />` : '<span class="action-user-avatar-fallback">?</span>'}
+                </a>
+                <div class="action-user-content">
+                    <h2>${escapeHtml(subject)}</h2>
+                    <span class="action-user-username">@${escapeHtml(profile?.username || appeal.subjectUsername || appeal.discordUserId)}</span>
+                    <a class="action-user-profile-link" href="/moderation/radar/${encodeURIComponent(appeal.discordUserId)}" aria-label="Open user radar profile" title="Open user radar profile">${moderatorIcon('radar')}</a>
+                    <code class="action-user-id">${escapeHtml(appeal.discordUserId)}</code>
+                </div>
+                <div class="action-user-roles"><span class="eyebrow">Appeal status</span><div class="role-cloud">${appealStatusMarkup(appeal.status)} ${kindMarkup(appeal.kind)}</div></div>
+            </div>
+        </article>
+        <section class="mod-panel action-quick-actions">
+            ${review ? '<button type="button" class="button secondary appeal-start-review" data-appeal-page-review>Start Review</button>' : ''}
+            ${open ? '<button type="button" class="button secondary appeal-decide-fate" data-appeal-page-decide>Decide Fate</button>' : ''}
+            <a class="button secondary" href="/moderation/actions/${encodeURIComponent(appeal.actionId)}">Open action record</a>
+            <a class="button secondary" href="/moderation/actions/${encodeURIComponent(appeal.actionId)}/appeals">All appeals for this action</a>
+        </section>
+        <section class="mod-panel appeal-case-review">
+            <div class="mod-panel-heading action-record-heading"><div><p class="eyebrow">Case review</p><h2><a href="/moderation/actions/${encodeURIComponent(appeal.actionId)}"><code>${escapeHtml(appeal.actionId)}</code></a></h2></div><span>${appealStatusMarkup(appeal.status)}</span></div>
+            <dl class="appeal-page-facts"><div><dt>Submitted</dt><dd>${formatDate(appeal.submittedAt, true)}</dd></div><div><dt>Review started</dt><dd>${appeal.reviewStartedAt ? formatDate(appeal.reviewStartedAt, true) : '—'}</dd></div><div><dt>Decided</dt><dd>${appeal.decidedAt ? formatDate(appeal.decidedAt, true) : '—'}</dd></div></dl>
+        </section>
+        <article class="mod-panel inspector-summary appeal-submission-panel">
+            <div class="mod-panel-heading action-record-heading"><div><p class="eyebrow">Submission</p><h2>Appeal answers</h2></div></div>
+            <dl class="appeal-page-answers">${answers || '<div class="mod-empty">No answers recorded.</div>'}</dl>
+        </article>
+    `, '<a class="back-link header-back-link" href="/moderation/appeals">← Appeals database</a>');
+    const act = async (operation: 'review' | 'approve' | 'deny', button: HTMLButtonElement) => {
+        const reason = document.querySelector<HTMLTextAreaElement>('#appeal-page-reason')?.value.trim() || '';
+        const publicNote = document.querySelector<HTMLTextAreaElement>('#appeal-page-note')?.value.trim() || '';
+        if (operation !== 'review' && !reason) { toast('A reason is required.', 'danger'); return; }
+        button.disabled = true;
+        try { await fetchJson(`/api/moderation/appeals/${encodeURIComponent(appeal.id)}/${operation}`, { method: 'PUT', body: JSON.stringify({ actionId: appeal.actionId, reason, publicNote }) }); toast(`Appeal ${operation === 'review' ? 'review started' : operation + 'd'}.`, 'success'); await renderModeratorAppealPage(appeal.id); }
+        catch (error) { toast(error instanceof Error ? error.message : 'Appeal action failed.', 'danger'); button.disabled = false; }
+    };
+    document.querySelector<HTMLButtonElement>('[data-appeal-page-review]')?.addEventListener('click', (event) => void act('review', event.currentTarget as HTMLButtonElement));
+    document.querySelector<HTMLButtonElement>('[data-appeal-page-decide]')?.addEventListener('click', () => void openAppealDetailModal(appeal.id, () => void renderModeratorAppealPage(appeal.id)));
+    renderModeratorIcons();
+}
+
 async function renderModeratorAction(actionId: string): Promise<void> {
     const [user, data] = await Promise.all([
         loadUser(),
@@ -2508,12 +2621,27 @@ async function renderModeratorAppeals(actionId: string): Promise<void> {
             `/api/moderation/actions/${encodeURIComponent(actionId)}`,
         ),
     ]);
-    moderationShell(user, 'actions', `Appeals · ${data.action.actionId}`, '', `
+    moderationShell(user, 'appeals', `Appeals · ${data.action.actionId}`, '', `
+        <section class="appeal-context-card">
+            <div class="appeal-context-main">
+                <p class="eyebrow">Case overview</p>
+                <h2><a href="/moderation/actions/${encodeURIComponent(data.action.actionId)}"><code>${escapeHtml(data.action.actionId)}</code></a></h2>
+                <p>Type: ${kindMarkup(data.action.kind)}</p>
+            </div>
+            <dl class="appeal-context-facts">
+                <div><dt>Subject</dt><dd>${escapeHtml(data.action.subjectDisplayName || data.action.subjectUsername || data.action.subjectUserId)}<small>${escapeHtml(data.action.subjectUserId)}</small></dd></div>
+                <div><dt>Issued</dt><dd>${formatDate(data.action.createdAt, true)}</dd></div>
+                <div><dt>Appeals</dt><dd>${data.appeals.length}</dd></div>
+                <div><dt>Moderator</dt><dd>${escapeHtml(data.action.moderatorDisplayName || data.action.moderatorUsername || data.action.moderatorUserId || 'Unknown')}<small>${data.action.moderatorUserId ? escapeHtml(data.action.moderatorUserId) : 'Not recorded'}</small></dd></div>
+            </dl>
+            <p class="appeal-context-reason"><span>Original reason</span>${escapeHtml(data.action.reason)}</p>
+        </section>
         <section class="mod-panel appeals-panel">
-            <div class="mod-panel-heading action-record-heading"><p class="eyebrow">Appeals</p><a href="/moderation/actions/${encodeURIComponent(data.action.actionId)}">← Action record</a></div>
-            ${data.appeals.length ? `<div class="mod-table-wrap"><table class="mod-table"><thead><tr><th>Appeal ID</th><th>Status</th><th>Submitted</th><th>Review started</th><th>Decided</th></tr></thead><tbody>${data.appeals.map((appeal) => `<tr><td><code>${escapeHtml(appeal.id)}</code></td><td>${appealStatusMarkup(appeal.status)}</td><td>${formatDate(appeal.submittedAt, true)}</td><td>${appeal.reviewStartedAt ? formatDate(appeal.reviewStartedAt, true) : '—'}</td><td>${appeal.decidedAt ? formatDate(appeal.decidedAt, true) : '—'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="mod-empty">No appeals have been submitted for this action.</div>'}
+            <div class="mod-panel-heading action-record-heading"><div><p class="eyebrow">Appeals</p><h2>${data.appeals.length} submission${data.appeals.length === 1 ? '' : 's'}</h2></div><a href="/moderation/actions/${encodeURIComponent(data.action.actionId)}">← Action record</a></div>
+            ${data.appeals.length ? `<div class="mod-table-wrap"><table class="mod-table appeal-table"><thead><tr><th>Appeal ID</th><th>Status</th><th>Submitted</th><th>Review started</th><th>Decided</th><th></th></tr></thead><tbody>${data.appeals.map((appeal) => `<tr data-appeal-detail="${escapeHtml(appeal.id)}"><td><code>${escapeHtml(appeal.id)}</code></td><td>${appealStatusMarkup(appeal.status)}</td><td>${formatDate(appeal.submittedAt, true)}</td><td>${appeal.reviewStartedAt ? formatDate(appeal.reviewStartedAt, true) : '—'}</td><td>${appeal.decidedAt ? formatDate(appeal.decidedAt, true) : '—'}</td><td><span class="row-arrow appeal-view-label" title="View appeal details">${moderatorIcon('eye')}<span class="sr-only">View appeal</span></span></td></tr>`).join('')}</tbody></table></div>` : '<div class="mod-empty">No appeals have been submitted for this action.</div>'}
         </section>
     `, '<a class="back-link header-back-link" href="/moderation/actions">← Actions database</a>');
+    document.querySelectorAll<HTMLElement>('[data-appeal-detail]').forEach((row) => row.addEventListener('click', () => { location.href = `/appeals/${encodeURIComponent(row.dataset.appealDetail!)}`; }));
 }
 
 function toolCard(id: string, title: string, eyebrow: string, body: string): string {
@@ -3424,7 +3552,7 @@ async function renderBotSettings(): Promise<void> {
 }
 
 async function renderRoute(): Promise<void> {
-    const moderatorRoute = location.pathname.startsWith('/moderation');
+    const moderatorRoute = location.pathname.startsWith('/moderation') || /^\/appeals\/[^/]+\/?$/.test(location.pathname);
     document.body.classList.toggle('moderation-mode', moderatorRoute);
     document.body.classList.toggle('radar-mode', location.pathname === '/moderation/radar');
     try {
@@ -3439,6 +3567,11 @@ async function renderRoute(): Promise<void> {
         }
         if (location.pathname === '/logged-out') {
             renderLoggedOut();
+            return;
+        }
+        const moderatorAppealPageMatch = location.pathname.match(/^\/appeals\/([^/]+)\/?$/);
+        if (moderatorAppealPageMatch?.[1]) {
+            await renderModeratorAppealPage(decodeURIComponent(moderatorAppealPageMatch[1]));
             return;
         }
         if (location.pathname === '/my-history' || location.pathname === '/') {
@@ -3459,6 +3592,10 @@ async function renderRoute(): Promise<void> {
         }
         if (location.pathname === '/moderation/actions') {
             await renderActionsDatabase();
+            return;
+        }
+        if (location.pathname === '/moderation/appeals') {
+            await renderAppealsDatabase();
             return;
         }
         const moderatorActionMatch = location.pathname.match(/^\/moderation\/actions\/([^/]+)\/?$/);

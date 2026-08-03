@@ -313,6 +313,19 @@ export type Paginated<T> = {
     pages: number;
 };
 
+export type ModeratorAppeal = {
+    id: string;
+    actionId: string;
+    kind: PublicAction['kind'];
+    status: AppealStatus;
+    submittedAt: string;
+    reviewStartedAt: string | null;
+    decidedAt: string | null;
+    subjectUserId: string;
+    subjectUsername: string | null;
+    subjectDisplayName: string | null;
+};
+
 export type ModerationAuditEntry = {
     id: string;
     actionId: string;
@@ -514,6 +527,56 @@ export async function searchModerationActions(query = '', page = 1, limit: 10 | 
         page,
         limit,
         pages: Math.max(1, Math.ceil(total / limit)),
+    };
+}
+
+export async function searchModerationAppeals(query = '', status = '', page = 1, limit: 10 | 25 = 10): Promise<Paginated<ModeratorAppeal>> {
+    const normalized = query.trim();
+    const normalizedStatus = ['submitted', 'review', 'approved', 'denied'].includes(status) ? status : '';
+    const offset = (page - 1) * limit;
+    const where = `a.guild_id = $1 AND a.action_id IS NOT NULL
+        AND ($2 = '' OR ap.id ILIKE $3 OR a.action_id ILIKE $3 OR a.username ILIKE $3 OR a.display_name ILIKE $3 OR a.discord_user_id = $2)
+        AND ($4 = '' OR ap.status = $4)`;
+    const select = `${actionsCte}
+        SELECT ap.id, ap.status, ap.submitted_at, ap.review_started_at, ap.decided_at,
+               a.action_id, a.kind, a.discord_user_id AS subject_user_id,
+               a.username, a.display_name
+          FROM actions a
+          JOIN atc_appeals ap ON a.guild_id = ap.guild_id AND upper(a.action_id) = upper(ap.action_id)`;
+    const params = [config.discordGuildId, normalized, `%${normalized}%`, normalizedStatus];
+    const [result, countResult] = await Promise.all([
+        pool.query(select + ` WHERE ${where} ORDER BY ap.submitted_at DESC LIMIT $5 OFFSET $6`, [...params, limit, offset]),
+        pool.query(`${actionsCte} SELECT count(*) AS count FROM actions a JOIN atc_appeals ap ON a.guild_id = ap.guild_id AND upper(a.action_id) = upper(ap.action_id) WHERE ${where}`, params),
+    ]);
+    const total = Number(countResult.rows[0]?.count || 0);
+    return {
+        items: result.rows.map((row) => ({
+            id: row.id, actionId: row.action_id, kind: row.kind, status: row.status,
+            submittedAt: row.submitted_at.toISOString(), reviewStartedAt: row.review_started_at?.toISOString() || null,
+            decidedAt: row.decided_at?.toISOString() || null, subjectUserId: row.subject_user_id,
+            subjectUsername: row.username, subjectDisplayName: row.display_name,
+        })),
+        total, page, limit, pages: Math.max(1, Math.ceil(total / limit)),
+    };
+}
+
+export async function getAppealDetail(appealId: string) {
+    const result = await pool.query<{
+        id: string; status: AppealStatus; submitted_at: Date; review_started_at: Date | null; decided_at: Date | null;
+        answers: Record<string, string>; discord_user_id: string; action_id: string; kind: PublicAction['kind'];
+        username: string | null; display_name: string | null;
+    }>(`${actionsCte}
+        SELECT ap.id, ap.status, ap.submitted_at, ap.review_started_at, ap.decided_at, ap.answers,
+               ap.discord_user_id, a.action_id, a.kind, a.username, a.display_name
+          FROM atc_appeals ap JOIN actions a ON a.guild_id = ap.guild_id AND upper(a.action_id) = upper(ap.action_id)
+         WHERE ap.guild_id = $1 AND ap.id = $2 LIMIT 1`, [config.discordGuildId, appealId]);
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+        id: row.id, status: row.status, submittedAt: row.submitted_at.toISOString(),
+        reviewStartedAt: row.review_started_at?.toISOString() || null, decidedAt: row.decided_at?.toISOString() || null,
+        answers: row.answers, discordUserId: row.discord_user_id, actionId: row.action_id, kind: row.kind,
+        subjectUsername: row.username, subjectDisplayName: row.display_name,
     };
 }
 

@@ -13,7 +13,7 @@ import {
     searchAtcMembers,
     sendAtcMessage,
 } from './lib/atcInternalTools';
-import { executeAtcActionEdit, executeAtcActionRevoke } from './slashUpdateAction';
+import { executeAtcActionEdit, executeAtcActionRevoke, executeAtcAppealApprove, executeAtcAppealDeny, executeAtcAppealReview } from './slashUpdateAction';
 
 const MAX_EVENT_BODY_BYTES = 64 * 1024;
 const developmentApiKey = 'development-only-atc-internal-key';
@@ -190,6 +190,15 @@ async function handleAtcRequest(client: Client, req: IncomingMessage, res: Serve
                 reason: typeof input.reason === 'string' ? input.reason : '',
                 publicNote: typeof input.publicNote === 'string' ? input.publicNote : null,
             });
+            sendJson(res, 200, result);
+            return;
+        }
+        if (operation === 'appeal.review' || operation === 'appeal.deny' || operation === 'appeal.approve') {
+            const common = { actorUserId, actionId: typeof input.actionId === 'string' ? input.actionId : '', appealId: typeof input.appealId === 'string' ? input.appealId : '' };
+            let result;
+            if (operation === 'appeal.review') result = await executeAtcAppealReview(client, common);
+            else if (operation === 'appeal.deny') result = await executeAtcAppealDeny(client, { ...common, reason: typeof input.reason === 'string' ? input.reason : '', publicNote: typeof input.publicNote === 'string' ? input.publicNote : null });
+            else result = await executeAtcAppealApprove(client, { ...common, reason: typeof input.reason === 'string' ? input.reason : '', publicNote: typeof input.publicNote === 'string' ? input.publicNote : null });
             sendJson(res, 200, result);
             return;
         }

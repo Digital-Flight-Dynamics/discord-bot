@@ -337,6 +337,55 @@ export async function executeAtcActionRevoke(
     return { links: await updateActionLinks(guild.id, loaded), userNotUnbanned };
 }
 
+async function loadWebAppealContext(client: Client, actorUserId: string, actionIdInput: string) {
+    const guild = config.guildId ? client.guilds.cache.get(config.guildId) || (await client.guilds.fetch(config.guildId).catch(() => null)) : null;
+    if (!guild) throw new Error('The configured guild is unavailable.');
+    const moderator = await client.users.fetch(actorUserId);
+    const moderatorMember = await guild.members.fetch(actorUserId).catch(() => null);
+    if (!hasRoleAccess(moderatorMember, 'moderation')) throw new Error('Moderator access is required.');
+    const actionId = normalizeActionId(actionIdInput);
+    const loaded = await loadAction(guild.id, actionId);
+    if (!loaded) throw new Error('Action ID not found.');
+    return { guild, moderator, moderatorMember, actionId, loaded };
+}
+
+export async function executeAtcAppealReview(client: Client, input: { actorUserId: string; actionId: string; appealId: string }) {
+    const { guild, moderator, moderatorMember, actionId, loaded } = await loadWebAppealContext(client, input.actorUserId, input.actionId);
+    const moderatorSnap = await captureIdentitySnapshot({ member: moderatorMember || undefined, user: moderator, discordUserId: moderator.id });
+    const appeal = await startAppealReview({ guildId: guild.id, actionId, appealId: input.appealId, moderatorUserId: moderator.id });
+    if (!appeal) throw new Error('Appeal not found, already decided, or not attached to this action.');
+    await createModerationActionAudit({ guildId: guild.id, actionId, recordType: loaded.actionId.recordType, recordUuid: loaded.actionId.recordUuid, changeType: 'Appeal Review Started', moderatorSnapshotId: moderatorSnap.id, moderatorUserId: moderator.id, oldValue: null, newValue: 'Under Review', rationale: 'Moderation review started.', notifyUser: false, metadata: { appealId: input.appealId } });
+    await handleAtcDiscordEvent(client, { id: crypto.randomUUID(), type: 'appeal.review_started', occurredAt: appeal.reviewStartedAt?.toISOString() || new Date().toISOString(), guildId: guild.id, actionId, appealId: input.appealId, actorUserId: moderator.id }).catch(console.error);
+    return { status: 'review' };
+}
+
+export async function executeAtcAppealDeny(client: Client, input: { actorUserId: string; actionId: string; appealId: string; reason: string; publicNote: string | null }) {
+    const { guild, moderator, moderatorMember, actionId, loaded } = await loadWebAppealContext(client, input.actorUserId, input.actionId);
+    const reason = input.reason.trim();
+    if (!reason) throw new Error('A reason is required.');
+    const moderatorSnap = await captureIdentitySnapshot({ member: moderatorMember || undefined, user: moderator, discordUserId: moderator.id });
+    const appeal = await denyAppeal({ guildId: guild.id, actionId, appealId: input.appealId, moderatorUserId: moderator.id, decisionNote: input.publicNote?.trim() || null });
+    if (!appeal) throw new Error('Appeal not found, already decided, or not attached to this action.');
+    await createModerationActionAudit({ guildId: guild.id, actionId, recordType: loaded.actionId.recordType, recordUuid: loaded.actionId.recordUuid, changeType: 'Appeal Denied', moderatorSnapshotId: moderatorSnap.id, moderatorUserId: moderator.id, oldValue: null, newValue: 'Denied', rationale: reason, notifyUser: false, metadata: { appealId: input.appealId, publicNote: input.publicNote?.trim() || null } });
+    await handleAtcDiscordEvent(client, { id: crypto.randomUUID(), type: 'appeal.denied', occurredAt: appeal.decidedAt?.toISOString() || new Date().toISOString(), guildId: guild.id, actionId, appealId: input.appealId, actorUserId: moderator.id }).catch(console.error);
+    return { status: 'denied' };
+}
+
+export async function executeAtcAppealApprove(client: Client, input: { actorUserId: string; actionId: string; appealId: string; reason: string; publicNote: string | null }) {
+    const { guild, moderator, moderatorMember, loaded } = await loadWebAppealContext(client, input.actorUserId, input.actionId);
+    if (loaded.record.resolutionStatus) throw new Error(`This action has already been resolved as ${titleCase(String(loaded.record.resolutionStatus))}.`);
+    const publicNote = input.publicNote?.trim() || null;
+    const reason = input.reason.trim();
+    if (!reason) throw new Error('A reason is required.');
+    const moderatorSnap = await captureIdentitySnapshot({ member: moderatorMember || undefined, user: moderator, discordUserId: moderator.id });
+    const { audit, userNotUnbanned } = await commitActionResolutionAndAudit({ guild, moderator, loaded, status: 'appeal-approved', reason, publicNote, moderatorSnapshotId: moderatorSnap.id, moderatorUserId: moderator.id, label: 'Appeal Approved', appealId: input.appealId });
+    const notificationResult = await editResolutionDm(client, loaded, 'appeal-approved', publicNote);
+    await updateModerationActionAuditMetadata(audit.id, { resolutionStatus: 'appeal-approved', publicNote, notificationMode: 'silent-edit', notificationStatus: notificationResult.status, notificationDetail: notificationResult.detail ?? null, userNotUnbanned });
+    await refreshModLogAudit(client, guild, loaded, 'appeal-approved');
+    await postThreadResolutionEmbed(client, guild, loaded, moderator, 'appeal-approved', reason, publicNote, notificationResult, userNotUnbanned, input.appealId);
+    return { status: 'approved', links: await updateActionLinks(guild.id, loaded), userNotUnbanned };
+}
+
 async function handleAppealLifecycle(
     interaction: ChatInputCommandInteraction,
     operation: 'review-appeal' | 'deny-appeal',

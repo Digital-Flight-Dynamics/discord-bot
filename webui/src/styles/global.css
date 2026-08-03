@@ -1724,6 +1724,14 @@ body.moderation-mode .site-footer { display: none; }
     background: rgba(88, 166, 255, .12);
     box-shadow: inset 0 0 18px rgba(88, 166, 255, .06);
 }
+.moderation-sidebar .nav-group { display: grid; gap: 4px; }
+.moderation-sidebar .nav-group summary { display: flex; gap: 12px; align-items: center; padding: 11px 12px; border-radius: 10px; color: var(--muted); font-size: 12px; font-weight: 650; cursor: pointer; list-style: none; }
+.moderation-sidebar .nav-group summary::-webkit-details-marker { display: none; }
+.moderation-sidebar .nav-group summary:hover { color: var(--ink); background: rgba(255,255,255,.035); }
+.moderation-sidebar .nav-chevron { margin-left: auto; transition: transform 140ms ease; }
+.moderation-sidebar .nav-group[open] .nav-chevron { transform: rotate(180deg); }
+.moderation-sidebar .nav-sub-link { margin-left: 42px; padding: 8px 12px !important; font-size: 11px !important; }
+.moderation-sidebar .nav-sub-link.active { color: var(--blue-bright); background: rgba(88,166,255,.09); }
 .moderation-workspace { min-width: 0; padding: 34px clamp(24px, 4vw, 58px) 70px; }
 .moderation-topbar { display: flex; gap: 28px; align-items: flex-start; justify-content: space-between; margin-bottom: 30px; }
 .moderation-topbar h1 { font-size: clamp(30px, 3.2vw, 43px); }
@@ -1786,6 +1794,21 @@ body.radar-mode .moderation-topbar {
 }
 .mod-table td { max-width: 360px; padding: 13px; border-top: 1px solid var(--line); color: #cbd0d9; font-size: 11px; vertical-align: middle; }
 .mod-table tbody tr:hover { background: rgba(88, 166, 255, .035); }
+.appeal-table tbody tr[data-appeal-detail] { cursor: pointer; }
+.appeal-view-label { display: inline-flex; gap: 5px; align-items: center; color: var(--blue-bright); font-size: 10px; opacity: .72; }
+.appeal-view-label svg { width: 15px; height: 15px; }
+.appeal-table tbody tr:hover .appeal-view-label { opacity: 1; }
+.appeal-context-card { display: grid; gap: 12px; margin-bottom: 15px; padding: 15px 18px; border: 1px solid rgba(88, 166, 255, .2); border-radius: 14px; background: linear-gradient(120deg, rgba(88, 166, 255, .09), rgba(255, 255, 255, .025)); grid-template-columns: minmax(220px, .8fr) minmax(300px, 1.2fr); }
+.appeal-context-main h2 { margin: 2px 0 6px; font-size: 19px; }
+.appeal-context-main h2 a { color: var(--ink); text-decoration: none; }
+.appeal-context-main h2 a:hover { color: var(--blue-bright); }
+.appeal-context-facts { display: grid; gap: 8px; margin: 0; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.appeal-context-facts div { display: flex; min-width: 0; height: 48px; flex-direction: column; justify-content: center; padding: 5px 9px; border: 1px solid var(--line); border-radius: 9px; background: rgba(0, 0, 0, .12); }
+.appeal-context-facts dt, .appeal-context-reason span { color: var(--faint); font-size: 9px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.appeal-context-facts dd { margin: 3px 0 0; overflow: hidden; color: var(--ink); font-size: 10px; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
+.appeal-context-facts small { display: block; margin-top: 2px; overflow: hidden; color: var(--faint); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.appeal-context-reason { grid-column: 1 / -1; margin: 0; padding-top: 10px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; line-height: 1.45; white-space: pre-wrap; }
+.appeal-context-reason span { display: block; margin-bottom: 5px; }
 .subject-link, .activity-label { display: block; color: var(--ink); text-decoration: none; }
 .subject-link small, .mod-table td > small { display: block; margin-top: 4px; color: var(--faint); font-size: 9px; font-weight: 500; }
 .mod-reason { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2496,6 +2519,8 @@ body.radar-mode .moderation-topbar {
 .action-quick-actions .quick-action-note { border-color: rgba(234, 179, 8, .45); color: #f4c95d; }
 .action-quick-actions .quick-action-revoke { border-color: rgba(239, 71, 111, .5); color: #ff91aa; }
 .action-quick-actions .quick-action-appeals { border-color: rgba(34, 197, 94, .45); color: #7ee2a0; }
+.action-quick-actions .appeal-start-review { border-color: rgba(34, 197, 94, .5); color: #7ee2a0; }
+.action-quick-actions .appeal-decide-fate { border-color: rgba(249, 115, 22, .55); color: #fdba74; }
 .action-quick-actions .button:hover { filter: brightness(1.18); }
 .inspector-summary, .activity-timeline { min-height: 100%; }
 .activity-timeline { display: flex; min-height: 0; flex-direction: column; }
@@ -2525,6 +2550,45 @@ body.radar-mode .moderation-topbar {
 .timeline-detail-full { margin-top: 16px; color: var(--ink); line-height: 1.6; white-space: pre-wrap; }
 .timeline-detail-moderator { color: var(--muted); font-size: 11px; }
 .action-edit-modal { position: relative; max-width: 520px; }
+.appeal-detail-modal { max-width: 650px; }
+.appeal-approve-button { border-color: rgba(83, 211, 154, .55); color: #071810; background: var(--green); box-shadow: 0 8px 25px rgba(83, 211, 154, .16); }
+.appeal-deny-button { border-color: rgba(255, 116, 127, .55); color: #25090e; background: var(--red); box-shadow: 0 8px 25px rgba(255, 116, 127, .16); }
+.appeal-detail-modal > h2 { margin: 0; }
+.appeal-detail-modal > h2 code { color: var(--blue-bright); font-size: .75em; }
+.appeal-detail-modal > p { line-height: 1.5; }
+.appeal-detail-modal > p strong { color: var(--ink); }
+.appeal-answers { display: grid; gap: 10px; max-height: 310px; margin: 20px 0; overflow-y: auto; }
+.appeal-answers dt { padding: 10px 12px 0; color: var(--faint); font-size: 10px; font-weight: 750; letter-spacing: .04em; }
+.appeal-answers dd { margin: -7px 0 0; padding: 0 12px 12px; border-bottom: 1px solid var(--line); color: var(--ink); font-size: 12px; line-height: 1.55; white-space: pre-wrap; }
+.appeal-page-header { display: flex; gap: 20px; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; padding: 18px 20px; border: 1px solid rgba(88, 166, 255, .2); border-radius: 14px; background: linear-gradient(120deg, rgba(88, 166, 255, .09), rgba(255, 255, 255, .025)); }
+.appeal-page-header h2 { margin: 3px 0 8px; }
+.appeal-page-header h2 code, .appeal-page-sidebar h2 code { color: var(--blue-bright); }
+.appeal-page-subject { margin: 0; color: var(--muted); font-size: 12px; }
+.appeal-detail-layout { display: grid; gap: 15px; grid-template-columns: minmax(0, 1.4fr) minmax(280px, .6fr); }
+.appeal-page-answers { display: grid; gap: 10px; margin: 0; padding: 18px; }
+.appeal-answer-card { padding: 13px 14px; border: 1px solid var(--line); border-radius: 10px; background: rgba(0, 0, 0, .12); }
+.appeal-answer-card dt { color: var(--faint); font-size: 10px; font-weight: 750; letter-spacing: .04em; }
+.appeal-answer-card dd { margin: 7px 0 0; color: var(--ink); font-size: 12px; line-height: 1.6; white-space: pre-wrap; }
+.appeal-page-sidebar h2 { margin: 4px 0 18px; }
+.appeal-page-sidebar .mod-panel-heading h2 { margin: 3px 0 0; }
+.appeal-page-facts { display: grid; gap: 10px; margin: 0; }
+.appeal-page-sidebar .appeal-page-facts { padding: 16px 18px 0; }
+.appeal-page-facts div { padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; }
+.appeal-page-facts dt { color: var(--faint); font-size: 9px; font-weight: 750; text-transform: uppercase; }
+.appeal-page-facts dd { margin: 5px 0 0; color: var(--ink); font-size: 11px; }
+.appeal-page-facts small { display: block; margin-top: 3px; color: var(--faint); font-size: 9px; }
+.appeal-case-review { margin-top: 15px; }
+.appeal-case-review .appeal-page-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 16px 18px; }
+.appeal-submission-panel { min-height: 0; height: auto; margin-top: 15px; }
+.appeal-submission-panel .mod-panel-heading h2 { margin-top: 10px; }
+.appeal-submission-panel .appeal-page-answers { max-height: none; overflow: visible; }
+.appeal-submission-panel .appeal-answer-card dd { overflow-wrap: anywhere; }
+.appeal-page-actions { display: grid; gap: 10px; margin-top: 18px; padding: 16px 18px 18px; border-top: 1px solid var(--line); }
+.appeal-page-actions label { display: grid; gap: 5px; color: var(--muted); font-size: 10px; }
+.appeal-page-actions label small { color: var(--faint); }
+.appeal-page-actions textarea { width: 100%; padding: 9px; border: 1px solid var(--line-bright); border-radius: 8px; color: var(--ink); background: #11151c; font: inherit; resize: vertical; }
+.appeal-page-actions > div { display: flex; gap: 8px; }
+.appeal-closed-note { margin: 18px; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .required-mark { color: var(--red); font-weight: 800; }
 .action-edit-modal .eyebrow + h2 { margin: 0; }
 .action-edit-modal form { display: grid; gap: 14px; margin-top: 18px; }
