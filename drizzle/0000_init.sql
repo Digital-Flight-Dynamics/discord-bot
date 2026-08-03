@@ -71,6 +71,8 @@ CREATE TABLE IF NOT EXISTS "bans" (
 	"linked_message_url" text,
 	"linked_message_deleted" boolean DEFAULT false NOT NULL,
 	"expires_at" timestamp with time zone,
+	"duration_ms" bigint,
+	"duration_token" text,
 	"record_expires_at" timestamp with time zone,
 	"ban_type" text NOT NULL,
 	"private_notes" text,
@@ -86,6 +88,9 @@ CREATE TABLE IF NOT EXISTS "bans" (
 	"resolution_reason" text,
 	"resolution_public_note" text
 );
+
+ALTER TABLE "bans" ADD COLUMN IF NOT EXISTS "duration_ms" bigint;
+ALTER TABLE "bans" ADD COLUMN IF NOT EXISTS "duration_token" text;
 
 ALTER TABLE "bans" ADD COLUMN IF NOT EXISTS "source" text DEFAULT 'bot' NOT NULL;
 

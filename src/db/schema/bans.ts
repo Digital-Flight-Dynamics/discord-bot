@@ -1,4 +1,4 @@
-import { boolean, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { bigint, boolean, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { identitySnapshots } from './identitySnapshots';
 
 export const bans = pgTable('bans', {
@@ -15,6 +15,8 @@ export const bans = pgTable('bans', {
     linkedMessageUrl: text('linked_message_url'),
     linkedMessageDeleted: boolean('linked_message_deleted').notNull().default(false),
     expiresAt: timestamp('expires_at', { withTimezone: true }),
+    durationMs: bigint('duration_ms', { mode: 'number' }),
+    durationToken: text('duration_token'),
     recordExpiresAt: timestamp('record_expires_at', { withTimezone: true }),
     banType: text('ban_type').notNull(), // 'soft' | 'hard'
     privateNotes: text('private_notes'),

@@ -151,8 +151,14 @@ export async function updateActionText(
     else await db.update(timeouts).set({ privateNote: value }).where(eq(timeouts.id, id));
 }
 
-export async function updateBanExpiration(db: ActionUpdateExecutor, id: string, expiresAt: Date | null): Promise<void> {
-    await db.update(bans).set({ expiresAt }).where(eq(bans.id, id));
+export async function updateBanDuration(
+    db: ActionUpdateExecutor,
+    id: string,
+    durationMs: number | null,
+    durationToken: string | null,
+    expiresAt: Date | null,
+): Promise<void> {
+    await db.update(bans).set({ durationMs, durationToken, expiresAt }).where(eq(bans.id, id));
 }
 
 export async function updateActionRecordExpiration(

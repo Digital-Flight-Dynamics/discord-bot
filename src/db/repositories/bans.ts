@@ -29,6 +29,8 @@ export async function createBan(input: {
     banType: BanType;
     privateNotes?: string | null;
     expiresAt?: Date | null;
+    durationMs?: number | null;
+    durationToken?: string | null;
     recordExpiresAt?: Date | null;
     deleteMessageSeconds?: number | null;
     linked?: LinkedMessage | null;
@@ -46,6 +48,8 @@ export async function createBan(input: {
             banType: input.banType,
             privateNotes: input.privateNotes ?? null,
             expiresAt: input.expiresAt ?? null,
+            durationMs: input.durationMs ?? null,
+            durationToken: input.durationToken ?? null,
             recordExpiresAt: input.recordExpiresAt ?? null,
             deleteMessageSeconds: input.deleteMessageSeconds ?? null,
             linkedMessageId: input.linked?.linkedMessageId ?? null,

@@ -436,6 +436,8 @@ async function executeBan(
         banType: ctx.soft ? 'soft' : 'hard',
         privateNotes: ctx.privateNote,
         expiresAt: pending.expiresAt,
+        durationMs: pending.durationMs,
+        durationToken: pending.durationToken,
         recordExpiresAt: pending.recordExpiresAt,
         deleteMessageSeconds: pending.deleteMessageSeconds,
         linked: ctx.linked,

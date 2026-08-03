@@ -36,7 +36,7 @@ import {
     loadAction,
     updateActionRecordExpiration,
     updateActionText,
-    updateBanExpiration,
+    updateBanDuration,
     updateBanPurgeDuration,
     updateTimeoutDuration,
     type ActionUpdateExecutor,
@@ -515,7 +515,7 @@ async function applyActionUpdate(
     if (kind === 'duration') {
         if (loaded.caseType !== 'ban' && loaded.caseType !== 'timeout') throw new Error('Only bans and timeouts have durations.');
         if (loaded.caseType === 'ban' && isPermanentDuration(rawValue)) {
-            await updateBanExpiration(db, id, null);
+            await updateBanDuration(db, id, null, rawValue, null);
             return {
                 label: 'Duration Updated',
                 oldDisplay: displayExpiresAt(loaded.record.expiresAt),
@@ -529,7 +529,7 @@ async function applyActionUpdate(
         const expiresAt = new Date(Date.now() + effectiveDurationMs);
         const clamped = loaded.caseType === 'timeout' && durationMs > MAX_TIMEOUT_MS;
         if (loaded.caseType === 'ban') {
-            await updateBanExpiration(db, id, expiresAt);
+            await updateBanDuration(db, id, durationMs, rawValue, expiresAt);
         } else {
             await updateDiscordTimeout(guild, loaded, effectiveDurationMs, rationale, moderator);
             onDiscordTimeoutChanged();

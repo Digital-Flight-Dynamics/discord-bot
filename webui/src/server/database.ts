@@ -164,13 +164,14 @@ const actionsCte = `
     WITH actions AS (
         SELECT w.action_id, 'warning'::text AS kind, w.reason, w.created_at,
                w.record_expires_at AS expires_at,
-               NULL::bigint AS duration_ms, w.resolution_status, w.resolution_public_note,
+               NULL::bigint AS duration_ms, NULL::text AS duration_token,
+               w.resolution_status, w.resolution_public_note,
                w.removed_at AS ended_at, s.discord_user_id, s.username, s.display_name,
                w.moderator_snapshot_id, w.guild_id
           FROM warnings w
           JOIN identity_snapshots s ON s.id = w.subject_snapshot_id
         UNION ALL
-        SELECT k.action_id, 'kick', k.reason, k.created_at, k.record_expires_at, NULL,
+        SELECT k.action_id, 'kick', k.reason, k.created_at, k.record_expires_at, NULL::bigint, NULL::text,
                k.resolution_status, k.resolution_public_note, k.resolved_at,
                s.discord_user_id, s.username, s.display_name, k.moderator_snapshot_id, k.guild_id
           FROM kicks k
@@ -178,15 +179,14 @@ const actionsCte = `
         UNION ALL
         SELECT b.action_id, 'ban', b.reason, b.created_at,
                b.record_expires_at AS expires_at,
-               CASE WHEN b.expires_at IS NULL THEN NULL
-                    ELSE round(extract(epoch FROM (b.expires_at - b.created_at)) * 1000)::bigint END,
+               b.duration_ms, b.duration_token,
                b.resolution_status, b.resolution_public_note, b.lifted_at,
                s.discord_user_id, s.username, s.display_name, b.moderator_snapshot_id, b.guild_id
           FROM bans b
           JOIN identity_snapshots s ON s.id = b.subject_snapshot_id
         UNION ALL
         SELECT t.action_id, 'timeout', t.reason, t.created_at,
-               t.record_expires_at AS expires_at, t.duration_ms,
+               t.record_expires_at AS expires_at, t.duration_ms, t.duration_token,
                t.resolution_status, t.resolution_public_note, t.resolved_at,
                s.discord_user_id, s.username, s.display_name, t.moderator_snapshot_id, t.guild_id
           FROM timeouts t

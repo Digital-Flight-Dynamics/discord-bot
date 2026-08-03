@@ -19,4 +19,4 @@ COPY --from=build /app/webui/drizzle ./drizzle
 COPY --from=build /app/src/config /app/src/config
 USER bun
 EXPOSE 4321
-CMD ["bun", "src/server.ts"]
+CMD ["sh", "-c", "bun src/server/migrate.ts && exec bun src/server.ts"]
