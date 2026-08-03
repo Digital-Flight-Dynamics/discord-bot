@@ -6,12 +6,12 @@ const webui = join(root, 'webui');
 const environment = { ...process.env, CONSTANTS_FILE: 'dev' };
 
 const children: ChildProcess[] = [
-    spawn('bun', ['--watch', 'src/index.ts'], {
+        spawn('sh', ['-c', 'bun run db:migrate && exec bun --watch src/index.ts'], {
         cwd: root,
         env: environment,
         stdio: 'inherit',
     }),
-    spawn('bun', ['run', 'dev'], {
+    spawn('sh', ['-c', 'bun run db:migrate && exec bun run dev'], {
         cwd: webui,
         env: environment,
         stdio: 'inherit',

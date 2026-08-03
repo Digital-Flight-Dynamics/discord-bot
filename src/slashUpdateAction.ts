@@ -44,6 +44,7 @@ import {
     type LoadedAction,
 } from './db/repositories/moderationActions';
 import { MAX_DISCORD_TIMEOUT_MS, MAX_PURGE_SECONDS } from './lib/moderationDuration';
+import { config } from './config';
 
 const MAX_TIMEOUT_MS = MAX_DISCORD_TIMEOUT_MS;
 
@@ -52,6 +53,92 @@ type NotificationMode = 'no' | 'silent-edit' | 'notify';
 type ResolutionStatus = 'revoked' | 'appeal-approved';
 type NotificationResult = { status: string; detail?: string; channelId?: string; messageId?: string };
 
+export async function executeAtcActionEdit(
+    client: Client,
+    input: {
+        actorUserId: string;
+        actionId: string;
+        kind: UpdateChangeKind;
+        newValue: string;
+        rationale: string;
+        notificationMode: NotificationMode;
+    },
+): Promise<{ actionId: string; changeLabel: string; newValue: string; links: string }> {
+    const guild = config.guildId
+        ? client.guilds.cache.get(config.guildId) || (await client.guilds.fetch(config.guildId).catch(() => null))
+        : null;
+    if (!guild) throw new Error('The configured guild is unavailable.');
+    const moderator = await client.users.fetch(input.actorUserId);
+    const moderatorMember = await guild.members.fetch(input.actorUserId).catch(() => null);
+    if (!hasRoleAccess(moderatorMember, 'moderation')) throw new Error('Moderator access is required.');
+    const actionId = normalizeActionId(input.actionId);
+    const loaded = await loadAction(guild.id, actionId);
+    if (!loaded) throw new Error('Action ID not found.');
+    const moderatorSnap = await captureIdentitySnapshot({ member: moderatorMember || undefined, user: moderator, discordUserId: moderator.id });
+    let previousTimeoutMs: number | null | undefined;
+    let committed;
+    try {
+        committed = await commitActionEdit({
+            loaded,
+            moderatorSnapshotId: moderatorSnap.id,
+            moderatorUserId: moderator.id,
+            rationale: input.rationale.trim(),
+            notifyUser: input.notificationMode === 'notify',
+            notificationMode: input.notificationMode,
+            apply: (db, freshLoaded) => applyActionUpdate(
+                db,
+                guild,
+                freshLoaded,
+                input.kind,
+                input.newValue.trim(),
+                input.rationale.trim(),
+                moderator,
+                () => {
+                    const oldExpiry = freshLoaded.record.expiresAt;
+                    previousTimeoutMs = oldExpiry instanceof Date ? Math.max(0, oldExpiry.getTime() - Date.now()) : null;
+                },
+            ),
+        });
+    } catch (error) {
+        if (previousTimeoutMs !== undefined) {
+            await restoreUpdatedTimeout(guild, loaded, previousTimeoutMs, moderator).catch(console.error);
+        }
+        throw error;
+    }
+    const { applied, audit } = committed;
+    const notificationResult = await handleUserNotification(
+        client,
+        guild,
+        committed.loaded,
+        applied.label,
+        applied.newDisplay,
+        input.notificationMode,
+        audit.id,
+    );
+    await updateModerationActionAuditMetadata(audit.id, {
+        ...applied.metadata,
+        notificationMode: input.notificationMode,
+        notificationStatus: notificationResult.status,
+        notificationDetail: notificationResult.detail ?? null,
+    });
+    await refreshModLogAudit(client, guild, committed.loaded);
+    await postThreadAuditEmbed(
+        client,
+        guild,
+        committed.loaded,
+        moderator,
+        applied.label,
+        applied.newDisplay,
+        input.rationale.trim(),
+        notificationResult,
+    );
+    return {
+        actionId: committed.loaded.actionId.actionId,
+        changeLabel: applied.label,
+        newValue: applied.newDisplay,
+        links: await updateActionLinks(guild.id, committed.loaded),
+    };
+}
 
 
 export async function handleUpdateActionCommand(interaction: ChatInputCommandInteraction): Promise<boolean> {
@@ -85,91 +172,19 @@ export async function handleUpdateActionCommand(interaction: ChatInputCommandInt
     const notificationMode = (interaction.options.getString('notification-mode') || 'no') as NotificationMode;
 
     try {
-        const initialLoaded = await loadAction(interaction.guild.id, actionId);
-        if (!initialLoaded) {
-            await interaction.editReply({ embeds: [errorEmbed('Action ID not found.')] });
-            return true;
-        }
-        let loaded = initialLoaded;
-
-        const moderatorMember = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
-        const moderatorSnap = await captureIdentitySnapshot({
-            member: moderatorMember || undefined,
-            user: interaction.user,
-            discordUserId: interaction.user.id,
-        });
-        let previousTimeoutMs: number | null | undefined;
-        let committed;
-        try {
-            committed = await commitActionEdit({
-                loaded,
-                moderatorSnapshotId: moderatorSnap.id,
-                moderatorUserId: interaction.user.id,
-                rationale,
-                notifyUser: notificationMode === 'notify',
-                notificationMode,
-                apply: (db, freshLoaded) => applyActionUpdate(
-                    db,
-                    interaction.guild!,
-                    freshLoaded,
-                    kind,
-                    newValue,
-                    rationale,
-                    interaction.user,
-                    () => {
-                        const oldExpiry = freshLoaded.record.expiresAt;
-                        previousTimeoutMs = oldExpiry instanceof Date
-                            ? Math.max(0, oldExpiry.getTime() - Date.now())
-                            : null;
-                    },
-                ),
-            });
-        } catch (error) {
-            if (previousTimeoutMs !== undefined) {
-                await restoreUpdatedTimeout(interaction.guild, loaded, previousTimeoutMs, interaction.user).catch(
-                    (restoreError) => console.error('[ERROR] Failed to compensate timeout after update rollback:', restoreError),
-                );
-            }
-            throw error;
-        }
-        const { applied, audit } = committed;
-        loaded = committed.loaded;
-
-        const notificationResult = await handleUserNotification(
-            interaction.client,
-            interaction.guild,
-            loaded,
-            applied.label,
-            applied.newDisplay,
-            notificationMode,
-            audit.id,
-        );
-        await updateModerationActionAuditMetadata(audit.id, {
-            ...applied.metadata,
-            notificationMode,
-            notificationStatus: notificationResult.status,
-            notificationDetail: notificationResult.detail ?? null,
-            notificationChannelId: notificationResult.channelId ?? null,
-            notificationMessageId: notificationResult.messageId ?? null,
-        });
-        await refreshModLogAudit(interaction.client, interaction.guild, loaded);
-        await postThreadAuditEmbed(
-            interaction.client,
-            interaction.guild,
-            loaded,
-            interaction.user,
-            applied.label,
-            applied.newDisplay,
+        const result = await executeAtcActionEdit(interaction.client, {
+            actorUserId: interaction.user.id,
+            actionId,
+            kind,
+            newValue,
             rationale,
-            notificationResult,
-        );
-
-        const links = await updateActionLinks(interaction.guild.id, loaded);
+            notificationMode,
+        });
         await interaction.editReply({
             embeds: [
                 createEmbed({
                     color: EmbedColors.SUCCESS,
-                    description: `Done, action has been updated\n\n${links}`,
+                    description: `Done, action has been updated\n\n${result.links}`,
                 }),
             ],
         });

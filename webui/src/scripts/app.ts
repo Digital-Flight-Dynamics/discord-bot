@@ -26,6 +26,8 @@ import {
     createIcons,
     Database,
     DoorOpen,
+    Eye,
+    Hourglass,
     Info,
     KeyRound,
     LayoutDashboard,
@@ -126,6 +128,8 @@ const moderatorIcons = {
     ClipboardList,
     Database,
     DoorOpen,
+    Eye,
+    Hourglass,
     Info,
     KeyRound,
     LayoutDashboard,
@@ -287,28 +291,28 @@ function appealStatusMarkup(status: AppealStatus): string {
     return `<span class="status appeal-status-${status}">${labels[status]}</span>`;
 }
 
-function kindMarkup(kind: PublicAction['kind']): string {
+function kindMarkup(kind: PublicAction['kind'], iconOnly = false): string {
     if (kind === 'warning') {
-        return `<span class="kind-badge kind-warning">
+        return `<span class="kind-badge kind-warning"${iconOnly ? ' title="Warning" aria-label="Warning"' : ''}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2.7 20h18.6L12 3Z"></path><path d="M12 9v5M12 17.5v.1"></path></svg>
-            <span>Warning</span>
+            ${iconOnly ? '' : '<span>Warning</span>'}
         </span>`;
     }
     if (kind === 'timeout') {
-        return `<span class="kind-badge kind-mute">
+        return `<span class="kind-badge kind-mute"${iconOnly ? ' title="Mute" aria-label="Mute"' : ''}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9v6h4l5 4V5L9 9H5Z"></path><path d="m17 9 5 5M22 9l-5 5"></path></svg>
-            <span>Mute</span>
+            ${iconOnly ? '' : '<span>Mute</span>'}
         </span>`;
     }
     if (kind === 'kick') {
-        return `<span class="kind-badge kind-kick">
+        return `<span class="kind-badge kind-kick"${iconOnly ? ' title="Kick" aria-label="Kick"' : ''}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h11v18H4zM9 12h.1"></path><path d="M14 12h8M19 9l3 3-3 3"></path></svg>
-            <span>Kick</span>
+            ${iconOnly ? '' : '<span>Kick</span>'}
         </span>`;
     }
-    return `<span class="kind-badge kind-ban">
+    return `<span class="kind-badge kind-ban"${iconOnly ? ' title="Ban" aria-label="Ban"' : ''}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m5.7 5.7 12.6 12.6"></path></svg>
-        <span>Ban</span>
+        ${iconOnly ? '' : '<span>Ban</span>'}
     </span>`;
 }
 
@@ -1254,7 +1258,12 @@ type ModeratorAction = PublicAction & {
     subjectUserId: string;
     subjectUsername: string | null;
     subjectDisplayName: string | null;
+    privateNote: string | null;
+    moderatorUserId: string | null;
+    moderatorUsername: string | null;
+    moderatorDisplayName: string | null;
     modLogUrl: string | null;
+    modThreadUrl: string | null;
     activityCount: number;
     latestActivity: { label: string; at: string } | null;
 };
@@ -1315,6 +1324,7 @@ function moderationShell(
     title: string,
     subtitle: string,
     content: string,
+    headerPrefix = '',
 ): void {
     app.innerHTML = `
         <div class="moderation-root page-enter">
@@ -1322,8 +1332,9 @@ function moderationShell(
             <section class="moderation-workspace">
                 <header class="moderation-topbar">
                     <div>
+                        ${headerPrefix}
                         <h1>${escapeHtml(title)}</h1>
-                        <p class="lede">${escapeHtml(subtitle)}</p>
+                        ${subtitle ? `<p class="lede">${escapeHtml(subtitle)}</p>` : ''}
                     </div>
                     ${userChip(user, 'moderation')}
                 </header>
@@ -2034,8 +2045,15 @@ async function renderRadarProfile(userId: string): Promise<void> {
         <button class="profile-action-button action-${kind}" type="button" data-profile-action="${kind}">
             ${moderatorIcon(icon)}<span>${label}</span>
         </button>`;
-    moderationShell(user, 'radar', profile.displayName, `User Radar · ${profile.id}`, `
-        <a class="back-link" href="/moderation/radar">← New radar search</a>
+    const cameFromRadar = (() => {
+        try {
+            const referrer = new URL(document.referrer);
+            return referrer.origin === location.origin && referrer.pathname === '/moderation/radar';
+        } catch {
+            return false;
+        }
+    })();
+    moderationShell(user, 'radar', profile.displayName, '', `
         <section class="profile-command-card">
             <div class="profile-summary-row">
                 <div class="profile-identity">
@@ -2065,7 +2083,14 @@ async function renderRadarProfile(userId: string): Promise<void> {
             </div>
             <div id="profile-actions-results"></div>
         </section>
-    `);
+    `, `<div class="header-navigation"><a class="back-link header-back-link" href="${cameFromRadar ? '/moderation/radar' : '#'}"${cameFromRadar ? '' : ' data-radar-history-back'}>← ${cameFromRadar ? 'New Search' : 'Back'}</a>${cameFromRadar ? '' : '<a class="header-dotted-link" href="/moderation/radar">New Radar Search</a>'}</div>`);
+    if (!cameFromRadar) {
+        document.querySelector<HTMLAnchorElement>('[data-radar-history-back]')?.addEventListener('click', (event) => {
+            event.preventDefault();
+            if (history.length > 1) history.back();
+            else location.href = '/moderation/radar';
+        });
+    }
     for (const button of document.querySelectorAll<HTMLButtonElement>('[data-profile-action]')) {
         button.addEventListener('click', () => {
             const kind = button.dataset.profileAction as 'warn' | 'timeout' | 'kick' | 'ban';
@@ -2141,17 +2166,17 @@ async function renderModerationLogs(): Promise<void> {
                     data.items.length
                         ? `<div class="mod-table-wrap">
                             <table class="mod-table audit-table">
-                                <thead><tr><th>Moderator</th><th>Activity</th><th>Target</th><th>Action</th><th>Details</th><th>Time</th></tr></thead>
+                                <thead><tr><th>Action</th><th>Moderator</th><th>Activity</th><th>Target</th><th>Details</th><th>Time</th></tr></thead>
                                 <tbody>${data.items.map((entry) => `
                                     <tr>
+                                        <td><span class="audit-action"><span class="audit-action-kind">${kindMarkup(entry.actionKind, true)}</span><a class="action-link" href="/moderation/actions/${encodeURIComponent(entry.actionId)}">${escapeHtml(entry.actionId)}</a></span></td>
                                         <td>
                                             ${entry.moderatorUserId
                                                 ? `<a class="subject-link" href="/moderation/radar/${encodeURIComponent(entry.moderatorUserId)}"><strong>${escapeHtml(entry.moderatorDisplayName || entry.moderatorUsername || entry.moderatorUserId)}</strong><small>${escapeHtml(entry.moderatorUserId)}</small></a>`
                                                 : '<span class="muted-value">Automated system</span>'}
                                         </td>
-                                        <td><strong class="audit-activity">${escapeHtml(entry.activity)}</strong><small>${kindMarkup(entry.actionKind)}</small></td>
+                                        <td><strong class="audit-activity">${escapeHtml(entry.activity)}</strong></td>
                                         <td><a class="subject-link" href="/moderation/radar/${encodeURIComponent(entry.subjectUserId)}"><strong>${escapeHtml(entry.subjectDisplayName || entry.subjectUsername || entry.subjectUserId)}</strong><small>${escapeHtml(entry.subjectUserId)}</small></a></td>
-                                        <td><a class="action-link" href="/moderation/actions/${encodeURIComponent(entry.actionId)}">${escapeHtml(entry.actionId)}</a></td>
                                         <td class="mod-reason">${escapeHtml(entry.details)}</td>
                                         <td class="nowrap">${formatDate(entry.createdAt, true)}</td>
                                     </tr>`).join('')}</tbody>
@@ -2215,49 +2240,256 @@ async function renderModeratorAction(actionId: string): Promise<void> {
         }>(`/api/moderation/actions/${encodeURIComponent(actionId)}`),
     ]);
     const action = data.action;
+    const currentProfile = await fetchJson<DiscordMemberProfile>(
+        `/api/moderation/tools/member/${encodeURIComponent(action.subjectUserId)}`,
+    ).catch(() => null);
+    const moderatorProfile = action.moderatorUserId
+        ? await fetchJson<DiscordMemberProfile>(
+              `/api/moderation/tools/member/${encodeURIComponent(action.moderatorUserId)}`,
+          ).catch(() => null)
+        : null;
+    const subjectDisplayName = currentProfile?.displayName || action.subjectDisplayName || action.subjectUsername || action.subjectUserId;
+    const subjectUsername = currentProfile?.username || action.subjectUsername || action.subjectUserId;
+    const subjectRoles = currentProfile?.isMember && currentProfile.roles.length
+        ? currentProfile.roles.map((role) => {
+              const color = role.color > 0 && role.color <= 0xFFFFFF
+                  ? `#${role.color.toString(16).padStart(6, '0')}`
+                  : '#747b87';
+              return `<span class="discord-role" style="--role-color: ${color}">${escapeHtml(role.name)}</span>`;
+          }).join('')
+        : '<span class="discord-role empty">Not in server</span>';
+    const moderatorDisplayName = moderatorProfile?.displayName || action.moderatorDisplayName || 'Automated system';
+    const moderatorUsername = moderatorProfile?.username || action.moderatorUsername || action.moderatorUserId || 'system';
+    const moderatorName = escapeHtml(moderatorDisplayName);
+    const moderatorMarkup = action.moderatorUserId
+        ? `<a href="/moderation/radar/${encodeURIComponent(action.moderatorUserId)}">${moderatorName}</a>`
+        : moderatorName;
+    const auditModeratorIds = [...new Set(data.audits.map((audit) => audit.moderatorUserId).filter(Boolean))];
+    const auditModeratorProfiles = new Map<string, DiscordMemberProfile>();
+    await Promise.all(auditModeratorIds.map(async (id) => {
+        const profile = await fetchJson<DiscordMemberProfile>(`/api/moderation/tools/member/${encodeURIComponent(id)}`).catch(() => null);
+        if (profile) auditModeratorProfiles.set(id, profile);
+    }));
+    const auditPreview = (value: string | null): string => {
+        const words = (value || '').trim().split(/\s+/).filter(Boolean);
+        return words.length ? words.slice(0, 8).join(' ') + (words.length > 8 ? '…' : '') : 'Cleared';
+    };
     const appealActivity = data.appeals.flatMap((appeal) => [
-        { label: 'Appeal submitted', at: appeal.submittedAt, detail: `Appeal ${appeal.id}` },
+        { label: 'Appeal submitted', at: appeal.submittedAt, detail: `Appeal ${appeal.id}`, moderatorUserId: null },
         ...(appeal.reviewStartedAt
-            ? [{ label: 'Appeal entered review', at: appeal.reviewStartedAt, detail: `Appeal ${appeal.id}` }]
+            ? [{ label: 'Appeal entered review', at: appeal.reviewStartedAt, detail: `Appeal ${appeal.id}`, moderatorUserId: null }]
             : []),
         ...(appeal.decidedAt
             ? [{
                   label: appeal.status === 'approved' ? 'Appeal approved' : 'Appeal denied',
                   at: appeal.decidedAt,
                   detail: `Appeal ${appeal.id}`,
+                  moderatorUserId: null,
               }]
             : []),
     ]);
     const activity = [
+        { label: 'Action created', at: action.createdAt, detail: null as string | null, moderatorUserId: null as string | null },
         ...data.audits.map((audit) => ({
-            label: audit.label,
+            label: audit.label.toLowerCase().includes('note') ? `New note: ${auditPreview(audit.newValue)}` : audit.label,
             at: audit.createdAt,
-            detail: `${audit.rationale} · Moderator ${audit.moderatorUserId}`,
+            detail: audit.rationale,
+            moderatorUserId: audit.moderatorUserId,
         })),
         ...appealActivity,
     ].sort((left, right) => new Date(right.at).getTime() - new Date(left.at).getTime());
-    moderationShell(user, 'actions', `Action ${action.actionId}`, `${action.subjectDisplayName || action.subjectUsername || action.subjectUserId} · ${action.kind}`, `
-        <a class="back-link" href="/moderation/actions">← Actions database</a>
+    const timelinePageSize = window.matchMedia('(max-width: 700px)').matches ? 7 : 10;
+    const timelineMarkup = (page: number): string => {
+        const pages = Math.max(1, Math.ceil(activity.length / timelinePageSize));
+        const currentPage = Math.min(Math.max(page, 1), pages);
+        const items = activity.slice((currentPage - 1) * timelinePageSize, currentPage * timelinePageSize);
+        const firstVisible = activity.length ? (currentPage - 1) * timelinePageSize + 1 : 0;
+        const lastVisible = Math.min(currentPage * timelinePageSize, activity.length);
+        const pageSummary = pages > 1 ? `Visible: ${firstVisible}-${lastVisible} (Total: ${activity.length})` : `Total: ${activity.length}`;
+        const pageButtons = pages > 1
+            ? Array.from({ length: pages }, (_, index) => index + 1)
+                  .map((value) => `<button type="button" class="${value === currentPage ? 'active' : ''}" data-timeline-page="${value}">${value}</button>`)
+                  .join('')
+            : '';
+        const preview = (value: string): string => {
+            const words = value.trim().split(/\s+/);
+            return escapeHtml(words.slice(0, 8).join(' ') + (words.length > 8 ? '…' : ''));
+        };
+        return `
+            <div class="timeline-list">
+                ${items.map((item) => `<div class="timeline-item${item.label === 'Action created' ? ' created' : ''}"><i></i><div><strong>${escapeHtml(item.label)}</strong><small>${formatDate(item.at, true)}</small>${item.detail ? `<p>${preview(item.detail)}</p>` : ''}${item.moderatorUserId ? `<p class="timeline-moderator">Moderator: ${escapeHtml(auditModeratorProfiles.get(item.moderatorUserId)?.displayName || 'Unknown')} (@${escapeHtml(auditModeratorProfiles.get(item.moderatorUserId)?.username || item.moderatorUserId)} - ${escapeHtml(item.moderatorUserId)})</p>` : ''}</div>${item.detail ? `<button class="timeline-detail-button" type="button" data-timeline-detail="${activity.indexOf(item)}" aria-label="View full details" title="View full details">${moderatorIcon('eye')}</button>` : ''}</div>`).join('')}
+            </div>
+            <footer class="timeline-pagination"><span>${pageSummary}</span><div>${pageButtons}</div></footer>`;
+    };
+    moderationShell(user, 'actions', `Action ${action.actionId}`, '', `
+        <article class="mod-panel action-user-card">
+            <div class="action-user-layout">
+                <a class="action-user-avatar action-user-avatar-link" href="/moderation/radar/${encodeURIComponent(action.subjectUserId)}" aria-label="Open user radar profile">
+                    ${currentProfile?.avatarUrl ? `<img src="${escapeHtml(currentProfile.avatarUrl)}" alt="" />` : '<span class="action-user-avatar-fallback">?</span>'}
+                </a>
+                <div class="action-user-content">
+                    <h2>${escapeHtml(subjectDisplayName)}</h2>
+                    <span class="action-user-username">@${escapeHtml(subjectUsername)}</span>
+                    <a class="action-user-profile-link" href="/moderation/radar/${encodeURIComponent(action.subjectUserId)}" aria-label="Open user radar profile" title="Open user radar profile">${moderatorIcon('radar')}</a>
+                    <code class="action-user-id">${escapeHtml(action.subjectUserId)}</code>
+                </div>
+                <div class="action-user-roles"><span class="eyebrow">Server roles</span><div class="role-cloud">${subjectRoles}</div></div>
+            </div>
+        </article>
+        <section class="mod-panel action-quick-actions">
+            <button type="button" class="button secondary quick-action-edit" data-action-scroll="action-record">Edit Data</button>
+            <button type="button" class="button secondary quick-action-note" data-quick-private-note>Quick Private Note</button>
+            <button type="button" class="button secondary quick-action-revoke" data-action-scroll="action-record">Revoke</button>
+            <a class="button secondary quick-action-appeals" href="/moderation/actions/${encodeURIComponent(action.actionId)}/appeals">Appeals</a>
+        </section>
         <section class="action-inspector-grid">
-            <article class="mod-panel inspector-summary">
-                <div class="mod-panel-heading"><div><p class="eyebrow">Action record</p><h2>${kindMarkup(action.kind)} ${statusMarkup(action)}</h2></div>${action.modLogUrl ? `<a href="${escapeHtml(action.modLogUrl)}" target="_blank" rel="noopener noreferrer">Discord log ↗</a>` : ''}</div>
+            <article class="mod-panel inspector-summary" id="action-record">
+                <div class="mod-panel-heading action-record-heading"><p class="eyebrow">Action record</p>${action.modThreadUrl ? `<a href="${escapeHtml(action.modThreadUrl)}" target="_blank" rel="noopener noreferrer">Discord discussion thread ↗</a>` : ''}</div>
+                <div class="action-record-status">
+                    <div><p class="eyebrow action-record-type-label">Action Type</p><h2 class="action-record-title">${kindMarkup(action.kind)}</h2></div>
+                    <div>${statusMarkup(action)}</div>
+                </div>
                 <dl class="profile-facts">
-                    <div><dt>Subject</dt><dd><a href="/moderation/radar/${encodeURIComponent(action.subjectUserId)}">${escapeHtml(action.subjectDisplayName || action.subjectUsername || action.subjectUserId)}</a></dd></div>
+                    <div><dt>Moderator</dt><dd>${moderatorMarkup} (@${escapeHtml(moderatorUsername)} - ${escapeHtml(action.moderatorUserId || 'system')})</dd></div>
                     <div><dt>Issued</dt><dd>${formatDate(action.createdAt, true)}</dd></div>
                     <div><dt>Expires</dt><dd>${action.expiresAt ? formatDate(action.expiresAt, true) : 'Never'}</dd></div>
                     <div><dt>Appeals</dt><dd>${data.appeals.length}</dd></div>
                 </dl>
+                <div class="inspector-reason" id="private-note"><span>Private note</span><p>${action.privateNote ? escapeHtml(action.privateNote) : '<span class="muted-value">No private note</span>'}</p></div>
                 <div class="inspector-reason"><span>Reason</span><p>${escapeHtml(action.reason)}</p></div>
             </article>
             <article class="mod-panel activity-timeline">
-                <div class="mod-panel-heading"><div><p class="eyebrow">Thread activity</p><h2>Case timeline</h2></div></div>
-                <div class="timeline-list">
-                    <div class="timeline-item created"><i></i><div><strong>Action created</strong><small>${formatDate(action.createdAt, true)}</small></div></div>
-                    ${activity.map((item) => `<div class="timeline-item"><i></i><div><strong>${escapeHtml(item.label)}</strong><small>${formatDate(item.at, true)}</small><p>${escapeHtml(item.detail)}</p></div></div>`).join('')}
-                </div>
+                <div class="mod-panel-heading action-record-heading"><p class="eyebrow">Timeline</p></div>
+                <div id="action-timeline">${timelineMarkup(1)}</div>
             </article>
         </section>
-    `);
+    `, '<a class="back-link header-back-link" href="/moderation/actions">← Actions database</a>');
+    document.querySelectorAll<HTMLAnchorElement>('.action-user-avatar-link, .action-user-profile-link').forEach((link) => {
+        link.addEventListener('click', (event) => {
+            if (event.button !== 0) event.preventDefault();
+        });
+    });
+    document.querySelector<HTMLButtonElement>('[data-quick-private-note]')?.addEventListener('click', () => {
+        const close = () => { modalRoot.innerHTML = ''; };
+        modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal action-edit-modal quick-private-note-modal" role="dialog" aria-modal="true" aria-labelledby="quick-private-note-title"><button class="modal-close" type="button" aria-label="Close">${moderatorIcon('x')}</button><p class="eyebrow">Quick action</p><h2 id="quick-private-note-title">Quick private note</h2><p class="edit-step-help">Only visible to moderators.</p><button type="button" class="edit-inject-button" data-note-inject>Inject existing value</button><textarea id="quick-private-note" rows="5" maxlength="500" autofocus></textarea><footer><button type="button" class="button secondary" data-note-cancel>Cancel</button><button type="button" class="button" data-note-save>Save note</button></footer></section></div>`;
+        renderModeratorIcons(modalRoot);
+        modalRoot.querySelectorAll<HTMLButtonElement>('.modal-close, [data-note-cancel]').forEach((button) => button.addEventListener('click', close));
+        modalRoot.querySelector<HTMLButtonElement>('[data-note-inject]')?.addEventListener('click', () => {
+            const textarea = modalRoot.querySelector<HTMLTextAreaElement>('#quick-private-note');
+            if (textarea) textarea.value = action.privateNote || '';
+        });
+        modalRoot.querySelector<HTMLButtonElement>('[data-note-save]')?.addEventListener('click', async (event) => {
+            const button = event.currentTarget as HTMLButtonElement;
+            const note = modalRoot.querySelector<HTMLTextAreaElement>('#quick-private-note')?.value.trim() || '';
+            button.disabled = true;
+            try {
+                await fetchJson(`/api/moderation/actions/${encodeURIComponent(action.actionId)}/private-note`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ note }),
+                });
+                close();
+                toast('Private note saved.', 'success');
+                await renderModeratorAction(actionId);
+            } catch (error) {
+                toast(error instanceof Error ? error.message : 'Could not save the private note.', 'danger');
+                button.disabled = false;
+            }
+        });
+    });
+    document.querySelector<HTMLButtonElement>('.quick-action-edit')?.addEventListener('click', () => {
+        type EditField = 'reason' | 'private-note' | 'duration' | 'expiration';
+        const labels: Record<EditField, string> = { reason: 'Reason', 'private-note': 'Private note', duration: 'Duration', expiration: 'Expiration' };
+        const descriptions: Record<EditField, string> = { reason: 'Visible to the user', 'private-note': 'Visible to moderators only', duration: 'Actual moderation duration', expiration: 'ATC record visibility' };
+        const icons: Record<EditField, string> = { reason: 'clipboard-list', 'private-note': 'pencil-line', duration: 'hourglass', expiration: 'calendar-days' };
+        const durationAllowed = action.kind === 'ban' || action.kind === 'timeout';
+        let step = 1;
+        let field: EditField | null = null;
+        let value = '';
+        let rationale = '';
+        let notification: 'no' | 'silent-edit' | 'notify' = 'notify';
+        let modal: HTMLElement | null = null;
+        const rationaleRequired = () => field !== 'private-note';
+        const close = () => { modalRoot.innerHTML = ''; modal = null; };
+        const render = () => {
+            const body = step === 1
+                ? `<p class="eyebrow">Step 1 of 5</p><h2 id="action-edit-title">What do you want to edit?</h2><div class="edit-field-grid">${(Object.keys(labels) as EditField[]).map((key) => { const disabled = key === 'duration' && !durationAllowed; return `<button type="button" class="button secondary edit-field-button${disabled ? ' is-disabled' : ''}" data-edit-field="${key}"${disabled ? ' disabled' : ''}>${moderatorIcon(icons[key])}<span>${labels[key]}</span><small>${disabled ? 'Not applicable' : descriptions[key]}</small></button>`; }).join('')}</div>`
+                : step === 2
+                  ? `<p class="eyebrow">Step 2 of 5 · ${labels[field!]}</p><h2>Enter the new value <span class="required-mark" aria-hidden="true">*</span></h2><p class="edit-step-help">${descriptions[field!]}</p>${field === 'reason' || field === 'private-note' ? '<button type="button" class="edit-inject-button" data-edit-inject>Inject existing value</button>' : ''}<textarea id="edit-value" rows="5" required autofocus>${escapeHtml(value)}</textarea><footer><button type="button" class="button secondary" data-edit-back>Back</button><button type="button" class="button" data-edit-next>Confirm value</button></footer>`
+                  : step === 3
+                  ? `<p class="eyebrow">Step 3 of 5</p><h2>Why is this being changed?${rationaleRequired() ? ' <span class="required-mark" aria-hidden="true">*</span>' : ''}</h2><p class="edit-step-help">${rationaleRequired() ? 'A reason is required for this edit.' : 'Optional for private notes.'}</p><textarea id="edit-rationale" rows="4"${rationaleRequired() ? ' required' : ''} autofocus>${escapeHtml(rationale)}</textarea><footer><button type="button" class="button secondary" data-edit-back>Back</button><button type="button" class="button" data-edit-next>Confirm reason</button></footer>`
+                  : step === 4
+                    ? `<p class="eyebrow">Step 4 of 5</p><h2>Notification</h2><p class="edit-step-help">Should the user be notified about this edit?</p><div class="edit-notification-options">${[['notify', 'Yes (attempt to send a new DM)'], ['silent-edit', 'Silently edit original DM message'], ['no', 'No notification']].map(([key, label]) => `<button type="button" class="button secondary ${notification === key ? 'selected' : ''}" data-edit-notification="${key}">${label}</button>`).join('')}</div><footer><button type="button" class="button secondary" data-edit-back>Back</button><button type="button" class="button" data-edit-next>Continue</button></footer>`
+                    : `<p class="eyebrow">Step 5 of 5 · Review</p><h2>Review edit</h2><dl class="edit-review"><div><dt>Field</dt><dd>${labels[field!]}</dd></div><div><dt>New value</dt><dd>${escapeHtml(value)}</dd></div><div><dt>Reason</dt><dd>${escapeHtml(rationale)}</dd></div>${field === 'private-note' || field === 'expiration' ? '' : `<div><dt>Notification</dt><dd>${notification === 'notify' ? 'Notify user' : notification === 'silent-edit' ? 'Silent edit' : 'No notification'}</dd></div>`}</dl><footer><button type="button" class="button secondary" data-edit-back>Back</button><button type="button" class="button" data-edit-submit>Submit edit</button></footer>`;
+            if (!modal) {
+                modalRoot.innerHTML = '<div class="modal-backdrop"><section class="modal action-edit-modal" role="dialog" aria-modal="true" aria-labelledby="action-edit-title"></section></div>';
+                modal = modalRoot.querySelector<HTMLElement>('.action-edit-modal');
+            }
+            if (!modal) return;
+            modal.innerHTML = `<button class="modal-close" type="button" aria-label="Close">${moderatorIcon('x')}</button>${body}`;
+            renderModeratorIcons(modalRoot);
+            modalRoot.querySelector<HTMLButtonElement>('.modal-close')?.addEventListener('click', close);
+            modalRoot.querySelectorAll<HTMLButtonElement>('[data-edit-field]').forEach((button) => button.addEventListener('click', () => { field = button.dataset.editField as EditField; notification = field === 'private-note' || field === 'expiration' ? 'no' : 'notify'; step = 2; render(); }));
+            modalRoot.querySelector<HTMLButtonElement>('[data-edit-back]')?.addEventListener('click', () => { step = step === 5 && (field === 'private-note' || field === 'expiration') ? 3 : step - 1; render(); });
+            modalRoot.querySelector<HTMLButtonElement>('[data-edit-inject]')?.addEventListener('click', () => { value = field === 'reason' ? action.reason : action.privateNote || ''; const textarea = modalRoot.querySelector<HTMLTextAreaElement>('#edit-value'); if (textarea) textarea.value = value; });
+            modalRoot.querySelectorAll<HTMLButtonElement>('[data-edit-notification]').forEach((button) => button.addEventListener('click', () => { notification = button.dataset.editNotification as typeof notification; modalRoot.querySelectorAll('[data-edit-notification]').forEach((item) => item.classList.toggle('selected', item === button)); }));
+            modalRoot.querySelector<HTMLButtonElement>('[data-edit-next]')?.addEventListener('click', () => { if (step === 2) value = modalRoot.querySelector<HTMLTextAreaElement>('#edit-value')?.value.trim() || ''; else if (step === 3) rationale = modalRoot.querySelector<HTMLTextAreaElement>('#edit-rationale')?.value.trim() || ''; if ((step === 2 && !value) || (step === 3 && rationaleRequired() && !rationale)) return; step = step === 3 && (field === 'private-note' || field === 'expiration') ? 5 : step + 1; render(); });
+            modalRoot.querySelector<HTMLButtonElement>('[data-edit-submit]')?.addEventListener('click', async (event) => {
+                const button = event.currentTarget as HTMLButtonElement;
+                button.disabled = true;
+                try {
+                    await fetchJson(`/api/moderation/actions/${encodeURIComponent(action.actionId)}/edit`, {
+                        method: 'PUT',
+                        body: JSON.stringify({
+                            kind: field === 'private-note' ? 'note' : field,
+                            newValue: value,
+                            rationale,
+                            notificationMode: field === 'private-note' || field === 'expiration' ? 'no' : notification,
+                        }),
+                    });
+                    close();
+                    toast('Action updated.', 'success');
+                    await renderModeratorAction(actionId);
+                } catch (error) {
+                    toast(error instanceof Error ? error.message : 'Could not update the action.', 'danger');
+                    button.disabled = false;
+                }
+            });
+        };
+        render();
+    });
+    document.querySelectorAll<HTMLElement>('[data-action-scroll]').forEach((button) => {
+        button.addEventListener('click', () => document.getElementById(button.dataset.actionScroll || '')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    });
+    const timeline = document.querySelector<HTMLElement>('#action-timeline');
+    timeline?.addEventListener('click', (event) => {
+        const detailButton = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-timeline-detail]');
+        if (detailButton) {
+            const item = activity[Number(detailButton.dataset.timelineDetail)];
+            if (!item) return;
+            modalRoot.innerHTML = `<div class="modal-backdrop timeline-detail-backdrop"><section class="modal timeline-detail-modal" role="dialog" aria-modal="true"><button class="modal-close" type="button" aria-label="Close">${moderatorIcon('x')}</button><p class="eyebrow">${escapeHtml(item.label)}</p><h2>Full details</h2><p class="timeline-detail-full">${escapeHtml(item.detail || '')}</p>${item.moderatorUserId ? `<p class="timeline-detail-moderator">Moderator: ${escapeHtml(auditModeratorProfiles.get(item.moderatorUserId)?.displayName || 'Unknown')} (@${escapeHtml(auditModeratorProfiles.get(item.moderatorUserId)?.username || item.moderatorUserId)} - ${escapeHtml(item.moderatorUserId)})</p>` : ''}</section></div>`;
+            modalRoot.querySelector<HTMLButtonElement>('.modal-close')?.addEventListener('click', () => { modalRoot.innerHTML = ''; });
+            renderModeratorIcons(modalRoot);
+            return;
+        }
+        const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-timeline-page]');
+        if (!button || !timeline) return;
+        timeline.innerHTML = timelineMarkup(Number(button.dataset.timelinePage));
+    });
+}
+
+async function renderModeratorAppeals(actionId: string): Promise<void> {
+    const [user, data] = await Promise.all([
+        loadUser(),
+        fetchJson<{ action: ModeratorAction; appeals: Array<{ id: string; status: AppealStatus; submittedAt: string; reviewStartedAt: string | null; decidedAt: string | null }> }>(
+            `/api/moderation/actions/${encodeURIComponent(actionId)}`,
+        ),
+    ]);
+    moderationShell(user, 'actions', `Appeals · ${data.action.actionId}`, '', `
+        <section class="mod-panel appeals-panel">
+            <div class="mod-panel-heading action-record-heading"><p class="eyebrow">Appeals</p><a href="/moderation/actions/${encodeURIComponent(data.action.actionId)}">← Action record</a></div>
+            ${data.appeals.length ? `<div class="mod-table-wrap"><table class="mod-table"><thead><tr><th>Appeal ID</th><th>Status</th><th>Submitted</th><th>Review started</th><th>Decided</th></tr></thead><tbody>${data.appeals.map((appeal) => `<tr><td><code>${escapeHtml(appeal.id)}</code></td><td>${appealStatusMarkup(appeal.status)}</td><td>${formatDate(appeal.submittedAt, true)}</td><td>${appeal.reviewStartedAt ? formatDate(appeal.reviewStartedAt, true) : '—'}</td><td>${appeal.decidedAt ? formatDate(appeal.decidedAt, true) : '—'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="mod-empty">No appeals have been submitted for this action.</div>'}
+        </section>
+    `, '<a class="back-link header-back-link" href="/moderation/actions">← Actions database</a>');
 }
 
 function toolCard(id: string, title: string, eyebrow: string, body: string): string {
@@ -3210,6 +3442,11 @@ async function renderRoute(): Promise<void> {
             await renderModeratorAction(decodeURIComponent(moderatorActionMatch[1]));
             return;
         }
+        const moderatorAppealsMatch = location.pathname.match(/^\/moderation\/actions\/([^/]+)\/appeals\/?$/);
+        if (moderatorAppealsMatch?.[1]) {
+            await renderModeratorAppeals(decodeURIComponent(moderatorAppealsMatch[1]));
+            return;
+        }
         if (location.pathname === '/moderation/tools') {
             await renderModerationTools();
             return;
@@ -3230,6 +3467,11 @@ async function renderRoute(): Promise<void> {
         }
         const actionMatch = location.pathname.match(/^\/action\/([^/]+)\/?$/);
         if (actionMatch?.[1]) {
+            const viewer = await loadUser();
+            if (viewer.access.moderator) {
+                location.replace(`/moderation/actions/${encodeURIComponent(decodeURIComponent(actionMatch[1]))}`);
+                return;
+            }
             await renderAction(decodeURIComponent(actionMatch[1]));
             return;
         }

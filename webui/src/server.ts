@@ -314,6 +314,43 @@ const app = new Elysia()
         const result = await getModerationAction(params.actionId);
         return result ? json(result) : json({ error: 'Action not found.' }, 404);
     })
+    .put('/api/moderation/actions/:actionId/edit', async ({ request, params, body }) => {
+        const auth = await moderatorAuthenticated(request);
+        if (!auth.session) return auth.response;
+        const input = body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
+        const kind = input.kind;
+        const newValue = typeof input.newValue === 'string' ? input.newValue.trim() : '';
+        const rationale = typeof input.rationale === 'string' ? input.rationale.trim() : '';
+        const notificationMode = input.notificationMode === 'notify' || input.notificationMode === 'silent-edit' ? input.notificationMode : 'no';
+        if (!['reason', 'note', 'duration', 'expiration'].includes(String(kind))) return json({ error: 'Unsupported moderation edit.' }, 400);
+        if (!newValue || (kind !== 'note' && !rationale)) return json({ error: kind === 'note' ? 'A new value is required.' : 'A new value and rationale are required.' }, 400);
+        try {
+            return json(await callBotAtc({ operation: 'moderation.update', actorUserId: auth.session.user.id, actionId: params.actionId, kind, newValue, rationale, notificationMode }));
+        } catch (error) {
+            return json({ error: errorMessage(error) }, 400);
+        }
+    })
+    .put('/api/moderation/actions/:actionId/private-note', async ({ request, params, body }) => {
+        const auth = await moderatorAuthenticated(request);
+        if (!auth.session) return auth.response;
+        const note = body && typeof body === 'object' ? (body as Record<string, unknown>).note : undefined;
+        if (typeof note !== 'string') return json({ error: 'A private note is required.' }, 400);
+        const privateNote = note.trim();
+        if (privateNote.length > 500) return json({ error: 'Private notes can be at most 500 characters.' }, 400);
+        try {
+            return json(await callBotAtc({
+                operation: 'moderation.update',
+                actorUserId: auth.session.user.id,
+                actionId: params.actionId,
+                kind: 'note',
+                newValue: privateNote,
+                rationale: 'Quick private note update.',
+                notificationMode: 'no',
+            }));
+        } catch (error) {
+            return json({ error: errorMessage(error) }, 400);
+        }
+    })
     .get('/api/moderation/tools/member/:userId', async ({ request, params }) => {
         const auth = await moderatorAuthenticated(request);
         if (!auth.session) return auth.response;

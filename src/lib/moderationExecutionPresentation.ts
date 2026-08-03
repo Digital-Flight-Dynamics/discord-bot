@@ -16,6 +16,16 @@ import { moderationTextForEmbed } from './moderationLimits';
 import type { DmResult } from './moderationNotify';
 
 const fieldValue = (value: string, actionId = 'unknown') => moderationTextForEmbed(value, actionId);
+const DM_REASON_LIMIT = 1_000;
+const DM_REASON_FIELD_LIMIT = 1_024;
+
+function dmReasonFieldValue(reason: string, actionId: string): string {
+    const text = reason.trim() || 'None';
+    if (text.length <= DM_REASON_LIMIT) return text;
+    const suffix = `As the reason is too long to be displayed here, you can [view it on our appeals hub](${appealUrl(actionId)})`;
+    const prefixLength = Math.max(0, DM_REASON_FIELD_LIMIT - suffix.length - 5);
+    return `${text.slice(0, prefixLength)}...\n\n${suffix}`;
+}
 
 function discordTimestamp(date: Date): string {
     return `<t:${Math.floor(date.getTime() / 1000)}:F>`;
@@ -60,7 +70,7 @@ export function userActionDmEmbed(opts: {
     infractionNumber: number;
 }) {
     const fields: APIEmbedField[] = [
-        { name: 'Reason', value: fieldValue(opts.reason, opts.actionId), inline: false },
+        { name: 'Reason', value: dmReasonFieldValue(opts.reason, opts.actionId), inline: false },
     ];
 
     if (opts.expiresAt) {
@@ -114,7 +124,7 @@ export function timeoutUserDmEmbed(opts: {
                 `You will be able to join the discussion again in ${discordTimestampRelative(opts.expiresAt)}. ` +
                 'In the meantime, maybe have a glass of water.',
             fields: [
-                { name: 'Reason', value: fieldValue(opts.reason, opts.actionId), inline: false },
+                { name: 'Reason', value: dmReasonFieldValue(opts.reason, opts.actionId), inline: false },
                 {
                     name: 'Appeal',
                     value: `You may be able to appeal this action. You can do so on our [appeals form here](${appealUrl(opts.actionId)}).`,

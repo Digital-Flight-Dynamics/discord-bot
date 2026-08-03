@@ -1,5 +1,6 @@
 import { Client, EmbedBuilder, EmbedData, GuildMember, User } from 'discord.js';
 import { roleGroups, roles, config as workspaceConfig } from '../config';
+import { isDevelopmentMode } from '../config/devMode';
 import { createPendingModeration, getPendingModerationById } from '../db/repositories/pendingModeration';
 import { createEmbed, EmbedColors } from './embed';
 import { executePendingModeration } from './moderationExecute';
@@ -150,10 +151,13 @@ export async function executeAtcModeration(
     const guild = actor.guild;
     const targetUser = await client.users.fetch(input.targetUserId).catch(() => null);
     if (!targetUser || targetUser.bot) throw new Error('A valid non-bot target user is required.');
-    if (targetUser.id === actor.id || targetUser.id === guild.ownerId) throw new Error('This target cannot be moderated.');
+    const developmentMode = isDevelopmentMode();
+    if (!developmentMode && (targetUser.id === actor.id || targetUser.id === guild.ownerId)) {
+        throw new Error('This target cannot be moderated.');
+    }
 
     const targetMember = await guild.members.fetch(targetUser.id).catch(() => null);
-    if (targetMember && actor.id !== guild.ownerId && actor.roles.highest.comparePositionTo(targetMember.roles.highest) <= 0) {
+    if (!developmentMode && targetMember && actor.id !== guild.ownerId && actor.roles.highest.comparePositionTo(targetMember.roles.highest) <= 0) {
         throw new Error('You cannot moderate a member with an equal or higher role.');
     }
 

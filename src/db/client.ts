@@ -94,6 +94,10 @@ export async function runMigrations(): Promise<void> {
                 throw err;
             }
         }
+
+        // Keep local databases created before the squashed initial migration compatible.
+        await client.query('ALTER TABLE "bans" ADD COLUMN IF NOT EXISTS "duration_ms" bigint');
+        await client.query('ALTER TABLE "bans" ADD COLUMN IF NOT EXISTS "duration_token" text');
     } finally {
         client.release();
     }

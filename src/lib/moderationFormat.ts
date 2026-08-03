@@ -21,6 +21,10 @@ export function modPortalUrl(actionId: string): string {
     return `${atcUrl()}/action/${encodeURIComponent(actionId)}`;
 }
 
+export function moderationActionUrl(actionId: string): string {
+    return `${atcUrl()}/moderation/actions/${encodeURIComponent(actionId)}`;
+}
+
 export function appealUrl(actionId: string): string {
     return modPortalUrl(actionId);
 }

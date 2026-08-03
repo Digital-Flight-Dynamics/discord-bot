@@ -145,6 +145,7 @@ type ActionRow = {
     action_id: string;
     kind: PublicAction['kind'];
     reason: string;
+    private_note: string | null;
     created_at: Date;
     expires_at: Date | null;
     duration_ms: string | number | null;
@@ -158,11 +159,14 @@ type ActionRow = {
     discord_user_id?: string;
     username?: string | null;
     display_name?: string | null;
+    moderator_user_id?: string | null;
+    moderator_username?: string | null;
+    moderator_display_name?: string | null;
 };
 
 const actionsCte = `
     WITH actions AS (
-        SELECT w.action_id, 'warning'::text AS kind, w.reason, w.created_at,
+        SELECT w.action_id, 'warning'::text AS kind, w.reason, w.private_note, w.created_at,
                w.record_expires_at AS expires_at,
                NULL::bigint AS duration_ms, NULL::text AS duration_token,
                w.resolution_status, w.resolution_public_note,
@@ -171,13 +175,14 @@ const actionsCte = `
           FROM warnings w
           JOIN identity_snapshots s ON s.id = w.subject_snapshot_id
         UNION ALL
-        SELECT k.action_id, 'kick', k.reason, k.created_at, k.record_expires_at, NULL::bigint, NULL::text,
+        SELECT k.action_id, 'kick', k.reason, k.private_note, k.created_at, k.record_expires_at, NULL::bigint, NULL::text,
                k.resolution_status, k.resolution_public_note, k.resolved_at,
                s.discord_user_id, s.username, s.display_name, k.moderator_snapshot_id, k.guild_id
           FROM kicks k
           JOIN identity_snapshots s ON s.id = k.subject_snapshot_id
         UNION ALL
-        SELECT b.action_id, 'ban', b.reason, b.created_at,
+        SELECT b.action_id, 'ban', b.reason, b.private_notes,
+               b.created_at,
                b.record_expires_at AS expires_at,
                b.duration_ms, b.duration_token,
                b.resolution_status, b.resolution_public_note, b.lifted_at,
@@ -185,7 +190,7 @@ const actionsCte = `
           FROM bans b
           JOIN identity_snapshots s ON s.id = b.subject_snapshot_id
         UNION ALL
-        SELECT t.action_id, 'timeout', t.reason, t.created_at,
+        SELECT t.action_id, 'timeout', t.reason, t.private_note, t.created_at,
                t.record_expires_at AS expires_at, t.duration_ms, t.duration_token,
                t.resolution_status, t.resolution_public_note, t.resolved_at,
                s.discord_user_id, s.username, s.display_name, t.moderator_snapshot_id, t.guild_id
@@ -196,13 +201,17 @@ const actionsCte = `
 
 const actionSelect = `
     ${actionsCte}
-    SELECT a.action_id, a.kind, a.reason, a.created_at, a.expires_at, a.duration_ms,
+    SELECT a.action_id, a.kind, a.reason, a.private_note, a.created_at, a.expires_at, a.duration_ms,
            a.resolution_status, a.resolution_public_note, a.ended_at,
            a.discord_user_id, a.username, a.display_name,
+           moderator.discord_user_id AS moderator_user_id,
+           moderator.username AS moderator_username,
+           moderator.display_name AS moderator_display_name,
            appeal.id AS appeal_id, appeal.status AS appeal_status,
            appeal.submitted_at AS appeal_submitted_at,
            appeal.decided_at AS appeal_decided_at
       FROM actions a
+      LEFT JOIN identity_snapshots moderator ON moderator.id = a.moderator_snapshot_id
       LEFT JOIN LATERAL (
           SELECT id, status, submitted_at, decided_at
             FROM atc_appeals
@@ -246,7 +255,7 @@ export async function listActionsForUser(discordUserId: string): Promise<PublicA
 }
 
 export async function findActionForUser(discordUserId: string, actionId: string): Promise<PublicAction | null> {
-    const result = await pool.query<ActionRow>(`${actionQuery} AND upper(a.action_id) = upper($3) LIMIT 1`, [
+    const result = await pool.query<ActionRow>(`${actionQuery} AND regexp_replace(upper(a.action_id), '[^A-Z0-9]', '', 'g') = regexp_replace(upper($3), '[^A-Z0-9]', '', 'g') LIMIT 1`, [
         discordUserId,
         config.discordGuildId,
         actionId,
@@ -286,7 +295,12 @@ export type ModeratorAction = PublicAction & {
     subjectUserId: string;
     subjectUsername: string | null;
     subjectDisplayName: string | null;
+    privateNote: string | null;
+    moderatorUserId: string | null;
+    moderatorUsername: string | null;
+    moderatorDisplayName: string | null;
     modLogUrl: string | null;
+    modThreadUrl: string | null;
     activityCount: number;
     latestActivity: { label: string; at: string } | null;
 };
@@ -323,7 +337,7 @@ type ActionActivityRow = {
 function mapModeratorAction(
     row: ActionRow,
     activities: Map<string, ActionActivityRow[]>,
-    modLogs: Map<string, { channel_id: string; message_id: string }>,
+    modLogs: Map<string, { channel_id: string; message_id: string; thread_id: string | null }>,
 ): ModeratorAction {
     const actionActivities = activities.get(row.action_id) || [];
     const modLog = modLogs.get(row.action_id);
@@ -332,8 +346,15 @@ function mapModeratorAction(
         subjectUserId: row.discord_user_id || '',
         subjectUsername: row.username || null,
         subjectDisplayName: row.display_name || null,
+        privateNote: row.private_note,
+        moderatorUserId: row.moderator_user_id || null,
+        moderatorUsername: row.moderator_username || null,
+        moderatorDisplayName: row.moderator_display_name || null,
         modLogUrl: modLog
             ? `https://discord.com/channels/${config.discordGuildId}/${modLog.channel_id}/${modLog.message_id}`
+            : null,
+        modThreadUrl: modLog?.thread_id
+            ? `https://discord.com/channels/${config.discordGuildId}/${modLog.thread_id}`
             : null,
         activityCount: actionActivities.length,
         latestActivity: actionActivities[0]
@@ -373,10 +394,10 @@ async function attachModeratorActivity(rows: ActionRow[]): Promise<ModeratorActi
               ORDER BY created_at DESC`,
             [config.discordGuildId, actionIds],
         ),
-        pool.query<{ action_id: string; channel_id: string; message_id: string }>(
-            `SELECT action_id, channel_id, message_id
+        pool.query<{ action_id: string; channel_id: string; message_id: string; thread_id: string | null }>(
+            `SELECT action_id, channel_id, message_id, thread_id
                FROM mod_log_messages
-              WHERE guild_id = $1 AND action_id = ANY($2::text[]) AND message_deleted = false`,
+              WHERE guild_id = $1 AND action_id = ANY($2::text[]) AND message_deleted = false AND thread_deleted = false`,
             [config.discordGuildId, actionIds],
         ),
     ]);
@@ -511,7 +532,7 @@ export async function listModeratorActionsForUser(discordUserId: string): Promis
 export async function getModerationAction(actionId: string) {
     const result = await pool.query<ActionRow>(
         `${actionSelect}
-         WHERE a.guild_id = $1 AND upper(a.action_id) = upper($2)
+         WHERE a.guild_id = $1 AND regexp_replace(upper(a.action_id), '[^A-Z0-9]', '', 'g') = regexp_replace(upper($2), '[^A-Z0-9]', '', 'g')
          LIMIT 1`,
         [config.discordGuildId, actionId],
     );

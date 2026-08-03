@@ -13,6 +13,7 @@ import {
     searchAtcMembers,
     sendAtcMessage,
 } from './lib/atcInternalTools';
+import { executeAtcActionEdit } from './slashUpdateAction';
 
 const MAX_EVENT_BODY_BYTES = 64 * 1024;
 const developmentApiKey = 'development-only-atc-internal-key';
@@ -160,6 +161,26 @@ async function handleAtcRequest(client: Client, req: IncomingMessage, res: Serve
                 privateNote: typeof input.privateNote === 'string' ? input.privateNote : null,
             });
             sendJson(res, result.status === 'not-executed' ? 409 : 200, result);
+            return;
+        }
+        if (operation === 'moderation.update') {
+            const kind = input.kind;
+            if (!['reason', 'note', 'duration', 'expiration'].includes(String(kind))) {
+                sendJson(res, 422, { error: 'Unsupported moderation edit.' });
+                return;
+            }
+            const notificationMode = ['no', 'silent-edit', 'notify'].includes(String(input.notificationMode))
+                ? input.notificationMode as 'no' | 'silent-edit' | 'notify'
+                : 'no';
+            const result = await executeAtcActionEdit(client, {
+                actorUserId,
+                actionId: typeof input.actionId === 'string' ? input.actionId : '',
+                kind: kind as 'reason' | 'note' | 'duration' | 'expiration',
+                newValue: typeof input.newValue === 'string' ? input.newValue : '',
+                rationale: typeof input.rationale === 'string' ? input.rationale : '',
+                notificationMode,
+            });
+            sendJson(res, 200, result);
             return;
         }
         if (operation === 'message.send') {
