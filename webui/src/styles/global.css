@@ -1654,6 +1654,7 @@ h3 {
 
 /* Moderator console */
 .user-area { display: flex; gap: 9px; align-items: center; }
+.mobile-atc-bar, .mobile-navigation-drawer, .mobile-navigation-backdrop { display: none; }
 .mod-view-button {
     display: inline-flex;
     height: 53px;
@@ -3261,15 +3262,59 @@ body.radar-mode .moderation-topbar {
     .action-inspector-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 780px) {
+    body.mobile-nav-open { overflow: hidden; }
+    .mobile-atc-bar {
+        display: flex;
+        position: sticky;
+        z-index: 10;
+        top: 0;
+        height: 62px;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 16px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(14, 17, 23, .94);
+        backdrop-filter: blur(18px);
+    }
+    .mobile-atc-brand { display: inline-flex; gap: 10px; align-items: center; color: var(--ink); font-size: 14px; font-weight: 750; letter-spacing: .12em; text-decoration: none; }
+    .mobile-atc-brand img { width: 32px; height: 32px; border: 1px solid var(--line-bright); border-radius: 9px; object-fit: cover; }
+    .mobile-menu-button { display: grid; width: 40px; height: 40px; padding: 10px 9px; gap: 4px; place-content: center; border: 1px solid var(--line-bright); border-radius: 10px; color: var(--ink); background: rgba(255, 255, 255, .035); cursor: pointer; }
+    .mobile-menu-button span { display: block; width: 20px; height: 2px; border-radius: 2px; background: currentColor; }
+    .mobile-navigation-backdrop { position: fixed; z-index: 19; inset: 0; opacity: 0; background: rgba(0, 0, 0, .55); transition: opacity 180ms ease; }
+    .mobile-navigation-backdrop.is-open { opacity: 1; }
+    .mobile-navigation-drawer { position: fixed; z-index: 20; top: 0; right: 0; display: flex; width: min(86vw, 340px); height: 100dvh; padding: 18px 16px; flex-direction: column; border-left: 1px solid var(--line-bright); background: #12161d; box-shadow: -20px 0 60px rgba(0, 0, 0, .35); overflow-y: auto; transform: translateX(100%); transition: transform 180ms ease; }
+    .mobile-navigation-drawer.is-open { transform: translateX(0); }
+    .mobile-navigation-drawer[hidden], .mobile-navigation-backdrop[hidden] { display: none; }
+    .mobile-drawer-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; color: var(--ink); font-size: 15px; letter-spacing: .12em; }
+    .mobile-drawer-header .icon-button { border: 1px solid var(--line); }
+    .mobile-navigation-links { display: grid; gap: 5px; }
+    .mobile-nav-link { display: flex; gap: 12px; align-items: center; padding: 11px 12px; border: 1px solid transparent; border-radius: 10px; color: var(--muted); font-size: 12px; font-weight: 650; text-decoration: none; }
+    .mobile-nav-link.active { border-color: rgba(88, 166, 255, .22); color: var(--blue-bright); background: rgba(88, 166, 255, .09); }
+    .mobile-nav-link .nav-symbol { width: 28px; height: 28px; flex-basis: 28px; }
+    .mobile-nav-group { display: flex; gap: 4px; flex-direction: column; }
+    .mobile-nav-group summary { display: flex; gap: 12px; align-items: center; padding: 11px 12px; border-radius: 10px; color: var(--muted); font-size: 12px; font-weight: 650; cursor: pointer; list-style: none; -webkit-tap-highlight-color: transparent; }
+    .mobile-nav-group summary::-webkit-details-marker { display: none; }
+    .mobile-nav-group .nav-chevron { margin-left: auto; }
+    .mobile-nav-group[open] .nav-chevron { transform: rotate(180deg); }
+    .mobile-nav-sub-link { display: block; margin-left: 42px; padding: 8px 12px; border-radius: 8px; color: var(--muted); font-size: 11px; text-decoration: none; -webkit-tap-highlight-color: transparent; }
+    .mobile-nav-sub-link.active { color: var(--blue-bright); background: rgba(88, 166, 255, .09); }
+    .mobile-drawer-account { display: grid; gap: 10px; margin-top: auto; padding-top: 26px; }
+    .mobile-view-switch { display: flex; min-height: 42px; align-items: center; justify-content: center; border: 1px solid rgba(88, 166, 255, .3); border-radius: 10px; color: var(--blue-bright); background: rgba(88, 166, 255, .08); font-size: 12px; font-weight: 750; text-decoration: none; }
+    .mobile-drawer-account .user-area { display: block; }
+    .mobile-drawer-account .user-chip { width: 100%; }
+    .mobile-drawer-account .mod-view-button { display: none; }
     .moderation-root { grid-template-columns: 1fr; }
-    .moderation-sidebar { position: relative; z-index: 2; width: 100%; height: auto; padding: 12px; border-right: 0; border-bottom: 1px solid var(--line); }
-    .moderation-brand { display: none; }
-    .moderation-sidebar nav { display: flex; overflow-x: auto; }
-    .moderation-sidebar nav a { flex: 0 0 auto; padding: 9px 10px; }
-    .nav-symbol { display: none; }
+    .moderation-sidebar { display: none; }
     .moderation-workspace { padding: 24px 16px 55px; }
     .moderation-topbar { display: block; }
-    .moderation-topbar .user-area { margin-top: 18px; }
+    .moderation-topbar > .user-area, .topbar > .user-area { display: none; }
+    .appeal-context-card { padding: 14px; grid-template-columns: 1fr; }
+    .appeal-context-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .appeal-table { table-layout: fixed; }
+    .appeal-table th, .appeal-table td { padding: 10px 8px; }
+    .appeal-table th:nth-child(4), .appeal-table th:nth-child(5), .appeal-table th:nth-child(6),
+    .appeal-table td:nth-child(4), .appeal-table td:nth-child(5), .appeal-table td:nth-child(6) { display: none; }
+    .appeal-table td:first-child { overflow-wrap: anywhere; }
     .profile-summary-row { align-items: stretch; flex-direction: column; }
     .profile-action-buttons { justify-content: flex-start; }
     .profile-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -3285,16 +3330,14 @@ body.radar-mode .moderation-topbar {
     .radar-search-card { transform: translateY(-190px); }
     .radar-contact {
         width: 480px;
-        transform: translateY(-10px) scale(.46);
+        transform: translateY(-10px) scale(.6);
         transform-origin: bottom left;
     }
     .radar-contact:nth-child(n + 4) { display: none; }
-    .radar-contact:nth-child(1) { bottom: 7%; left: 3%; }
-    .radar-contact:nth-child(2) { bottom: 24%; left: 35%; }
-    .radar-contact:nth-child(3) { bottom: 7%; left: 67%; }
 }
 @media (max-width: 560px) {
     .metric-grid, .profile-facts { grid-template-columns: 1fr; }
+    .appeal-context-facts { grid-template-columns: 1fr; }
     .profile-action-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .profile-action-button { justify-content: center; }
     .quick-action-backdrop { padding: 10px; }
@@ -3320,15 +3363,22 @@ body.radar-mode .moderation-topbar {
     .embed-remove-field { grid-column: 3; grid-row: 1; }
     .mod-search-form { display: grid; }
     .mod-search-form .appeals-status-filter { width: 100%; }
-    .radar-contact { transform: translateY(-10px) scale(.34); }
-    .radar-contact:nth-child(1) { left: 2%; }
-    .radar-contact:nth-child(2) { left: 34%; }
-    .radar-contact:nth-child(3) { left: 66%; }
+    .radar-contact { transform: translateY(-10px) scale(.85); }
+    .radar-contact-position-0 { bottom: 12%; left: 4%; }
+    .radar-contact-position-1 { bottom: 12%; left: 20%; }
+    .radar-contact-position-2 { bottom: 40%; left: 4%; }
+    .radar-contact-position-3 { bottom: 40%; left: 20%; }
+    .radar-contact-position-4 { bottom: 68%; left: 4%; }
+    .radar-contact-position-5 { bottom: 68%; left: 20%; }
+    .radar-contact:nth-child(1) { bottom: 12%; }
+    .radar-contact:nth-child(2) { bottom: 40%; }
+    .radar-contact:nth-child(3) { bottom: 68%; }
     .user-area { align-items: stretch; flex-direction: column-reverse; }
     .mod-view-button { text-align: center; }
 }
 
 @media (prefers-reduced-motion: reduce) {
+    .mobile-navigation-drawer { transition: none; }
     .radar-sweep, .radar-bleep, .radar-terrain polyline, .radar-greece, .radar-contact-dot, .radar-contact-stem, .radar-contact-leader, .radar-contact-main { animation: none; }
     .radar-contact-stem, .radar-contact-leader, .radar-contact-main { opacity: 1; }
     .radar-contact-main { transform: none; }

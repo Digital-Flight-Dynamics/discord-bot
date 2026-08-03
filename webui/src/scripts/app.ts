@@ -341,11 +341,77 @@ function userChip(user: User, view: 'user' | 'moderation' = 'user'): string {
     `;
 }
 
+function mobileNavigation(user: User, view: 'user' | 'moderation', active = ''): string {
+    const moderationItems = `
+        <a class="mobile-nav-link ${active === 'dashboard' ? 'active' : ''}" href="/moderation"><span class="nav-symbol">${moderatorIcon('layout-dashboard')}</span>Dashboard</a>
+        <a class="mobile-nav-link ${active === 'radar' ? 'active' : ''}" href="/moderation/radar"><span class="nav-symbol">${moderatorIcon('radar')}</span>User Radar</a>
+        <details class="mobile-nav-group" ${active === 'actions' || active === 'appeals' ? 'open' : ''}>
+            <summary><span class="nav-symbol">${moderatorIcon('database')}</span><span>Cases</span><span class="nav-chevron">${moderatorIcon('chevron-down')}</span></summary>
+            <a class="mobile-nav-sub-link ${active === 'actions' ? 'active' : ''}" href="/moderation/actions">Actions</a>
+            <a class="mobile-nav-sub-link ${active === 'appeals' ? 'active' : ''}" href="/moderation/appeals">Appeals</a>
+        </details>
+        <a class="mobile-nav-link ${active === 'logs' ? 'active' : ''}" href="/moderation/logs"><span class="nav-symbol">${moderatorIcon('clipboard-list')}</span>Mod Logs</a>
+        ${user.access.management ? `<a class="mobile-nav-link ${active === 'tools' ? 'active' : ''}" href="/moderation/tools"><span class="nav-symbol">${moderatorIcon('wrench')}</span>Management Tools</a><a class="mobile-nav-link ${active === 'settings' ? 'active' : ''}" href="/moderation/settings"><span class="nav-symbol">${moderatorIcon('settings')}</span>Bot Settings</a>` : ''}
+    `;
+    const switcher = user.access.moderator
+        ? `<a class="mobile-view-switch" href="${view === 'moderation' ? '/my-history' : '/moderation'}">${view === 'moderation' ? 'User View' : 'Mod View'}</a>`
+        : '';
+    return `
+        <header class="mobile-atc-bar">
+            <a class="mobile-atc-brand" href="${view === 'moderation' ? '/moderation' : '/my-history'}"><img src="/assets/dfd-logo.png" alt="" /><span>ATC</span></a>
+            <button class="mobile-menu-button" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="mobile-navigation-drawer"><span></span><span></span><span></span></button>
+        </header>
+        <div class="mobile-navigation-backdrop" data-mobile-nav-close hidden></div>
+        <aside class="mobile-navigation-drawer" id="mobile-navigation-drawer" aria-label="Navigation" aria-hidden="true" hidden>
+            <div class="mobile-drawer-header"><strong>ATC</strong><button class="icon-button" type="button" data-mobile-nav-close aria-label="Close navigation">${moderatorIcon('x')}</button></div>
+            <nav class="mobile-navigation-links">${view === 'moderation' ? moderationItems : '<a class="mobile-nav-link active" href="/my-history"><span class="nav-symbol">' + moderatorIcon('layout-dashboard') + '</span>Your History</a>'}</nav>
+            <div class="mobile-drawer-account">${switcher}${userChip(user, view)}</div>
+        </aside>
+    `;
+}
+
+function attachMobileNavigation(): void {
+    const button = document.querySelector<HTMLButtonElement>('.mobile-menu-button');
+    const drawer = document.querySelector<HTMLElement>('#mobile-navigation-drawer');
+    const backdrop = document.querySelector<HTMLElement>('.mobile-navigation-backdrop');
+    if (!button || !drawer || !backdrop) return;
+    const close = () => {
+        drawer.classList.remove('is-open');
+        backdrop.classList.remove('is-open');
+        drawer.setAttribute('aria-hidden', 'true');
+        button.setAttribute('aria-expanded', 'false');
+        document.body.classList.remove('mobile-nav-open');
+        window.setTimeout(() => {
+            if (!drawer.classList.contains('is-open')) {
+                drawer.hidden = true;
+                backdrop.hidden = true;
+            }
+        }, 180);
+    };
+    const open = () => {
+        drawer.hidden = false;
+        drawer.setAttribute('aria-hidden', 'false');
+        backdrop.hidden = false;
+        button.setAttribute('aria-expanded', 'true');
+        document.body.classList.add('mobile-nav-open');
+        requestAnimationFrame(() => {
+            drawer.classList.add('is-open');
+            backdrop.classList.add('is-open');
+        });
+        drawer.querySelector<HTMLButtonElement>('[data-mobile-nav-close]')?.focus();
+    };
+    button.addEventListener('click', open);
+    document.querySelectorAll('[data-mobile-nav-close]').forEach((element) => element.addEventListener('click', close));
+    drawer.querySelectorAll('a').forEach((link) => link.addEventListener('click', close));
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !drawer.hidden) { close(); button.focus(); } });
+    renderModeratorIcons();
+}
+
 function attachLogout(): void {
-    document.querySelector('#logout')?.addEventListener('click', async () => {
+    document.querySelectorAll<HTMLButtonElement>('#logout').forEach((button) => button.addEventListener('click', async () => {
         await fetch('/auth/logout', { method: 'POST' });
         location.href = '/logged-out';
-    });
+    }));
 }
 
 async function loadUser(): Promise<User> {
@@ -388,6 +454,7 @@ function renderInformationPage(title: string): void {
 async function renderHistory(): Promise<void> {
     const [user, actions] = await Promise.all([loadUser(), fetchJson<PublicAction[]>('/api/actions')]);
     app.innerHTML = `
+        ${mobileNavigation(user, 'user')}
         <div class="page-enter">
             <header class="topbar">
                 <div>
@@ -453,6 +520,7 @@ async function renderHistory(): Promise<void> {
         </div>
     `;
     attachLogout();
+    attachMobileNavigation();
 }
 
 function actionMetadata(action: PublicAction): string {
@@ -545,6 +613,7 @@ async function renderAction(actionId: string, prefetchedAction?: PublicAction, p
           ? `<div class="appeal-submit-block"><p class="eyebrow">Case closed</p><h2>No appeal is needed.</h2><p>This action has already been resolved.</p></div>`
           : `<div class="appeal-submit-block"><p>${escapeHtml(eligibility.reason || 'Another appeal is not available yet.')}</p></div>`;
     app.innerHTML = `
+        ${mobileNavigation(user, 'user')}
         <div class="page-enter">
             <a class="back-link" href="/my-history">← Back to your history</a>
             <header class="topbar">
@@ -566,6 +635,7 @@ async function renderAction(actionId: string, prefetchedAction?: PublicAction, p
         </div>
     `;
     attachLogout();
+    attachMobileNavigation();
     document.querySelector('#start-appeal')?.addEventListener('click', () => void beginAppeal(action));
     attachRejoin(action);
 }
@@ -1166,6 +1236,7 @@ async function renderAppeal(actionId: string, appealId: string): Promise<void> {
     ]);
     const { action, appeal } = result;
     app.innerHTML = `
+        ${mobileNavigation(user, 'user')}
         <div class="page-enter">
             <a class="back-link" href="/action/${encodeURIComponent(action.actionId)}">← Back to action</a>
             <header class="topbar">
@@ -1194,6 +1265,7 @@ async function renderAppeal(actionId: string, appealId: string): Promise<void> {
         </div>
     `;
     attachLogout();
+    attachMobileNavigation();
     attachRejoin(action);
 }
 
@@ -1341,6 +1413,7 @@ function moderationShell(
     headerPrefix = '',
 ): void {
     app.innerHTML = `
+        ${mobileNavigation(user, 'moderation', active)}
         <div class="moderation-root page-enter">
             ${moderationSidebar(active, user.access.management)}
             <section class="moderation-workspace">
@@ -1357,6 +1430,7 @@ function moderationShell(
         </div>
     `;
     attachLogout();
+    attachMobileNavigation();
     renderModeratorIcons();
 }
 
