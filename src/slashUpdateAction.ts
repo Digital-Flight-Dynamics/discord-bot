@@ -16,9 +16,10 @@ import { approveAppeal, denyAppeal, startAppealReview } from './db/repositories/
 import {
     createModerationActionNotification,
     findLatestActionNotification,
+    listActionNotifications,
     markActionNotificationFailed,
 } from './db/repositories/moderationActionNotifications';
-import { findModLogByCase, markModLogMessageDeleted } from './db/repositories/modLogMessages';
+import { findModLogByActionId, findModLogByCase, markModLogMessageDeleted } from './db/repositories/modLogMessages';
 import { captureIdentitySnapshot } from './db/repositories/snapshots';
 import { createEmbed, EmbedColors } from './lib/embed';
 import { tryDmUser } from './lib/moderationNotify';
@@ -32,8 +33,10 @@ import { handleDeletedModLogThread } from './lib/moderationMessageTracker';
 import { normalizeActionId } from './lib/actionId';
 import {
     commitActionEdit,
+    canPurgeAction,
     commitActionResolution,
     loadAction,
+    purgeAction,
     updateActionRecordExpiration,
     updateActionText,
     updateBanDuration,
@@ -44,7 +47,7 @@ import {
     type LoadedAction,
 } from './db/repositories/moderationActions';
 import { MAX_DISCORD_TIMEOUT_MS, MAX_PURGE_SECONDS } from './lib/moderationDuration';
-import { config } from './config';
+import { config, roles } from './config';
 
 const MAX_TIMEOUT_MS = MAX_DISCORD_TIMEOUT_MS;
 
@@ -335,6 +338,62 @@ export async function executeAtcActionRevoke(
         userNotUnbanned,
     );
     return { links: await updateActionLinks(guild.id, loaded), userNotUnbanned };
+}
+
+async function deleteDiscordMessage(client: Client, channelId: string, messageId: string): Promise<void> {
+    const channel = await client.channels.fetch(channelId).catch((error) => {
+        if (isDiscordNotFound(error)) return null;
+        throw error;
+    });
+    if (!channel?.isTextBased()) return;
+    const message = await channel.messages.fetch(messageId).catch((error) => {
+        if (isDiscordNotFound(error)) return null;
+        throw error;
+    });
+    if (!message) return;
+    await message.delete().catch((error) => {
+        if (!isDiscordNotFound(error)) throw error;
+    });
+}
+
+function isDiscordNotFound(error: unknown): boolean {
+    return error instanceof DiscordAPIError
+        && (error.code === RESTJSONErrorCodes.UnknownChannel || error.code === RESTJSONErrorCodes.UnknownMessage);
+}
+
+export async function executeAtcActionDelete(
+    client: Client,
+    input: { actorUserId: string; actionId: string },
+): Promise<{ status: 'deleted' }> {
+    const guild = config.guildId ? client.guilds.cache.get(config.guildId) || (await client.guilds.fetch(config.guildId).catch(() => null)) : null;
+    if (!guild) throw new Error('The configured guild is unavailable.');
+    const moderatorMember = await guild.members.fetch(input.actorUserId).catch(() => null);
+    if (!moderatorMember?.roles.cache.has(roles.management)) throw new Error('Management access is required.');
+    const actionId = normalizeActionId(input.actionId);
+    const loaded = await loadAction(guild.id, actionId);
+    if (!loaded) throw new Error('Action ID not found.');
+    if (!canPurgeAction(loaded.record)) {
+        throw new Error('This action needs to be revoked or appealed first.');
+    }
+
+    const modLog = (await findModLogByActionId(guild.id, actionId))
+        || (await findModLogByCase(loaded.caseType, loaded.actionId.recordUuid));
+    if (modLog?.threadId) {
+        const thread = await client.channels.fetch(modLog.threadId).catch((error) => {
+            if (isDiscordNotFound(error)) return null;
+            throw error;
+        });
+        if (thread && 'delete' in thread && typeof thread.delete === 'function') {
+            await thread.delete().catch((error) => {
+                if (!isDiscordNotFound(error)) throw error;
+            });
+        }
+    }
+    if (modLog) await deleteDiscordMessage(client, modLog.channelId, modLog.messageId);
+    const notifications = await listActionNotifications(actionId, loaded.actionId.recordUuid);
+    for (const notification of notifications) await deleteDiscordMessage(client, notification.channelId, notification.messageId);
+    await purgeAction(loaded);
+    return { status: 'deleted' };
 }
 
 async function loadWebAppealContext(client: Client, actorUserId: string, actionIdInput: string) {

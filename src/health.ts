@@ -13,7 +13,7 @@ import {
     searchAtcMembers,
     sendAtcMessage,
 } from './lib/atcInternalTools';
-import { executeAtcActionEdit, executeAtcActionRevoke, executeAtcAppealApprove, executeAtcAppealDeny, executeAtcAppealReview } from './slashUpdateAction';
+import { executeAtcActionDelete, executeAtcActionEdit, executeAtcActionRevoke, executeAtcAppealApprove, executeAtcAppealDeny, executeAtcAppealReview } from './slashUpdateAction';
 
 const MAX_EVENT_BODY_BYTES = 64 * 1024;
 const developmentApiKey = 'development-only-atc-internal-key';
@@ -189,6 +189,14 @@ async function handleAtcRequest(client: Client, req: IncomingMessage, res: Serve
                 actionId: typeof input.actionId === 'string' ? input.actionId : '',
                 reason: typeof input.reason === 'string' ? input.reason : '',
                 publicNote: typeof input.publicNote === 'string' ? input.publicNote : null,
+            });
+            sendJson(res, 200, result);
+            return;
+        }
+        if (operation === 'moderation.delete') {
+            const result = await executeAtcActionDelete(client, {
+                actorUserId,
+                actionId: typeof input.actionId === 'string' ? input.actionId : '',
             });
             sendJson(res, 200, result);
             return;

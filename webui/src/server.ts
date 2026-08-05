@@ -379,6 +379,15 @@ const app = new Elysia()
             return json({ error: errorMessage(error) }, 400);
         }
     })
+    .delete('/api/moderation/actions/:actionId', async ({ request, params }) => {
+        const auth = await managementAuthenticated(request);
+        if (!auth.session) return auth.response;
+        try {
+            return json(await callBotAtc({ operation: 'moderation.delete', actorUserId: auth.session.user.id, actionId: params.actionId }));
+        } catch (error) {
+            return json({ error: errorMessage(error) }, 400);
+        }
+    })
     .put('/api/moderation/appeals/:appealId/review', async ({ request, params, body }) => {
         const auth = await moderatorAuthenticated(request);
         if (!auth.session) return auth.response;
@@ -530,7 +539,7 @@ const app = new Elysia()
         const auth = await authenticated(request);
         if (!auth.session) return auth.response;
         const action = await findActionForUser(auth.session.user.id, params.actionId);
-        if (!action) return json({ error: 'Action not found.' }, 404);
+        if (!action) return json({ error: 'This action is no longer available for appeal.' }, 409);
         const eligibility = appealEligibility(action);
         if (!eligibility.allowed) return json({ error: eligibility.reason || 'This action cannot be appealed.' }, 409);
 
@@ -566,7 +575,7 @@ const app = new Elysia()
             return json({ error: 'The math answer was incorrect.' }, 400);
         }
         const action = await findActionForUser(auth.session.user.id, params.actionId);
-        if (!action) return json({ error: 'Action not found.' }, 404);
+        if (!action) return json({ error: 'This action is no longer available for appeal.' }, 409);
         const answers = validateAppealAnswers(input.answers, action.kind);
         if (!answers) {
             return json({ error: 'Some answers are missing or do not contain enough detail.' }, 400);
@@ -588,7 +597,7 @@ const app = new Elysia()
             return json({ error: 'Your appeal session expired. Please start again.' }, 400);
         }
         const action = await findActionForUser(auth.session.user.id, params.actionId);
-        if (!action) return json({ error: 'Action not found.' }, 404);
+        if (!action) return json({ error: 'This action is no longer available for appeal.' }, 409);
         const eligibility = appealEligibility(action);
         if (!eligibility.allowed) return json({ error: eligibility.reason || 'This action cannot be appealed.' }, 409);
 
@@ -614,6 +623,9 @@ const app = new Elysia()
             return json({ id: appeal.id, actionId: action.actionId }, 201);
         } catch (error) {
             if (isDatabaseConflict(error)) return json({ error: 'An appeal for this action is already under review.' }, 409);
+            if (error instanceof Error && error.message === 'This action is no longer available for appeal.') {
+                return json({ error: error.message }, 409);
+            }
             throw error;
         }
     })

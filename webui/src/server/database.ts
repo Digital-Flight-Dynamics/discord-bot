@@ -875,6 +875,18 @@ export async function submitAppeal(input: {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [input.actionId]);
+        const action = await client.query(
+            `${actionsCte}
+             SELECT 1
+               FROM actions
+              WHERE guild_id = $1
+                AND discord_user_id = $2
+                AND upper(action_id) = upper($3)
+                AND resolution_status IS NULL`,
+            [config.discordGuildId, input.discordUserId, input.actionId],
+        );
+        if (!action.rowCount) throw new Error('This action is no longer available for appeal.');
         const consumed = await client.query(
             `UPDATE atc_appeal_windows
                 SET consumed_at = now()
