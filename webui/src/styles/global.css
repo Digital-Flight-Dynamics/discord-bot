@@ -1624,11 +1624,61 @@ h3 {
     }
 
     .panel {
-        overflow-x: auto;
+        overflow: hidden;
     }
 
     .actions-table {
-        min-width: 760px;
+        min-width: 0;
+        table-layout: fixed;
+    }
+
+    .actions-table .date-column,
+    .actions-table .expiration-column {
+        display: none;
+    }
+
+    .actions-table .action-id-column { width: 34%; }
+    .actions-table .kind-column { width: 17%; }
+    .actions-table .status-column { width: 22%; }
+    .actions-table .reason-column { width: 27%; }
+    .actions-table th,
+    .actions-table td {
+        padding-right: 8px;
+        padding-left: 8px;
+    }
+
+    .actions-table th {
+        font-size: 9px;
+        letter-spacing: .06em;
+    }
+
+    .actions-table td {
+        overflow: hidden;
+    }
+
+    .actions-table .action-link,
+    .actions-table .kind-badge,
+    .actions-table .status {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .actions-table .kind-badge {
+        gap: 3px;
+    }
+
+    .actions-table .kind-badge svg {
+        width: 13px;
+        height: 13px;
+    }
+
+    .actions-table .reason-preview {
+        white-space: normal;
+        overflow-wrap: anywhere;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
     }
 
     .action-facts div {
@@ -1777,6 +1827,19 @@ body.radar-mode .moderation-topbar {
 .metric-grid span, .metric-grid small { display: block; color: var(--faint); font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
 .metric-grid strong { display: block; margin: 18px 0 13px; font-family: "SFMono-Regular", Consolas, monospace; font-size: 31px; font-weight: 500; }
 .metric-grid small { color: var(--muted); font-size: 9px; }
+.metric-link {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    gap: 5px;
+    align-items: center;
+    margin-top: 13px;
+    color: var(--blue-bright);
+    font-size: 10px;
+    font-weight: 700;
+    text-decoration: none;
+}
+.metric-link:hover { color: var(--ink); text-decoration: underline; }
 .mod-panel {
     overflow: hidden;
     border: 1px solid var(--line);

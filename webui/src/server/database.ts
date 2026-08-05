@@ -437,7 +437,14 @@ export async function getModerationDashboard() {
                  count(*) FILTER (WHERE guild_id = $1 AND action_id IS NOT NULL) AS total_actions,
                  count(*) FILTER (WHERE guild_id = $1 AND action_id IS NOT NULL AND created_at >= now() - interval '30 days') AS actions_30d,
                  count(DISTINCT discord_user_id) FILTER (WHERE guild_id = $1 AND action_id IS NOT NULL AND created_at >= now() - interval '30 days') AS users_30d,
-                 (SELECT count(*) FROM atc_appeals WHERE guild_id = $1 AND status IN ('submitted', 'review')) AS open_appeals
+                 (SELECT count(*)
+                    FROM atc_appeals ap
+                    JOIN actions appeal_action
+                      ON appeal_action.guild_id = ap.guild_id
+                     AND upper(appeal_action.action_id) = upper(ap.action_id)
+                   WHERE ap.guild_id = $1
+                     AND ap.status IN ('submitted', 'review')
+                     AND appeal_action.resolution_status IS NULL) AS open_appeals
                FROM actions`,
             [config.discordGuildId],
         ),
@@ -536,7 +543,8 @@ export async function searchModerationAppeals(query = '', status = '', page = 1,
     const offset = (page - 1) * limit;
     const where = `a.guild_id = $1 AND a.action_id IS NOT NULL
         AND ($2 = '' OR ap.id::text ILIKE $3 OR a.action_id ILIKE $3 OR a.username ILIKE $3 OR a.display_name ILIKE $3 OR a.discord_user_id = $2)
-        AND ($4 = '' OR ap.status = $4)`;
+        AND ($4 = '' OR ap.status = $4)
+        AND (a.resolution_status IS NULL OR ap.status NOT IN ('submitted', 'review'))`;
     const select = `${actionsCte}
         SELECT ap.id, ap.status, ap.submitted_at, ap.review_started_at, ap.decided_at,
                a.action_id, a.kind, a.discord_user_id AS subject_user_id,

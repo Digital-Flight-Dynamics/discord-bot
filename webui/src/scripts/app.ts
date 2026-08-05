@@ -342,6 +342,13 @@ function userChip(user: User, view: 'user' | 'moderation' = 'user'): string {
 }
 
 function mobileNavigation(user: User, view: 'user' | 'moderation', active = ''): string {
+    if (view === 'user') {
+        return `
+            <header class="mobile-atc-bar mobile-user-bar">
+                <a class="mobile-atc-brand" href="/my-history"><img src="/assets/dfd-logo.png" alt="" /><span>Digital Flight Dynamics ATC</span></a>
+            </header>
+        `;
+    }
     const moderationItems = `
         <a class="mobile-nav-link ${active === 'dashboard' ? 'active' : ''}" href="/moderation"><span class="nav-symbol">${moderatorIcon('layout-dashboard')}</span>Dashboard</a>
         <a class="mobile-nav-link ${active === 'radar' ? 'active' : ''}" href="/moderation/radar"><span class="nav-symbol">${moderatorIcon('radar')}</span>User Radar</a>
@@ -1519,10 +1526,10 @@ async function renderModerationDashboard(): Promise<void> {
     ]);
     moderationShell(user, 'dashboard', 'Dashboard', 'A live operational overview of community moderation.', `
         <section class="metric-grid">
-            <article><span>Total actions</span><strong>${data.metrics.totalActions}</strong><small>All recorded time</small></article>
+            <article><span>Total actions</span><strong>${data.metrics.totalActions}</strong><small>All recorded time</small><a class="metric-link" href="/moderation/actions">Actions DB <span aria-hidden="true">→</span></a></article>
             <article><span>Last 30 days</span><strong>${data.metrics.actions30d}</strong><small>New actions issued</small></article>
             <article><span>Users involved</span><strong>${data.metrics.users30d}</strong><small>Unique users · 30 days</small></article>
-            <article class="${data.metrics.openAppeals ? 'attention' : ''}"><span>Open appeals</span><strong>${data.metrics.openAppeals}</strong><small>Awaiting a decision</small></article>
+            <article class="${data.metrics.openAppeals ? 'attention' : ''}"><span>Open appeals</span><strong>${data.metrics.openAppeals}</strong><small>Awaiting a decision</small><a class="metric-link" href="/moderation/appeals">Appeals DB <span aria-hidden="true">→</span></a></article>
         </section>
         <section class="mod-panel">
             <div class="mod-panel-heading"><div><p class="eyebrow">Live feed</p><h2>Latest actions</h2></div><a href="/moderation/logs">View all logs →</a></div>

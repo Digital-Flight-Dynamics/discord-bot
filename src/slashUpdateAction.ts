@@ -12,7 +12,7 @@ import {
     listModerationActionAudits,
     updateModerationActionAuditMetadata,
 } from './db/repositories/moderationActionAudits';
-import { denyAppeal, startAppealReview } from './db/repositories/atcAppeals';
+import { approveAppeal, denyAppeal, startAppealReview } from './db/repositories/atcAppeals';
 import {
     createModerationActionNotification,
     findLatestActionNotification,
@@ -367,17 +367,24 @@ export async function executeAtcAppealDeny(client: Client, input: { actorUserId:
     const appeal = await denyAppeal({ guildId: guild.id, actionId, appealId: input.appealId, moderatorUserId: moderator.id, decisionNote: input.publicNote?.trim() || null });
     if (!appeal) throw new Error('Appeal not found, already decided, or not attached to this action.');
     await createModerationActionAudit({ guildId: guild.id, actionId, recordType: loaded.actionId.recordType, recordUuid: loaded.actionId.recordUuid, changeType: 'Appeal Denied', moderatorSnapshotId: moderatorSnap.id, moderatorUserId: moderator.id, oldValue: null, newValue: 'Denied', rationale: reason, notifyUser: false, metadata: { appealId: input.appealId, publicNote: input.publicNote?.trim() || null } });
-    await handleAtcDiscordEvent(client, { id: crypto.randomUUID(), type: 'appeal.denied', occurredAt: appeal.decidedAt?.toISOString() || new Date().toISOString(), guildId: guild.id, actionId, appealId: input.appealId, actorUserId: moderator.id }).catch(console.error);
+    if (loaded.record.resolutionStatus !== 'revoked') {
+        await handleAtcDiscordEvent(client, { id: crypto.randomUUID(), type: 'appeal.denied', occurredAt: appeal.decidedAt?.toISOString() || new Date().toISOString(), guildId: guild.id, actionId, appealId: input.appealId, actorUserId: moderator.id }).catch(console.error);
+    }
     return { status: 'denied' };
 }
 
 export async function executeAtcAppealApprove(client: Client, input: { actorUserId: string; actionId: string; appealId: string; reason: string; publicNote: string | null }) {
     const { guild, moderator, moderatorMember, loaded } = await loadWebAppealContext(client, input.actorUserId, input.actionId);
-    if (loaded.record.resolutionStatus) throw new Error(`This action has already been resolved as ${titleCase(String(loaded.record.resolutionStatus))}.`);
     const publicNote = input.publicNote?.trim() || null;
     const reason = input.reason.trim();
     if (!reason) throw new Error('A reason is required.');
     const moderatorSnap = await captureIdentitySnapshot({ member: moderatorMember || undefined, user: moderator, discordUserId: moderator.id });
+    if (loaded.record.resolutionStatus === 'revoked') {
+        const appeal = await approveAppeal({ guildId: guild.id, actionId: loaded.actionId.actionId, appealId: input.appealId, moderatorUserId: moderator.id, decisionNote: publicNote });
+        if (!appeal) throw new Error('Appeal not found, already decided, or not attached to this action.');
+        await createModerationActionAudit({ guildId: guild.id, actionId: loaded.actionId.actionId, recordType: loaded.actionId.recordType, recordUuid: loaded.actionId.recordUuid, changeType: 'Appeal Approved', moderatorSnapshotId: moderatorSnap.id, moderatorUserId: moderator.id, oldValue: null, newValue: 'Approved', rationale: reason, notifyUser: false, metadata: { appealId: input.appealId, publicNote } });
+        return { status: 'approved' };
+    }
     const { audit, userNotUnbanned } = await commitActionResolutionAndAudit({ guild, moderator, loaded, status: 'appeal-approved', reason, publicNote, moderatorSnapshotId: moderatorSnap.id, moderatorUserId: moderator.id, label: 'Appeal Approved', appealId: input.appealId });
     const notificationResult = await editResolutionDm(client, loaded, 'appeal-approved', publicNote);
     await updateModerationActionAuditMetadata(audit.id, { resolutionStatus: 'appeal-approved', publicNote, notificationMode: 'silent-edit', notificationStatus: notificationResult.status, notificationDetail: notificationResult.detail ?? null, userNotUnbanned });
