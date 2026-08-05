@@ -36,6 +36,12 @@ export type ModerationExecutionResult =
     | { status: 'completed' | 'partial'; actionId: string; modLogUrl: string | null; notice?: string }
     | { status: 'not-executed'; reason: string };
 
+export type ModerationFailureContext = {
+    stage: string;
+    actionId?: string;
+    error: unknown;
+};
+
 function linkedFromPending(p: PendingModerationAction): LinkedMessage | null {
     if (!p.linkedMessageId || !p.linkedChannelId) return null;
     return {
@@ -56,6 +62,7 @@ export async function executePendingModeration(
         privateNote?: string | null;
         timedOut?: boolean;
         preActionDm?: DmResult;
+        onFailure?: (context: ModerationFailureContext) => Promise<void>;
     },
 ): Promise<ModerationExecutionResult> {
     // Atomically claim the row so concurrent workers / a crash-then-restart replay
@@ -153,6 +160,7 @@ export async function executePendingModeration(
                     linked,
                     soft: pending.banType === 'soft',
                     dmOverride: opts?.preActionDm,
+                    onFailure: opts?.onFailure,
                     automation,
                 });
             case 'timeout':
@@ -174,6 +182,13 @@ export async function executePendingModeration(
     } catch (err) {
         console.error(`[ERROR] Failed to execute pending ${pending.id}:`, err);
         const current = await getPendingModerationById(pending.id).catch(() => null);
+        if (opts?.onFailure) {
+            await opts.onFailure({
+                stage: 'ban follow-up processing',
+                actionId: current?.resultCaseId || pending.resultCaseId || undefined,
+                error: err,
+            }).catch(console.error);
+        }
         if (current?.resultCaseId && (current.actionType === 'warn' || current.discordAppliedAt || pending.discordAppliedAt)) {
             await markPendingCompleted(pending.id, current.resultCaseId);
             return {
@@ -208,6 +223,7 @@ type ExecCtx = {
     timedOut: boolean;
     linked?: LinkedMessage | null;
     dmOverride?: DmResult;
+    onFailure?: (context: ModerationFailureContext) => Promise<void>;
     automation?: string | null;
 };
 
@@ -402,6 +418,13 @@ async function executeKick(
         }),
         footerUrl: modPortalUrl(publicId),
     });
+    if (!modLog && ctx.onFailure) {
+        await ctx.onFailure({
+            stage: 'ban moderation log',
+            actionId: publicId,
+            error: new Error('The completed ban could not be written to mod-logs'),
+        }).catch(console.error);
+    }
 
     await markPendingCompleted(pending.id, row.id);
     return {
@@ -484,7 +507,11 @@ async function executeBan(
         });
     } catch (err) {
         await deleteBanById(row.id, pending.id).catch(console.error);
-        await sendFailedActionCorrection(ctx.subjectUser, ctx.soft ? 'soft-ban' : 'ban').catch(console.error);
+        if (ctx.onFailure) {
+            await ctx.onFailure({ stage: ctx.soft ? 'soft-ban' : 'ban', actionId: publicId, error: err }).catch(console.error);
+        } else {
+            await sendFailedActionCorrection(ctx.subjectUser, ctx.soft ? 'soft-ban' : 'ban').catch(console.error);
+        }
         throw err;
     }
 
