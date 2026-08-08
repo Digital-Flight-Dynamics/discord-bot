@@ -29,6 +29,7 @@ import { migrateLegacyBotSettings } from './db/repositories/botSettings';
 import { stopMemberCounter } from './utils/memberCounter';
 import { hasRoleAccess } from './lib/moderationAccess';
 import { MAX_EMBED_FIELD_LENGTH } from './lib/moderationLimits';
+import { assertSecretEncryptionConfigured } from './lib/secretEncryption';
 import {
     handleModerationAutocomplete,
     handleModerationSlashCommand,
@@ -283,6 +284,7 @@ client.on('messageCreate', async (message) => {
 });
 
 async function main() {
+    assertSecretEncryptionConfigured();
     // Config already loaded at import; assess completeness / load errors
     if (configLoadError) {
         addSoftLockReason(`Config load failed: ${configLoadError}`);

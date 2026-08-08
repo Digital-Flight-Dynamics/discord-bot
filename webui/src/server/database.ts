@@ -1,6 +1,7 @@
 import pg from 'pg';
 import { config } from './config';
 import type { AppealAnswers, AppealStatus, PublicAction, PublicAppealSummary } from './domain';
+import { decryptSecret, encryptSecret } from '../../../src/lib/secretEncryption';
 
 const pool = new pg.Pool({ connectionString: config.databaseUrl });
 
@@ -78,7 +79,8 @@ export async function listManagedBotSettings(guildId = config.discordGuildId): P
     const stored = new Map(result.rows.map((row) => [row.setting_key, row]));
     return managedBotSettingDefinitions.map((definition) => {
         const row = stored.get(definition.key);
-        const value = row?.setting_value.trim() || '';
+        const storedValue = row?.setting_value.trim() || '';
+        const value = storedValue ? decryptSecret(storedValue) : '';
         return {
             ...definition,
             configured: Boolean(value),
@@ -128,7 +130,7 @@ export async function updateManagedBotSettings(
                  DO UPDATE SET setting_value = EXCLUDED.setting_value,
                                updated_at = now(),
                                updated_by_discord_user_id = EXCLUDED.updated_by_discord_user_id`,
-                [guildId, key, value, updatedByDiscordUserId],
+                [guildId, key, encryptSecret(value), updatedByDiscordUserId],
             );
         }
         await client.query('COMMIT');
@@ -817,6 +819,7 @@ export async function deleteSession(tokenHash: string): Promise<void> {
 }
 
 export async function createAppealWindow(input: {
+    guildId: string;
     sessionHash: string;
     discordUserId: string;
     actionId: string;
@@ -825,10 +828,10 @@ export async function createAppealWindow(input: {
 }): Promise<{ id: string; openedAt: Date }> {
     const result = await pool.query<{ id: string; opened_at: Date }>(
         `INSERT INTO atc_appeal_windows
-            (session_hash, discord_user_id, action_id, expires_at, math_prompt, math_answer)
-         VALUES ($1, $2, $3, now() + interval '30 minutes', $4, $5)
+            (guild_id, session_hash, discord_user_id, action_id, expires_at, math_prompt, math_answer)
+         VALUES ($1, $2, $3, $4, now() + interval '30 minutes', $5, $6)
          RETURNING id, opened_at`,
-        [input.sessionHash, input.discordUserId, input.actionId, input.mathPrompt, input.mathAnswer],
+        [input.guildId, input.sessionHash, input.discordUserId, input.actionId, input.mathPrompt, input.mathAnswer],
     );
     return { id: result.rows[0]!.id, openedAt: result.rows[0]!.opened_at };
 }
@@ -846,9 +849,9 @@ export async function findAppealWindow(id: string, sessionHash: string, discordU
     const result = await pool.query<AppealWindowRow>(
         `SELECT id, opened_at, math_answer, answers, prepared_at, consumed_at
            FROM atc_appeal_windows
-          WHERE id = $1 AND session_hash = $2 AND discord_user_id = $3
-            AND upper(action_id) = upper($4) AND expires_at > now()`,
-        [id, sessionHash, discordUserId, actionId],
+          WHERE guild_id = $1 AND id = $2 AND session_hash = $3 AND discord_user_id = $4
+            AND upper(action_id) = upper($5) AND expires_at > now()`,
+        [config.discordGuildId, id, sessionHash, discordUserId, actionId],
     );
     return result.rows[0] ?? null;
 }
@@ -875,7 +878,7 @@ export async function submitAppeal(input: {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [input.actionId]);
+        await client.query("SELECT pg_advisory_xact_lock(hashtext($1 || ':' || upper($2)))", [config.discordGuildId, input.actionId]);
         const action = await client.query(
             `${actionsCte}
              SELECT 1
@@ -890,10 +893,10 @@ export async function submitAppeal(input: {
         const consumed = await client.query(
             `UPDATE atc_appeal_windows
                 SET consumed_at = now()
-              WHERE id = $1 AND session_hash = $2 AND discord_user_id = $3
-                AND upper(action_id) = upper($4) AND consumed_at IS NULL
+              WHERE guild_id = $1 AND id = $2 AND session_hash = $3 AND discord_user_id = $4
+                AND upper(action_id) = upper($5) AND consumed_at IS NULL
           RETURNING id`,
-            [input.windowId, input.sessionHash, input.discordUserId, input.actionId],
+            [config.discordGuildId, input.windowId, input.sessionHash, input.discordUserId, input.actionId],
         );
         if (!consumed.rowCount) throw new Error('Appeal window is no longer valid.');
 

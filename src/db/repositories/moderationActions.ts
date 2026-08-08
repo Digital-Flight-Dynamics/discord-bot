@@ -51,7 +51,7 @@ export async function purgeAction(loaded: LoadedAction): Promise<void> {
             eq(atcAppeals.guildId, loaded.actionId.guildId),
             sql`upper(${atcAppeals.actionId}) = upper(${loaded.actionId.actionId})`,
         ));
-        await tx.execute(sql`DELETE FROM atc_appeal_windows WHERE upper(action_id) = upper(${loaded.actionId.actionId})`);
+        await tx.execute(sql`DELETE FROM atc_appeal_windows WHERE guild_id = ${loaded.actionId.guildId} AND upper(action_id) = upper(${loaded.actionId.actionId})`);
         await tx.delete(moderationActionAudits).where(and(
             eq(moderationActionAudits.guildId, loaded.actionId.guildId),
             eq(moderationActionAudits.actionId, loaded.actionId.actionId),

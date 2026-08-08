@@ -244,7 +244,7 @@ async function handleAtcRequest(client: Client, req: IncomingMessage, res: Serve
         sendJson(res, 422, { error: 'Invalid or unsupported ATC operation.' });
     } catch (error) {
         console.error(`[ATC] Internal operation ${operation || 'unknown'} failed.`, error);
-        sendJson(res, 400, { error: error instanceof Error ? error.message : 'The operation failed.' });
+        sendJson(res, 400, { error: 'The operation failed.' });
     }
 }
 

@@ -4,6 +4,7 @@ COPY webui/package.json webui/bun.lock ./
 RUN bun install --frozen-lockfile
 COPY webui .
 COPY src/config /app/src/config
+COPY src/lib/secretEncryption.ts /app/src/lib/secretEncryption.ts
 RUN bun run build
 
 FROM oven/bun:1.3.12-slim
@@ -17,6 +18,7 @@ COPY --from=build /app/webui/src/server ./src/server
 COPY --from=build /app/webui/src/server.ts ./src/server.ts
 COPY --from=build /app/webui/drizzle ./drizzle
 COPY --from=build /app/src/config /app/src/config
+COPY --from=build /app/src/lib/secretEncryption.ts /app/src/lib/secretEncryption.ts
 USER bun
 EXPOSE 4321
 CMD ["sh", "-c", "bun src/server/migrate.ts && exec bun src/server.ts"]
