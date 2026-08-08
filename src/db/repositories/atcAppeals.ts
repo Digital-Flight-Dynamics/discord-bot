@@ -51,3 +51,28 @@ export async function denyAppeal(input: {
         .returning();
     return appeal ?? null;
 }
+
+export async function approveAppeal(input: {
+    guildId: string;
+    actionId: string;
+    appealId: string;
+    moderatorUserId: string;
+    decisionNote: string | null;
+}): Promise<AtcAppeal | null> {
+    const [appeal] = await getDb()
+        .update(atcAppeals)
+        .set({
+            status: 'approved',
+            decidedAt: new Date(),
+            decidedByDiscordUserId: input.moderatorUserId,
+            decisionNote: input.decisionNote,
+        })
+        .where(and(
+            eq(atcAppeals.id, input.appealId),
+            eq(atcAppeals.guildId, input.guildId),
+            sql`upper(${atcAppeals.actionId}) = upper(${input.actionId})`,
+            inArray(atcAppeals.status, openStatuses),
+        ))
+        .returning();
+    return appeal ?? null;
+}

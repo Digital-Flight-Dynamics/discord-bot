@@ -3,6 +3,7 @@ import {
     Client,
     Guild,
     Message,
+    MessageMentionOptions,
     MessageCreateOptions,
     TextChannel,
     User,
@@ -112,6 +113,9 @@ export async function logModerationAction(
         actionId?: string | null;
         /** Extra content posted as the first message inside the thread */
         threadIntro?: string;
+        /** Optional content for the parent log message (for example, a staff-role ping). */
+        content?: string;
+        allowedMentions?: MessageMentionOptions;
         /** e.g. mod portal URL shown in the description */
         footerUrl?: string;
     },
@@ -139,7 +143,11 @@ export async function logModerationAction(
 
     let parentMessage: Message;
     try {
-        parentMessage = await modChannel.send({ embeds: [embed] });
+        parentMessage = await modChannel.send({
+            content: opts.content,
+            embeds: [embed],
+            allowedMentions: opts.allowedMentions,
+        });
     } catch (err) {
         console.error('[ERROR] Failed to post mod log:', err);
         return null;

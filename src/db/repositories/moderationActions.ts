@@ -1,12 +1,16 @@
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { getDb, type Database } from '../client';
 import { findActionId } from './actionIds';
 import {
     atcAppeals,
+    actionIds,
     bans,
     identitySnapshots,
     kicks,
     moderationActionAudits,
+    moderationActionNotifications,
+    modLogMessages,
+    pendingModerationActions,
     timeouts,
     warnings,
     type ActionIdRow,
@@ -20,6 +24,74 @@ export type LoadedAction = {
     subjectUserId: string | null;
     record: Record<string, unknown>;
 };
+
+export function canPurgeAction(record: Record<string, unknown>): boolean {
+    return record.resolutionStatus === 'revoked' || record.resolutionStatus === 'appeal-approved';
+}
+
+export async function purgeAction(loaded: LoadedAction): Promise<void> {
+    await getDb().transaction(async (tx) => {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${loaded.actionId.actionId}))`);
+        const auditSnapshots = await tx
+            .select({ id: moderationActionAudits.moderatorSnapshotId })
+            .from(moderationActionAudits)
+            .where(and(
+                eq(moderationActionAudits.guildId, loaded.actionId.guildId),
+                eq(moderationActionAudits.actionId, loaded.actionId.actionId),
+            ));
+        const snapshotIds = [
+            loaded.record.subjectSnapshotId,
+            loaded.record.moderatorSnapshotId,
+            loaded.record.removedByModeratorSnapshotId,
+            loaded.record.liftedByModeratorSnapshotId,
+            loaded.record.resolvedByModeratorSnapshotId,
+            ...auditSnapshots.map((snapshot) => snapshot.id),
+        ].filter((id): id is string => typeof id === 'string');
+        await tx.delete(atcAppeals).where(and(
+            eq(atcAppeals.guildId, loaded.actionId.guildId),
+            sql`upper(${atcAppeals.actionId}) = upper(${loaded.actionId.actionId})`,
+        ));
+        await tx.execute(sql`DELETE FROM atc_appeal_windows WHERE guild_id = ${loaded.actionId.guildId} AND upper(action_id) = upper(${loaded.actionId.actionId})`);
+        await tx.delete(moderationActionAudits).where(and(
+            eq(moderationActionAudits.guildId, loaded.actionId.guildId),
+            eq(moderationActionAudits.actionId, loaded.actionId.actionId),
+        ));
+        await tx.delete(moderationActionNotifications).where(and(
+            eq(moderationActionNotifications.guildId, loaded.actionId.guildId),
+            or(
+                eq(moderationActionNotifications.actionId, loaded.actionId.actionId),
+                eq(moderationActionNotifications.recordUuid, loaded.actionId.recordUuid),
+            ),
+        ));
+        await tx.delete(modLogMessages).where(and(
+            eq(modLogMessages.guildId, loaded.actionId.guildId),
+            or(
+                eq(modLogMessages.actionId, loaded.actionId.actionId),
+                and(eq(modLogMessages.caseType, loaded.caseType), eq(modLogMessages.caseId, loaded.actionId.recordUuid)),
+            ),
+        ));
+        await tx.delete(pendingModerationActions).where(and(
+            eq(pendingModerationActions.guildId, loaded.actionId.guildId),
+            eq(pendingModerationActions.resultCaseId, loaded.actionId.recordUuid),
+        ));
+
+        if (loaded.caseType === 'warning') await tx.delete(warnings).where(and(eq(warnings.id, loaded.actionId.recordUuid), eq(warnings.guildId, loaded.actionId.guildId)));
+        else if (loaded.caseType === 'kick') await tx.delete(kicks).where(and(eq(kicks.id, loaded.actionId.recordUuid), eq(kicks.guildId, loaded.actionId.guildId)));
+        else if (loaded.caseType === 'ban') await tx.delete(bans).where(and(eq(bans.id, loaded.actionId.recordUuid), eq(bans.guildId, loaded.actionId.guildId)));
+        else await tx.delete(timeouts).where(and(eq(timeouts.id, loaded.actionId.recordUuid), eq(timeouts.guildId, loaded.actionId.guildId)));
+        await tx.delete(actionIds).where(eq(actionIds.actionId, loaded.actionId.actionId));
+        if (snapshotIds.length) {
+        await tx.delete(identitySnapshots).where(and(
+                inArray(identitySnapshots.id, snapshotIds),
+                sql`NOT EXISTS (SELECT 1 FROM warnings WHERE ${identitySnapshots.id} IN (subject_snapshot_id, moderator_snapshot_id, removed_by_moderator_snapshot_id, resolved_by_moderator_snapshot_id))`,
+                sql`NOT EXISTS (SELECT 1 FROM kicks WHERE ${identitySnapshots.id} IN (subject_snapshot_id, moderator_snapshot_id, resolved_by_moderator_snapshot_id))`,
+                sql`NOT EXISTS (SELECT 1 FROM bans WHERE ${identitySnapshots.id} IN (subject_snapshot_id, moderator_snapshot_id, lifted_by_moderator_snapshot_id, resolved_by_moderator_snapshot_id))`,
+                sql`NOT EXISTS (SELECT 1 FROM timeouts WHERE ${identitySnapshots.id} IN (subject_snapshot_id, moderator_snapshot_id, resolved_by_moderator_snapshot_id))`,
+                sql`NOT EXISTS (SELECT 1 FROM moderation_action_audits WHERE moderator_snapshot_id = ${identitySnapshots.id})`,
+            ));
+        }
+    });
+}
 
 export async function loadAction(guildId: string, actionId: string): Promise<LoadedAction | null> {
     const action = await findActionId(actionId);

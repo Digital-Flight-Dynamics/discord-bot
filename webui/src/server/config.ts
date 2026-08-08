@@ -1,4 +1,5 @@
 import { config as workspaceConfig } from '../../../src/config';
+import { assertSecretEncryptionConfigured } from '../../../src/lib/secretEncryption';
 
 const requiredNames = [
     'DATABASE_URL',
@@ -29,11 +30,15 @@ if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error('PORT 
 if (!workspaceConfig.guildId?.trim()) throw new Error('The selected constants file must define guildId for ATC.');
 
 const production = process.env.NODE_ENV === 'production';
+assertSecretEncryptionConfigured();
 const botInternalApiUrl = process.env.BOT_INTERNAL_API_URL?.trim() || (production ? '' : 'http://127.0.0.1:3000');
 const atcInternalApiKey = process.env.ATC_INTERNAL_API_KEY?.trim() || (production ? '' : 'development-only-atc-internal-key');
 if (!botInternalApiUrl) throw new Error('BOT_INTERNAL_API_URL is required in production.');
 if (!atcInternalApiKey) throw new Error('ATC_INTERNAL_API_KEY is required in production.');
 if (production && atcInternalApiKey.length < 32) throw new Error('ATC_INTERNAL_API_KEY must be at least 32 characters.');
+const discordRedirectUri = required('DISCORD_REDIRECT_URI');
+const parsedDiscordRedirectUri = new URL(discordRedirectUri);
+if (!['http:', 'https:'].includes(parsedDiscordRedirectUri.protocol)) throw new Error('DISCORD_REDIRECT_URI must use HTTP or HTTPS.');
 const parsedBotInternalApiUrl = new URL(botInternalApiUrl);
 if (!['http:', 'https:'].includes(parsedBotInternalApiUrl.protocol)) {
     throw new Error('BOT_INTERNAL_API_URL must use HTTP or HTTPS.');
@@ -43,7 +48,8 @@ export const config = {
     databaseUrl: required('DATABASE_URL'),
     discordClientId: required('DISCORD_CLIENT_ID'),
     discordClientSecret: required('DISCORD_CLIENT_SECRET'),
-    discordRedirectUri: required('DISCORD_REDIRECT_URI'),
+    discordRedirectUri,
+    browserOrigin: parsedDiscordRedirectUri.origin,
     discordGuildId: workspaceConfig.guildId,
     discordInviteUrl: optionalHttpsUrl('communityInviteUrl'),
     secureCookies: process.env.SESSION_COOKIE_SECURE === 'true' || production,

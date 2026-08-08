@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "overrides": {
+    "fast-uri": "^3.1.5",
     "sharp": "^0.35.3"
   },
   "scripts": {

@@ -37,6 +37,7 @@ import {
     Send,
     Settings,
     TriangleAlert,
+    Trash2,
     VolumeX,
     Wrench,
     X,
@@ -139,6 +140,7 @@ const moderatorIcons = {
     Send,
     Settings,
     TriangleAlert,
+    Trash2,
     VolumeX,
     Wrench,
     X,
@@ -342,6 +344,13 @@ function userChip(user: User, view: 'user' | 'moderation' = 'user'): string {
 }
 
 function mobileNavigation(user: User, view: 'user' | 'moderation', active = ''): string {
+    if (view === 'user') {
+        return `
+            <header class="mobile-atc-bar mobile-user-bar">
+                <a class="mobile-atc-brand" href="/my-history"><img src="/assets/dfd-logo.png" alt="" /><span>Digital Flight Dynamics ATC</span></a>
+            </header>
+        `;
+    }
     const moderationItems = `
         <a class="mobile-nav-link ${active === 'dashboard' ? 'active' : ''}" href="/moderation"><span class="nav-symbol">${moderatorIcon('layout-dashboard')}</span>Dashboard</a>
         <a class="mobile-nav-link ${active === 'radar' ? 'active' : ''}" href="/moderation/radar"><span class="nav-symbol">${moderatorIcon('radar')}</span>User Radar</a>
@@ -1161,6 +1170,13 @@ function renderCaptchaStep(action: PublicAction, windowData: AppealWindow, draft
         } catch (error) {
             submit.disabled = false;
             submit.textContent = 'Submit';
+            if (error instanceof Error && error.message === 'This action is no longer available for appeal.') {
+                modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal action-edit-modal" role="dialog" aria-modal="true" aria-labelledby="action-unavailable-title"><h2 id="action-unavailable-title">This action is no longer available for appeal.</h2><p class="edit-step-help">Your moderation history has changed. Return to your history to see the latest information.</p><footer><button type="button" class="button" data-action-unavailable-confirm>Ok</button></footer></section></div>`;
+                modalRoot.querySelector<HTMLButtonElement>('[data-action-unavailable-confirm]')?.addEventListener('click', () => {
+                    location.href = '/my-history';
+                });
+                return;
+            }
             toast(error instanceof Error ? error.message : 'Could not submit your appeal.', 'danger');
         }
     });
@@ -1519,10 +1535,10 @@ async function renderModerationDashboard(): Promise<void> {
     ]);
     moderationShell(user, 'dashboard', 'Dashboard', 'A live operational overview of community moderation.', `
         <section class="metric-grid">
-            <article><span>Total actions</span><strong>${data.metrics.totalActions}</strong><small>All recorded time</small></article>
+            <article><span>Total actions</span><strong>${data.metrics.totalActions}</strong><small>All recorded time</small><a class="metric-link" href="/moderation/actions">Actions DB <span aria-hidden="true">→</span></a></article>
             <article><span>Last 30 days</span><strong>${data.metrics.actions30d}</strong><small>New actions issued</small></article>
             <article><span>Users involved</span><strong>${data.metrics.users30d}</strong><small>Unique users · 30 days</small></article>
-            <article class="${data.metrics.openAppeals ? 'attention' : ''}"><span>Open appeals</span><strong>${data.metrics.openAppeals}</strong><small>Awaiting a decision</small></article>
+            <article class="${data.metrics.openAppeals ? 'attention' : ''}"><span>Open appeals</span><strong>${data.metrics.openAppeals}</strong><small>Awaiting a decision</small><a class="metric-link" href="/moderation/appeals">Appeals DB <span aria-hidden="true">→</span></a></article>
         </section>
         <section class="mod-panel">
             <div class="mod-panel-heading"><div><p class="eyebrow">Live feed</p><h2>Latest actions</h2></div><a href="/moderation/logs">View all logs →</a></div>
@@ -2532,6 +2548,7 @@ async function renderModeratorAction(actionId: string): Promise<void> {
             <button type="button" class="button secondary quick-action-note" data-quick-private-note>Quick Private Note</button>
             <button type="button" class="button secondary quick-action-revoke" data-quick-revoke>Revoke</button>
             <a class="button secondary quick-action-appeals" href="/moderation/actions/${encodeURIComponent(action.actionId)}/appeals">Appeals</a>
+            ${user.access.management ? `<button type="button" class="button secondary quick-action-delete${action.resolutionStatus === 'revoked' || action.resolutionStatus === 'appeal-approved' ? '' : ' is-disabled'}" data-delete-action data-delete-available="${action.resolutionStatus === 'revoked' || action.resolutionStatus === 'appeal-approved' ? 'true' : 'false'}" aria-disabled="${action.resolutionStatus === 'revoked' || action.resolutionStatus === 'appeal-approved' ? 'false' : 'true'}" data-tooltip="This action needs to be revoked or appealed first.">${moderatorIcon('trash-2')}<span>Delete</span></button>` : ''}
         </section>
         <section class="action-inspector-grid">
             <article class="mod-panel inspector-summary" id="action-record">
@@ -2607,6 +2624,35 @@ async function renderModeratorAction(actionId: string): Promise<void> {
                 toast(error instanceof Error ? error.message : 'Could not revoke the action.', 'danger');
                 button.disabled = false;
             }
+        });
+    });
+    document.querySelector<HTMLButtonElement>('[data-delete-action]')?.addEventListener('click', async (event) => {
+        const button = event.currentTarget as HTMLButtonElement;
+        if (button.dataset.deleteAvailable !== 'true') {
+            toast('This action needs to be revoked or appealed first.', 'danger');
+            return;
+        }
+        const close = () => { modalRoot.innerHTML = ''; };
+        modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal action-edit-modal delete-action-modal" role="dialog" aria-modal="true" aria-labelledby="delete-action-title"><button class="modal-close" type="button" aria-label="Close">${moderatorIcon('x')}</button><p class="eyebrow">Permanent action</p><h2 id="delete-action-title">Are you sure you want to delete this action?</h2><p class="edit-step-help">This removes the action, its appeals, audit history, Discord records, and related direct messages.</p><footer><button type="button" class="button secondary" data-delete-cancel>No</button><button type="button" class="button danger-button" data-delete-first-yes>Yes</button></footer></section></div>`;
+        renderModeratorIcons(modalRoot);
+        modalRoot.querySelectorAll<HTMLButtonElement>('.modal-close, [data-delete-cancel]').forEach((item) => item.addEventListener('click', close));
+        modalRoot.querySelector<HTMLButtonElement>('[data-delete-first-yes]')?.addEventListener('click', () => {
+            modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal action-edit-modal delete-action-modal" role="dialog" aria-modal="true" aria-labelledby="delete-action-really-title"><button class="modal-close" type="button" aria-label="Close">${moderatorIcon('x')}</button><p class="eyebrow">Permanent action</p><h2 id="delete-action-really-title">Are you REALLY sure?</h2><p class="edit-step-help">This can not be reverted!</p><footer><button type="button" class="button secondary" data-delete-final-cancel>Ok cancel</button><button type="button" class="button danger-button" data-delete-final-yes>Yes I'm REALLY sure</button></footer></section></div>`;
+            renderModeratorIcons(modalRoot);
+            modalRoot.querySelectorAll<HTMLButtonElement>('.modal-close, [data-delete-final-cancel]').forEach((item) => item.addEventListener('click', close));
+            modalRoot.querySelector<HTMLButtonElement>('[data-delete-final-yes]')?.addEventListener('click', async (finalEvent) => {
+                const finalButton = finalEvent.currentTarget as HTMLButtonElement;
+                finalButton.disabled = true;
+                try {
+                    await fetchJson(`/api/moderation/actions/${encodeURIComponent(action.actionId)}`, { method: 'DELETE' });
+                    close();
+                    toast('Action deleted.', 'success');
+                    location.href = '/moderation/actions';
+                } catch (error) {
+                    toast(error instanceof Error ? error.message : 'Could not delete the action.', 'danger');
+                    finalButton.disabled = false;
+                }
+            });
         });
     });
     document.querySelector<HTMLButtonElement>('.quick-action-edit')?.addEventListener('click', () => {

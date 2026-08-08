@@ -13,7 +13,7 @@ import {
     searchAtcMembers,
     sendAtcMessage,
 } from './lib/atcInternalTools';
-import { executeAtcActionEdit, executeAtcActionRevoke, executeAtcAppealApprove, executeAtcAppealDeny, executeAtcAppealReview } from './slashUpdateAction';
+import { executeAtcActionDelete, executeAtcActionEdit, executeAtcActionRevoke, executeAtcAppealApprove, executeAtcAppealDeny, executeAtcAppealReview } from './slashUpdateAction';
 
 const MAX_EVENT_BODY_BYTES = 64 * 1024;
 const developmentApiKey = 'development-only-atc-internal-key';
@@ -193,6 +193,14 @@ async function handleAtcRequest(client: Client, req: IncomingMessage, res: Serve
             sendJson(res, 200, result);
             return;
         }
+        if (operation === 'moderation.delete') {
+            const result = await executeAtcActionDelete(client, {
+                actorUserId,
+                actionId: typeof input.actionId === 'string' ? input.actionId : '',
+            });
+            sendJson(res, 200, result);
+            return;
+        }
         if (operation === 'appeal.review' || operation === 'appeal.deny' || operation === 'appeal.approve') {
             const common = { actorUserId, actionId: typeof input.actionId === 'string' ? input.actionId : '', appealId: typeof input.appealId === 'string' ? input.appealId : '' };
             let result;
@@ -236,7 +244,7 @@ async function handleAtcRequest(client: Client, req: IncomingMessage, res: Serve
         sendJson(res, 422, { error: 'Invalid or unsupported ATC operation.' });
     } catch (error) {
         console.error(`[ATC] Internal operation ${operation || 'unknown'} failed.`, error);
-        sendJson(res, 400, { error: error instanceof Error ? error.message : 'The operation failed.' });
+        sendJson(res, 400, { error: 'The operation failed.' });
     }
 }
 

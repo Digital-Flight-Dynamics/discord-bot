@@ -1624,11 +1624,61 @@ h3 {
     }
 
     .panel {
-        overflow-x: auto;
+        overflow: hidden;
     }
 
     .actions-table {
-        min-width: 760px;
+        min-width: 0;
+        table-layout: fixed;
+    }
+
+    .actions-table .date-column,
+    .actions-table .expiration-column {
+        display: none;
+    }
+
+    .actions-table .action-id-column { width: 34%; }
+    .actions-table .kind-column { width: 17%; }
+    .actions-table .status-column { width: 22%; }
+    .actions-table .reason-column { width: 27%; }
+    .actions-table th,
+    .actions-table td {
+        padding-right: 8px;
+        padding-left: 8px;
+    }
+
+    .actions-table th {
+        font-size: 9px;
+        letter-spacing: .06em;
+    }
+
+    .actions-table td {
+        overflow: hidden;
+    }
+
+    .actions-table .action-link,
+    .actions-table .kind-badge,
+    .actions-table .status {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .actions-table .kind-badge {
+        gap: 3px;
+    }
+
+    .actions-table .kind-badge svg {
+        width: 13px;
+        height: 13px;
+    }
+
+    .actions-table .reason-preview {
+        white-space: normal;
+        overflow-wrap: anywhere;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
     }
 
     .action-facts div {
@@ -1777,6 +1827,19 @@ body.radar-mode .moderation-topbar {
 .metric-grid span, .metric-grid small { display: block; color: var(--faint); font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
 .metric-grid strong { display: block; margin: 18px 0 13px; font-family: "SFMono-Regular", Consolas, monospace; font-size: 31px; font-weight: 500; }
 .metric-grid small { color: var(--muted); font-size: 9px; }
+.metric-link {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    gap: 5px;
+    align-items: center;
+    margin-top: 13px;
+    color: var(--blue-bright);
+    font-size: 10px;
+    font-weight: 700;
+    text-decoration: none;
+}
+.metric-link:hover { color: var(--ink); text-decoration: underline; }
 .mod-panel {
     overflow: hidden;
     border: 1px solid var(--line);
@@ -2529,6 +2592,32 @@ body.radar-mode .moderation-topbar {
 .action-quick-actions .quick-action-note { border-color: rgba(234, 179, 8, .45); color: #f4c95d; }
 .action-quick-actions .quick-action-revoke { border-color: rgba(239, 71, 111, .5); color: #ff91aa; }
 .action-quick-actions .quick-action-appeals { border-color: rgba(34, 197, 94, .45); color: #7ee2a0; }
+.action-quick-actions .quick-action-delete { border-color: rgba(255, 116, 127, .55); color: #ff9ea8; }
+.action-quick-actions .quick-action-delete svg { width: 14px; height: 14px; }
+.action-quick-actions .quick-action-delete.is-disabled { position: relative; border-color: var(--line); color: var(--faint); cursor: not-allowed; opacity: .55; }
+.action-quick-actions .quick-action-delete.is-disabled:hover::after,
+.action-quick-actions .quick-action-delete.is-disabled:focus-visible::after {
+    position: absolute;
+    z-index: 5;
+    bottom: calc(100% + 9px);
+    left: 50%;
+    width: max-content;
+    max-width: 250px;
+    padding: 8px 10px;
+    border: 1px solid var(--line-bright);
+    border-radius: 8px;
+    color: var(--ink);
+    background: #171c24;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, .3);
+    content: attr(data-tooltip);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.35;
+    pointer-events: none;
+    transform: translateX(-50%);
+}
+.delete-action-modal { max-width: 520px; }
+.delete-action-modal h2 { line-height: 1.25; }
 .action-quick-actions .appeal-start-review { border-color: rgba(34, 197, 94, .5); color: #7ee2a0; }
 .action-quick-actions .appeal-decide-fate { border-color: rgba(249, 115, 22, .55); color: #fdba74; }
 .action-quick-actions .button:hover { filter: brightness(1.18); }

@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, or } from 'drizzle-orm';
 import { getDb } from '../client';
 import {
     moderationActionNotifications,
@@ -26,6 +26,16 @@ export async function findLatestActionNotification(
         .orderBy(desc(moderationActionNotifications.createdAt))
         .limit(1);
     return rows[0] ?? null;
+}
+
+export async function listActionNotifications(actionId: string, recordUuid: string): Promise<ModerationActionNotification[]> {
+    return getDb()
+        .select()
+        .from(moderationActionNotifications)
+        .where(or(
+            eq(moderationActionNotifications.actionId, actionId),
+            eq(moderationActionNotifications.recordUuid, recordUuid),
+        ));
 }
 
 export async function findActionNotificationByMessageId(

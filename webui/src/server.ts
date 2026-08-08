@@ -59,6 +59,12 @@ const browserContentSecurityPolicy = [
     "script-src 'self'",
     "style-src 'self'",
 ].join('; ');
+const browserSecurityHeaders = {
+    'content-security-policy': browserContentSecurityPolicy,
+    'permissions-policy': 'camera=(), geolocation=(), microphone=()',
+    'referrer-policy': 'strict-origin-when-cross-origin',
+    'x-content-type-options': 'nosniff',
+};
 
 function json(data: unknown, status = 200): Response {
     return Response.json(data, {
@@ -66,6 +72,8 @@ function json(data: unknown, status = 200): Response {
         headers: {
             'cache-control': 'no-store',
             'content-security-policy': "default-src 'none'; frame-ancestors 'none'",
+            'referrer-policy': 'no-referrer',
+            'x-content-type-options': 'nosniff',
         },
     });
 }
@@ -73,6 +81,8 @@ function json(data: unknown, status = 200): Response {
 function redirect(location: string, headers?: HeadersInit): Response {
     const responseHeaders = new Headers(headers);
     responseHeaders.set('location', location);
+    responseHeaders.set('referrer-policy', 'no-referrer');
+    responseHeaders.set('x-content-type-options', 'nosniff');
     return new Response(null, { status: 302, headers: responseHeaders });
 }
 
@@ -87,6 +97,44 @@ function errorMessage(error: unknown): string {
     return error instanceof Error ? error.message : 'Something went wrong.';
 }
 
+function publicOperationError(): Response {
+    return json({ error: 'The operation could not be completed.' }, 400);
+}
+
+function csrfError(request: Request): Response | null {
+    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) return null;
+    return request.headers.get('origin') === config.browserOrigin
+        ? null
+        : json({ error: 'Cross-origin request rejected.' }, 403);
+}
+
+type RateLimitEntry = { count: number; resetAt: number };
+const rateLimits = new Map<string, RateLimitEntry>();
+
+function clientAddress(request: Request, server: { requestIP(request: Request): { address: string } | null } | null): string {
+    return server?.requestIP(request)?.address || 'unknown';
+}
+
+function rateLimit(key: string, maximum: number, windowMs: number): Response | null {
+    const now = Date.now();
+    if (rateLimits.size > 10_000) {
+        for (const [storedKey, entry] of rateLimits) {
+            if (entry.resetAt <= now) rateLimits.delete(storedKey);
+        }
+    }
+    const current = rateLimits.get(key);
+    if (!current || current.resetAt <= now) {
+        rateLimits.set(key, { count: 1, resetAt: now + windowMs });
+        return null;
+    }
+    current.count += 1;
+    if (current.count <= maximum) return null;
+    const retryAfter = Math.max(1, Math.ceil((current.resetAt - now) / 1_000));
+    const response = json({ error: 'Too many requests. Please try again later.' }, 429);
+    response.headers.set('retry-after', String(retryAfter));
+    return response;
+}
+
 function isDatabaseConflict(error: unknown): boolean {
     return typeof error === 'object' && error !== null && 'code' in error && error.code === '23505';
 }
@@ -99,6 +147,8 @@ function randomInteger(min: number, max: number): number {
 }
 
 async function authenticated(request: Request) {
+    const rejected = csrfError(request);
+    if (rejected) return { response: rejected, session: null };
     const session = await getRequestSession(request);
     if (!session) return { response: json({ error: 'Authentication required.' }, 401), session: null };
     return { response: null, session };
@@ -149,7 +199,8 @@ async function botToolResponse(body: Record<string, unknown>): Promise<Response>
     try {
         return json(await callBotAtc(body));
     } catch (error) {
-        return json({ error: errorMessage(error) }, 400);
+        console.error('Bot tool operation failed:', errorMessage(error));
+        return publicOperationError();
     }
 }
 
@@ -171,7 +222,7 @@ function staticFile(pathname: string): Response | null {
         ? new Response(file, {
               headers: {
                   'cache-control': pathname.startsWith('/_astro/') ? 'public, max-age=31536000, immutable' : 'no-cache',
-                  'content-security-policy': browserContentSecurityPolicy,
+                  ...browserSecurityHeaders,
               },
           })
         : null;
@@ -181,19 +232,23 @@ function appShell(): Response {
     return new Response(Bun.file(indexFile), {
         headers: {
             'cache-control': 'no-cache',
-            'content-security-policy': browserContentSecurityPolicy,
+            ...browserSecurityHeaders,
         },
     });
 }
 
 const app = new Elysia()
     .get('/health', () => json({ status: 'ok' }))
-    .get('/auth/discord/start', async ({ request }) => {
+    .get('/auth/discord/start', async ({ request, server }) => {
+        const limited = rateLimit(`oauth:start:${clientAddress(request, server)}`, 20, 10 * 60_000);
+        if (limited) return limited;
         const url = new URL(request.url);
         const authorization = await buildDiscordAuthorizeUrl(url.searchParams.get('returnTo'));
         return redirect(authorization.url, { 'set-cookie': oauthBrowserCookie(authorization.browserToken) });
     })
-    .get('/auth/discord/callback', async ({ request }) => {
+    .get('/auth/discord/callback', async ({ request, server }) => {
+        const limited = rateLimit(`oauth:callback:${clientAddress(request, server)}`, 30, 10 * 60_000);
+        if (limited) return limited;
         const url = new URL(request.url);
         const code = url.searchParams.get('code');
         const state = url.searchParams.get('state');
@@ -209,10 +264,16 @@ const app = new Elysia()
         }
     })
     .post('/auth/logout', async ({ request }) => {
+        const rejected = csrfError(request);
+        if (rejected) return rejected;
         await endSession(request);
         return new Response(null, {
             status: 204,
-            headers: { 'set-cookie': expiredSessionCookie() },
+            headers: {
+                'set-cookie': expiredSessionCookie(),
+                'referrer-policy': 'no-referrer',
+                'x-content-type-options': 'nosniff',
+            },
         });
     })
     .get('/api/me', async ({ request }) => {
@@ -342,7 +403,8 @@ const app = new Elysia()
         try {
             return json(await callBotAtc({ operation: 'moderation.update', actorUserId: auth.session.user.id, actionId: params.actionId, kind, newValue, rationale, notificationMode }));
         } catch (error) {
-            return json({ error: errorMessage(error) }, 400);
+            console.error('Moderation edit failed:', errorMessage(error));
+            return publicOperationError();
         }
     })
     .put('/api/moderation/actions/:actionId/private-note', async ({ request, params, body }) => {
@@ -363,7 +425,8 @@ const app = new Elysia()
                 notificationMode: 'no',
             }));
         } catch (error) {
-            return json({ error: errorMessage(error) }, 400);
+            console.error('Private note update failed:', errorMessage(error));
+            return publicOperationError();
         }
     })
     .put('/api/moderation/actions/:actionId/revoke', async ({ request, params, body }) => {
@@ -376,7 +439,18 @@ const app = new Elysia()
         try {
             return json(await callBotAtc({ operation: 'moderation.revoke', actorUserId: auth.session.user.id, actionId: params.actionId, reason, publicNote }));
         } catch (error) {
-            return json({ error: errorMessage(error) }, 400);
+            console.error('Moderation revoke failed:', errorMessage(error));
+            return publicOperationError();
+        }
+    })
+    .delete('/api/moderation/actions/:actionId', async ({ request, params }) => {
+        const auth = await managementAuthenticated(request);
+        if (!auth.session) return auth.response;
+        try {
+            return json(await callBotAtc({ operation: 'moderation.delete', actorUserId: auth.session.user.id, actionId: params.actionId }));
+        } catch (error) {
+            console.error('Moderation deletion failed:', errorMessage(error));
+            return publicOperationError();
         }
     })
     .put('/api/moderation/appeals/:appealId/review', async ({ request, params, body }) => {
@@ -386,7 +460,7 @@ const app = new Elysia()
         const actionId = typeof input.actionId === 'string' ? input.actionId.trim() : '';
         if (!actionId) return json({ error: 'An action ID is required.' }, 400);
         try { return json(await callBotAtc({ operation: 'appeal.review', actorUserId: auth.session.user.id, actionId, appealId: params.appealId })); }
-        catch (error) { return json({ error: errorMessage(error) }, 400); }
+        catch (error) { console.error('Appeal review failed:', errorMessage(error)); return publicOperationError(); }
     })
     .put('/api/moderation/appeals/:appealId/deny', async ({ request, params, body }) => {
         const auth = await moderatorAuthenticated(request);
@@ -397,7 +471,7 @@ const app = new Elysia()
         const publicNote = typeof input.publicNote === 'string' ? input.publicNote.trim() : null;
         if (!actionId || !reason) return json({ error: 'An action ID and reason are required.' }, 400);
         try { return json(await callBotAtc({ operation: 'appeal.deny', actorUserId: auth.session.user.id, actionId, appealId: params.appealId, reason, publicNote })); }
-        catch (error) { return json({ error: errorMessage(error) }, 400); }
+        catch (error) { console.error('Appeal denial failed:', errorMessage(error)); return publicOperationError(); }
     })
     .put('/api/moderation/appeals/:appealId/approve', async ({ request, params, body }) => {
         const auth = await moderatorAuthenticated(request);
@@ -408,7 +482,7 @@ const app = new Elysia()
         const publicNote = typeof input.publicNote === 'string' ? input.publicNote.trim() : null;
         if (!actionId || !reason) return json({ error: 'An action ID and reason are required.' }, 400);
         try { return json(await callBotAtc({ operation: 'appeal.approve', actorUserId: auth.session.user.id, actionId, appealId: params.appealId, reason, publicNote })); }
-        catch (error) { return json({ error: errorMessage(error) }, 400); }
+        catch (error) { console.error('Appeal approval failed:', errorMessage(error)); return publicOperationError(); }
     })
     .get('/api/moderation/tools/member/:userId', async ({ request, params }) => {
         const auth = await moderatorAuthenticated(request);
@@ -455,7 +529,8 @@ const app = new Elysia()
         try {
             return json({ settings: await updateManagedBotSettings(updates, auth.session.user.id) });
         } catch (error) {
-            return json({ error: errorMessage(error) }, 400);
+            console.error('Managed settings update failed:', errorMessage(error));
+            return publicOperationError();
         }
     })
     .post('/api/moderation/tools/action', async ({ request, body }) => {
@@ -529,8 +604,10 @@ const app = new Elysia()
     .post('/api/actions/:actionId/appeal-window', async ({ request, params }) => {
         const auth = await authenticated(request);
         if (!auth.session) return auth.response;
+        const limited = rateLimit(`appeal:window:${auth.session.user.id}`, 10, 10 * 60_000);
+        if (limited) return limited;
         const action = await findActionForUser(auth.session.user.id, params.actionId);
-        if (!action) return json({ error: 'Action not found.' }, 404);
+        if (!action) return json({ error: 'This action is no longer available for appeal.' }, 409);
         const eligibility = appealEligibility(action);
         if (!eligibility.allowed) return json({ error: eligibility.reason || 'This action cannot be appealed.' }, 409);
 
@@ -539,6 +616,7 @@ const app = new Elysia()
         const operation = randomInteger(0, 1) === 0 ? '+' : '×';
         const answer = operation === '+' ? left + right : left * right;
         const window = await createAppealWindow({
+            guildId: config.discordGuildId,
             sessionHash: auth.session.tokenHash,
             discordUserId: auth.session.user.id,
             actionId: action.actionId,
@@ -554,6 +632,8 @@ const app = new Elysia()
     .post('/api/actions/:actionId/appeal-prepare', async ({ request, params, body }) => {
         const auth = await authenticated(request);
         if (!auth.session) return auth.response;
+        const limited = rateLimit(`appeal:prepare:${auth.session.user.id}`, 30, 10 * 60_000);
+        if (limited) return limited;
         const input = body as Record<string, unknown>;
         const windowId = typeof input?.windowId === 'string' ? input.windowId : '';
         const window = await findAppealWindow(windowId, auth.session.tokenHash, auth.session.user.id, params.actionId);
@@ -566,7 +646,7 @@ const app = new Elysia()
             return json({ error: 'The math answer was incorrect.' }, 400);
         }
         const action = await findActionForUser(auth.session.user.id, params.actionId);
-        if (!action) return json({ error: 'Action not found.' }, 404);
+        if (!action) return json({ error: 'This action is no longer available for appeal.' }, 409);
         const answers = validateAppealAnswers(input.answers, action.kind);
         if (!answers) {
             return json({ error: 'Some answers are missing or do not contain enough detail.' }, 400);
@@ -581,6 +661,8 @@ const app = new Elysia()
     .post('/api/actions/:actionId/appeals', async ({ request, params, body }) => {
         const auth = await authenticated(request);
         if (!auth.session) return auth.response;
+        const limited = rateLimit(`appeal:submit:${auth.session.user.id}`, 10, 10 * 60_000);
+        if (limited) return limited;
         const input = body as Record<string, unknown>;
         const windowId = typeof input?.windowId === 'string' ? input.windowId : '';
         const window = await findAppealWindow(windowId, auth.session.tokenHash, auth.session.user.id, params.actionId);
@@ -588,7 +670,7 @@ const app = new Elysia()
             return json({ error: 'Your appeal session expired. Please start again.' }, 400);
         }
         const action = await findActionForUser(auth.session.user.id, params.actionId);
-        if (!action) return json({ error: 'Action not found.' }, 404);
+        if (!action) return json({ error: 'This action is no longer available for appeal.' }, 409);
         const eligibility = appealEligibility(action);
         if (!eligibility.allowed) return json({ error: eligibility.reason || 'This action cannot be appealed.' }, 409);
 
@@ -614,6 +696,9 @@ const app = new Elysia()
             return json({ id: appeal.id, actionId: action.actionId }, 201);
         } catch (error) {
             if (isDatabaseConflict(error)) return json({ error: 'An appeal for this action is already under review.' }, 409);
+            if (error instanceof Error && error.message === 'This action is no longer available for appeal.') {
+                return json({ error: error.message }, 409);
+            }
             throw error;
         }
     })
