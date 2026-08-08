@@ -2,6 +2,14 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 
 const prefix = 'enc:v1';
 
+function decodeSegment(segment: string, name: string): Buffer {
+    const decoded = Buffer.from(segment, 'base64url');
+    if (decoded.toString('base64url') !== segment) {
+        throw new Error(`Managed setting ${name} is invalid.`);
+    }
+    return decoded;
+}
+
 function encryptionKey(): Buffer | null {
     const encoded = process.env.BOT_SETTINGS_ENCRYPTION_KEY?.trim();
     if (!encoded) {
@@ -33,9 +41,13 @@ export function decryptSecret(value: string): string {
     if (!key) throw new Error('BOT_SETTINGS_ENCRYPTION_KEY is required to decrypt managed settings.');
     const parts = value.split(':');
     if (parts.length !== 5) throw new Error('Managed setting ciphertext is invalid.');
-    const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(parts[2]!, 'base64url'));
-    decipher.setAuthTag(Buffer.from(parts[3]!, 'base64url'));
-    return Buffer.concat([decipher.update(Buffer.from(parts[4]!, 'base64url')), decipher.final()]).toString('utf8');
+    const iv = decodeSegment(parts[2]!, 'IV');
+    const authTag = decodeSegment(parts[3]!, 'authentication tag');
+    const ciphertext = decodeSegment(parts[4]!, 'ciphertext');
+    if (iv.length !== 12 || authTag.length !== 16) throw new Error('Managed setting ciphertext is invalid.');
+    const decipher = createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(authTag);
+    return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
 }
 
 export function isEncryptedSecret(value: string): boolean {
